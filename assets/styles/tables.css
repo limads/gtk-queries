@@ -1,0 +1,13 @@
+.table-cell {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border : 1px solid #F0F0F0;
+}
+
+.first-row {
+  /*background-color : #E9E9E9;*/
+  font-weight : bold;
+  border-bottom : 1px solid #F0F0F0;
+}
