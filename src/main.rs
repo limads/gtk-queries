@@ -12,12 +12,14 @@ use std::path::PathBuf;
 // use sourceview::*;
 use std::ffi::OsStr;
 use gdk::ModifierType;
-use tables::{EnvironmentSource, TableEnvironment, button::TableChooser};
+use gdk::{self, enums::key};
+use tables::{EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
 use tables::table_widget::*;
 mod conn_popover;
 use conn_popover::*;
 use tables::table_notebook::*;
 use sourceview::*;
+use std::boxed;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -33,6 +35,59 @@ pub struct QueriesApp {
     popover : Rc<RefCell<ConnPopover>>,
     table_env : Rc<RefCell<TableEnvironment>>,
     // old_source_content : Rc<RefCell<String>>
+}
+
+pub fn set_tables(
+    table_env : &TableEnvironment,
+    tables_nb : &mut TableNotebook
+) {
+    tables_nb.clear();
+    let all_tbls = table_env.all_tables_as_rows();
+    if all_tbls.len() == 0 {
+        tables_nb.add_page("application-exit",
+            None, Some("No queries"), None);
+    } else {
+        for t_rows in all_tbls {
+            let nrows = t_rows.len();
+            if nrows > 0 {
+                let ncols = t_rows[0].len();
+                tables_nb.clear();
+                let name = format!("({} x {})", nrows, ncols);
+                tables_nb.add_page("network-server-symbolic",
+                    Some(&name[..]), None, Some(t_rows));
+            } else {
+                println!("No rows to display");
+            }
+        }
+    }
+}
+
+pub fn update_queries(
+    tbl_env : &mut TableEnvironment,
+    view : &sourceview::View,
+    nb : &TableNotebook
+) {
+    if let Some(buffer) = view.get_buffer() {
+        let text : Option<String> = match buffer.get_selection_bounds() {
+            Some((from,to,)) => {
+                from.get_text(&to).map(|txt| txt.to_string())
+            },
+            None => {
+                buffer.get_text(
+                    &buffer.get_start_iter(),
+                    &buffer.get_end_iter(),
+                    true
+                ).map(|txt| txt.to_string())
+            }
+        };
+        if let Some(txt) = text {
+            tbl_env.send_query(txt);
+            view.set_sensitive(false);
+            nb.nb.set_sensitive(false);
+        }
+    } else {
+        println!("Could not retrieve text buffer");
+    }
 }
 
 impl QueriesApp {
@@ -51,65 +106,99 @@ impl QueriesApp {
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
 
-        let conn_btn : Button = builder.get_object("conn_btn").unwrap();
-        let popover = ConnPopover::new_from_glade(
-            conn_btn,"assets/gui/conn-popover.glade");
-        popover.hook_signals();
-        let popover = Rc::new(RefCell::new(popover));
-
         let env_source = EnvironmentSource::File("".into(),"".into());
         let table_env = TableEnvironment::new(env_source);
         let table_env = Rc::new(RefCell::new(table_env));
+        let conn_btn : Button = builder.get_object("conn_btn").unwrap();
+        let popover = ConnPopover::new_from_glade(
+            conn_btn,"assets/gui/conn-popover.glade");
+        popover.hook_signals(table_env.clone());
+        let popover = Rc::new(RefCell::new(popover));
+        let file_btn : FileChooserButton =
+            builder.get_object("file_btn").unwrap();
 
-        let queries_app = QueriesApp{
-            exec_btn, view, tables_nb, header,
-            popover, table_env
-        };
-
+        //let tables_nb_c = tables_nb.clone();
+        let mut table_chooser = TableChooser::new(file_btn, table_env.clone());
         {
-            let queries_app = queries_app.clone();
-            queries_app.clone().exec_btn.connect_clicked(move |btn| {
-                let mut popover =
-                    queries_app.popover.try_borrow_mut().unwrap();
-                let mut table_env =
-                    queries_app.table_env.try_borrow_mut().unwrap();
-                if let Some(buffer) = queries_app.view.get_buffer() {
-                    QueriesApp::run_query(&mut popover, &buffer);
-                    popover.mark_all_valid();
-                    let valid_queries = popover.get_valid_queries();
-                    match table_env.update_content_from_queries(valid_queries) {
-                        Err(e) => { println!("{}", e); },
-                        _ => {}
+            let table_env = table_env.clone();
+            let tables_nb = tables_nb.clone();
+            table_chooser.append_cb(boxed::Box::new(move |btn| {
+                if let Ok(t_env) = table_env.try_borrow_mut() {
+                    set_tables(&t_env, &mut tables_nb.clone());
+                } else {
+                    println!("Unable to get reference to table env");
+                }
+            }));
+        }
+
+        // let sql_listener = Rc::new(RefCell::new(SqlListener::launch()));
+        //let table_env_c = table_env.clone();
+        let queries_app = QueriesApp{
+            exec_btn : exec_btn, view : view, tables_nb : tables_nb.clone(), header : header,
+            popover : popover, table_env : table_env.clone()
+        };
+        let queries_app_c = queries_app.clone();
+        // let sql_listener_c = sql_listener.clone();
+        let table_env_c = queries_app.clone().table_env.clone();
+        let view_c = queries_app_c.view.clone();
+        let tables_nb_c = queries_app.clone().tables_nb.clone();
+        view_c.connect_key_release_event(move |view, ev_key| {
+            if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
+                match table_env_c.try_borrow_mut() {
+                    Ok(mut env) => { update_queries(&mut env, &view.clone(), &tables_nb_c.clone()); },
+                    _ => { println!("Error recovering references"); }
+                }
+            }
+            glib::signal::Inhibit(false)
+        });
+        // Check if there is a SQL answer before setting the widgets to sensitive again.
+        //let sql_listener_c = sql_listener.clone();
+        let queries_app_c = queries_app.clone();
+        let view_c = queries_app_c.view.clone();
+        let tables_nb_c = queries_app_c.tables_nb.clone();
+        let tbl_env_c = table_env.clone();
+        gtk::timeout_add(16, move || {
+            if !view_c.is_sensitive() {
+                if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
+                    if let Some(ans) = t_env.maybe_update_from_query_results() {
+                        match ans {
+                            Ok(_) => { set_tables(&t_env, &mut tables_nb_c.clone()); },
+                            Err(s) => { println!("{}", s); }
+                        }
+                        view_c.set_sensitive(true);
+                        tables_nb_c.nb.set_sensitive(true);
                     }
                 }
-                let nb = &queries_app.tables_nb;
-                nb.clear();
-                if popover.queries.is_empty() {
-                    nb.add_page("application-exit",
-                        None, Some("No queries"), None);
-                } else {
-                    for q in popover.queries.iter() {
-                        match &q.err_msg {
-                            None => {
-                                let rows = q.as_rows();
-                                let nrows = rows.len();
-                                if let Some(cols) = rows.get(0) {
-                                    let ncols = rows.len();
-                                    let name = format!("({} x {})",
-                                        nrows, ncols);
-                                    nb.add_page("network-server-symbolic",
-                                    Some(&name[..]), None, Some(rows));
-                                } else {
-                                    print!("Empty content");
-                                }
+            }
+            glib::source::Continue(true)
+        });
+        let query_popover : Popover =
+            builder.get_object("query_popover").unwrap();
+        let table_menu_c = query_popover.clone();
+        let query_toggle : ToggleButton =
+            builder.get_object("query_toggle").unwrap();
+        query_toggle.connect_toggled(move |toggle| {
+            if toggle.get_active() {
+                table_menu_c.show();
+            } else {
+                table_menu_c.hide();
+            }
+        });
 
-                            },
-                            Some(msg) => {
-                                nb.add_page("application-exit",
-                                    None, Some(&msg[..]), None);
-                            }
-                        }
-                    }
+        let query_toggle_c = query_toggle.clone();
+        query_popover.connect_closed(move |_popover| {
+            query_toggle_c.set_active(false);
+        });
+        {
+            let queries_app = queries_app.clone();
+            let table_env_c = table_env.clone();
+            let view_c = queries_app_c.view.clone();
+            let tables_nb_c = queries_app_c.tables_nb.clone();
+            queries_app.clone().exec_btn.connect_clicked(move |btn| {
+                if let Ok(mut env) = table_env_c.try_borrow_mut() {
+                    update_queries(&mut env, &view_c, &tables_nb_c);
+                } else {
+                    println!("Failed to acquire lock");
                 }
             });
         }
@@ -118,34 +207,34 @@ impl QueriesApp {
 
     fn check_active_selection(&self) {
         if let Some(buf) = self.view.get_buffer() {
-            if buf.get_has_selection() {
+
+            /*if buf.get_has_selection() {
                 self.exec_btn.set_sensitive(true);
             } else {
                 self.exec_btn.set_sensitive(false);
-            }
+            }*/
+
         }
     }
 
-    fn run_query(popover : &mut ConnPopover, buffer : &TextBuffer) {
+    /*fn run_query(popover : &mut ConnPopover, buffer : &TextBuffer) {
         let mut query = String::new();
         if let Some((from,to,)) = buffer.get_selection_bounds() {
             if let Some(txt) = from.get_text(&to) {
                 query = txt.to_string();
             }
         }
-
         if query.len() > 0 {
             popover.parse_sql(query);
             popover.try_run_all();
         }
-
         // TODO Update notebook here with query results
-    }
+    }*/
 
 }
 
 fn build_ui(app: &gtk::Application) {
-    let builder = Builder::new_from_file("assets/gui/gnome-queries.glade");
+    let builder = Builder::new_from_file("assets/gui/gtk-queries.glade");
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
     win.set_application(Some(app));
@@ -214,8 +303,6 @@ fn main() {
             _ => { println!("Unavailable reference"); }
         }
     });*/
-
-
 
 // SourceView key release
 /*{

@@ -5,6 +5,8 @@ use gtk::*;
 use gtk::prelude::*;
 use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
+use tables::TableEnvironment;
+use tables::sql::{SqlListener};
 
 // Notice the lifetime of the popover (signaler)
 // and the connection (to-be-mutated) are both
@@ -22,9 +24,9 @@ pub struct ConnPopover {
     // conn : &'a mut Option<Connection>,
     //fn_swtich_conn : boxed::Box<dyn Fn(&'a Switch)>
     conn_switch : Switch,
-    rc_conn : Rc<RefCell<Option<Connection>>>,
-    pub queries : Vec<PostgreQuery>,
-    pub valid_queries : Vec<usize>
+    // rc_conn : Rc<RefCell<Option<Connection>>>,
+    // pub queries : Vec<PostgreQuery>,
+    // pub valid_queries : Vec<usize>
 }
 
 /*
@@ -80,8 +82,8 @@ impl ConnPopover {
             builder.get_object("conn_switch").unwrap();
         let conn_label : Label =
             builder.get_object("conn_status_label").unwrap();
-        let conn : Option<Connection> =  Option::None;
-        let rc_conn = Rc::new(RefCell::new(conn));
+        // let conn : Option<Connection> =  Option::None;
+        // let rc_conn = Rc::new(RefCell::new(conn));
 
         /*{
             let conn = Rc::clone(&conn);
@@ -97,41 +99,40 @@ impl ConnPopover {
         //    let is_connected = conn.is_some();
         //};
         // let fn_swtich_conn = boxed::Box::new(conn_fn);
-
-        let queries = Vec::new();
-        let valid_queries = Vec::new();
-        let popover = ConnPopover{
-            btn,popover,entries,conn_label,
-            conn_switch,rc_conn, queries, valid_queries };
+        //let queries = Vec::new();
+        //let valid_queries = Vec::new();
+        let popover = ConnPopover{btn,popover,entries,conn_label,conn_switch };
         //popover.hook_signals();
         popover
     }
 
-    pub fn hook_signals(&self) {
-        let rc_conn = Rc::clone(&self.rc_conn);
+    pub fn hook_signals(&self, table_env : Rc<RefCell<TableEnvironment>>) {
         let entries = self.entries.clone();
         let label = self.conn_label.clone();
         self.conn_switch.connect_state_set(move |_switch, state| {
-            if let Ok(mut c) = (*rc_conn).try_borrow_mut() {
-                let is_connected = c.is_some();
-                println!("{:?}", state);
-                *c =  match (state, is_connected) {
-                    (true, true) => None,
-                    (false, true) => None,
-                    (false, false) => None,
-                    (true, false) =>
-                        match ConnPopover::try_connect(&entries) {
-                            Ok(ok_conn) => {
-                                label.set_text("Connected");
-                                Some(ok_conn)
+            if let Ok(mut t_env) = table_env.try_borrow_mut() {
+                match (state, t_env.is_engine_active()) {
+                    (false, true) => {
+                        t_env.disable_engine();
+                    },
+                    (true, false) => {
+                        let msg = match ConnPopover::generate_conn_str(&entries) {
+                            Ok(conn_str) => {
+                                match t_env.set_new_postgre_engine(conn_str) {
+                                    Ok(_) => String::from("Connected"),
+                                    Err(e) => format!("{}", e)
+                                }
                             },
                             Err(err_str) => {
-                                label.set_text(&err_str);
-                                //switch.set_active(false);
-                                None
+                                err_str.into()
                             }
-                        }
+                        };
+                        label.set_text(&msg[..]);
+                    },
+                    _ => { }
                 }
+            } else {
+                println!("Could not acquire lock over table environment");
             }
             Inhibit(false) //HERE
         });
@@ -142,9 +143,9 @@ impl ConnPopover {
         });
     }
 
-    fn try_connect(entries : &[gtk::Entry; 4])
-        -> Result<Connection,String> {
-
+    fn generate_conn_str(
+        entries : &[gtk::Entry; 4]
+    ) -> Result<String,String> {
         let mut conn_info : HashMap<&str, String> = HashMap::new();
         let fields = ["host", "user", "password", "dbname"];
         for (entry, field) in entries.iter().zip(fields.iter()) {
@@ -189,103 +190,7 @@ impl ConnPopover {
         if let Some(s) = conn_info.get("dbname") {
             conn_str = conn_str + "/" + &s;
         }
-        let tls_mode = TlsMode::None;
-        println!("{}", conn_str);
-        match Connection::connect(conn_str, tls_mode) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(e.to_string())
-        }
-    }
-
-    /// Parse a SQL String to fill queries vector.
-    /// Actual validity of the queries is not checked.
-    /// Execution is only made at .run_all() method.
-    pub fn parse_sql(&mut self, sql_text : String) {
-        self.queries.clear();
-        for q in sql_text.split(";") {
-            let mut q_str = q.to_string();
-            q_str += ";";
-            println!("{}", q_str);
-            self.queries.push( PostgreQuery::new(q_str));
-            // if q.peek().next().is_none() {
-            //    break;
-            //}
-        }
-    }
-
-    pub fn try_run_all(&mut self) {
-        if let Ok(mut maybe_conn) = self.rc_conn.clone().try_borrow_mut() {
-            //let maybe_conn = *maybe_conn;
-            if let Some(mut c) = maybe_conn.as_mut() {
-                for q in self.queries.iter_mut() {
-                    q.run(&c);
-                    if let Some(msg) = &q.err_msg {
-                        println!("{}", msg);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn try_run_some(&mut self) {
-        if let Ok(mut maybe_conn) = self.rc_conn.clone().try_borrow_mut() {
-
-            if let Some(mut c) = maybe_conn.as_mut() {
-                println!("valid queries : {:?}", self.valid_queries);
-                for i in self.valid_queries.iter() {
-                    if let Some(mut q) = self.queries.get_mut(*i) {
-                        q.run(&c);
-                        if let Some(msg) = &q.err_msg {
-                            println!("{}", msg);
-                        }
-                    }
-                }
-            } else {
-                println!("No connections available");
-            }
-        }
-    }
-
-    pub fn mark_all_valid(&mut self) {
-        self.valid_queries = (0..self.queries.len()).collect();
-    }
-
-    pub fn get_valid_queries(&self) -> Vec<&PostgreQuery> {
-        let mut queries : Vec<&PostgreQuery> = Vec::new();
-        //for q in self.queries.iter() {
-        //if q.err_msg.is_none() {
-        //    valid_queries.push(&q);
-        //}
-        //}
-
-        for i in self.valid_queries.iter() {
-            if let Some(q) = self.queries.get(*i) {
-                queries.push(q);
-            }
-        }
-
-        queries
-    }
-
-     pub fn get_valid_queries_code(&self) -> Vec<String> {
-        let queries = self.get_valid_queries();
-        queries.iter().map(|q|{ q.query.clone() }).collect()
-    }
-
-    pub fn get_all_queries_code(&self) -> Vec<&str> {
-        self.queries.iter().map(|q| { q.query.as_str() }).collect()
-    }
-
-    pub fn get_subset_valid_queries(
-        &self,
-        idx : Vec<usize>)
-    -> Vec<&PostgreQuery> {
-        let queries = self.get_valid_queries().clone();
-        let mut keep_queries = Vec::new();
-        for i in idx {
-            keep_queries.push(queries[i]);
-        }
-        keep_queries
+        Ok(conn_str)
     }
 
 }
