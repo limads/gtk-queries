@@ -21,7 +21,7 @@
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">media-floppy</property>
+    <property name="icon_name">document-save-as-symbolic</property>
   </object>
   <object class="GtkImage" id="image2">
     <property name="visible">True</property>
@@ -69,7 +69,7 @@
           </packing>
         </child>
         <child>
-          <object class="GtkButton" id="save_btn">
+          <object class="GtkButton" id="csv_btn">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>

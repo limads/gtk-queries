@@ -7,6 +7,8 @@ use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
 use tables::TableEnvironment;
 use tables::sql::{SqlListener};
+use tables::environment_source::EnvironmentSource;
+use gtk::prelude::*;
 
 // Notice the lifetime of the popover (signaler)
 // and the connection (to-be-mutated) are both
@@ -56,7 +58,6 @@ impl ConnPopover {
         builder.get_object("host_entry");
        ConnPopover{btn, popover, conn}
     }*/
-
     /* Load popover from a path to a glade file */
     /* It is important to notice ConnPopover will take ownership
     of btn here */
@@ -84,7 +85,6 @@ impl ConnPopover {
             builder.get_object("conn_status_label").unwrap();
         // let conn : Option<Connection> =  Option::None;
         // let rc_conn = Rc::new(RefCell::new(conn));
-
         /*{
             let conn = Rc::clone(&conn);
             conn_switch.connect_activate(move |switch| {
@@ -118,7 +118,10 @@ impl ConnPopover {
                     (true, false) => {
                         let msg = match ConnPopover::generate_conn_str(&entries) {
                             Ok(conn_str) => {
-                                match t_env.set_new_postgre_engine(conn_str) {
+                                let res = t_env.update_source(
+                                    EnvironmentSource::PostgreSQL((conn_str, "".into()))
+                                );
+                                match res {
                                     Ok(_) => String::from("Connected"),
                                     Err(e) => format!("{}", e)
                                 }

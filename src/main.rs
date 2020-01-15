@@ -13,13 +13,15 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use tables::{environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
 use tables::table_widget::*;
 mod conn_popover;
 use conn_popover::*;
 use tables::table_notebook::*;
 use sourceview::*;
 use std::boxed;
+use std::process::Command;
+use gtk::prelude::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -47,11 +49,11 @@ pub fn set_tables(
         tables_nb.add_page("application-exit",
             None, Some("No queries"), None);
     } else {
+        tables_nb.clear();
         for t_rows in all_tbls {
             let nrows = t_rows.len();
             if nrows > 0 {
                 let ncols = t_rows[0].len();
-                tables_nb.clear();
                 let name = format!("({} x {})", nrows, ncols);
                 tables_nb.add_page("network-server-symbolic",
                     Some(&name[..]), None, Some(t_rows));
@@ -81,6 +83,7 @@ pub fn update_queries(
             }
         };
         if let Some(txt) = text {
+            //println!("{}", txt);
             tbl_env.send_query(txt);
             view.set_sensitive(false);
             nb.nb.set_sensitive(false);
@@ -167,6 +170,10 @@ impl QueriesApp {
                         }
                         view_c.set_sensitive(true);
                         tables_nb_c.nb.set_sensitive(true);
+
+                        for t_csv in t_env.all_tables_as_csv() {
+                            println!("{}", t_csv);
+                        }
                     }
                 }
             }
@@ -202,6 +209,37 @@ impl QueriesApp {
                 }
             });
         }
+
+        {
+            let tables_nb = tables_nb.clone();
+            let tbl_env = table_env.clone();
+            let csv_btn : Button =
+                builder.get_object("csv_btn").unwrap();
+            let save_dialog : FileChooserDialog =
+                builder.get_object("save_dialog").unwrap();
+            save_dialog.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+                            if let Ok(t) = tbl_env.try_borrow() {
+                                if let Ok(mut f) = File::create(path) {
+                                    let idx = tables_nb.get_page_index();
+                                    if let Some(content) = t.get_text_at_index(idx) {
+                                        let _ = f.write_all(&content.into_bytes());
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    _ => { }
+                }
+            });
+            csv_btn.connect_clicked(move |btn| {
+                save_dialog.run();
+                save_dialog.hide();
+            });
+        }
+
         queries_app
     }
 
