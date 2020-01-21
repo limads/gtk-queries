@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
 use tables::table_widget::*;
 mod conn_popover;
 use conn_popover::*;
@@ -36,6 +36,9 @@ pub struct QueriesApp {
     // save_dialog : Dialog,
     popover : Rc<RefCell<ConnPopover>>,
     table_env : Rc<RefCell<TableEnvironment>>,
+    query_popover : Popover,
+    query_toggle : ToggleButton,
+    ws_toggle : ToggleButton
     // old_source_content : Rc<RefCell<String>>
 }
 
@@ -52,9 +55,10 @@ pub fn set_tables(
         tables_nb.clear();
         for t_rows in all_tbls {
             let nrows = t_rows.len();
+            //println!("New table with {} rows", nrows);
             if nrows > 0 {
                 let ncols = t_rows[0].len();
-                let name = format!("({} x {})", nrows, ncols);
+                let name = format!("({} x {})", nrows - 1, ncols);
                 tables_nb.add_page("network-server-symbolic",
                     Some(&name[..]), None, Some(t_rows));
             } else {
@@ -62,6 +66,17 @@ pub fn set_tables(
             }
         }
     }
+}
+
+pub fn send_query_and_wait(
+    sql : String,
+    tbl_env : &mut TableEnvironment,
+    view : &sourceview::View,
+    nb : &TableNotebook
+) {
+    tbl_env.send_query(sql);
+    view.set_sensitive(false);
+    nb.nb.set_sensitive(false);
 }
 
 pub fn update_queries(
@@ -83,10 +98,7 @@ pub fn update_queries(
             }
         };
         if let Some(txt) = text {
-            //println!("{}", txt);
-            tbl_env.send_query(txt);
-            view.set_sensitive(false);
-            nb.nb.set_sensitive(false);
+            send_query_and_wait(txt, tbl_env, view, nb);
         }
     } else {
         println!("Could not retrieve text buffer");
@@ -119,8 +131,131 @@ impl QueriesApp {
         let popover = Rc::new(RefCell::new(popover));
         let file_btn : FileChooserButton =
             builder.get_object("file_btn").unwrap();
+        let table_popover : Popover =
+            builder.get_object("table_popover").unwrap();
+        //let ops_stack : Stack =
+        //    builder.get_object("ops_stack").unwrap();
+        let ws_toggle : ToggleButton =
+            builder.get_object("ws_toggle").unwrap();
+        //let query_toggle : ToggleButton =
+        //    builder.get_object("query_toggle").unwrap();
 
-        //let tables_nb_c = tables_nb.clone();
+        {
+            let table_popover = table_popover.clone();
+            ws_toggle.connect_toggled(move |toggle| {
+                if toggle.get_active() {
+                    table_popover.show();
+                } else {
+                    table_popover.hide();
+                }
+            });
+        }
+        {
+            let ws_toggle = ws_toggle.clone();
+            let table_popover = table_popover.clone();
+            table_popover.connect_closed(move |_popover| {
+                ws_toggle.set_active(false);
+            });
+        }
+
+        let new_db_dialog : FileChooserDialog =
+            builder.get_object("new_db_dialog").unwrap();
+        {
+            let new_db_btn : Button =
+                builder.get_object("new_db_btn").unwrap();
+            let new_db_dialog = new_db_dialog.clone();
+            new_db_btn.connect_clicked(move |_btn| {
+                new_db_dialog.run();
+                new_db_dialog.hide();
+            });
+        }
+
+        {
+            let t_env = table_env.clone();
+            new_db_dialog.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+                            if let (Ok(mut t_env), Some(p_str)) = (t_env.try_borrow_mut(), path.to_str()) {
+                                let res = t_env.update_source(
+                                    EnvironmentSource::SQLite3((
+                                        p_str.into(),
+                                        String::from(""))
+                                    )
+                                );
+                                match res {
+                                    Ok(_) => { },
+                                    Err(s) => println!("{}", s)
+                                }
+                            } else {
+                                println!("Could not acquire mutable reference t_env/path not convertible");
+                            }
+                        } else {
+                            println!("No filename informed");
+                        }
+                    },
+                    _ => { }
+                }
+            });
+        }
+
+        let csv_upload_btn : Button =
+            builder.get_object("csv_upload_btn").unwrap();
+        //let code_upload_btn : Button =
+        //    builder.get_object("new_db_btn").unwrap();
+        let csv_upload_dialog : FileChooserDialog =
+            builder.get_object("csv_upload_dialog").unwrap();
+        {
+            let csv_upload_dialog = csv_upload_dialog.clone();
+            csv_upload_btn.connect_clicked(move |_btn| {
+                csv_upload_dialog.run();
+                csv_upload_dialog.hide();
+            });
+        }
+
+        {
+            let t_env = table_env.clone();
+            let view = view.clone();
+            let nb = tables_nb.clone();
+            csv_upload_dialog.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+                            if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {
+                                if let Some(name) = name.map(|n| n.split('.').next()) {
+                                    if let (Some(name), Ok(mut t_env)) = (name, t_env.try_borrow_mut()) {
+                                        let mut content : String = String::new();
+                                        if let Ok(mut f) = File::open(path) {
+                                            if let Ok(_) = f.read_to_string(&mut content) {
+                                                let t = tables::table::Table::new_from_text(
+                                                    Some(name.to_string()),
+                                                    content
+                                                );
+                                                match t {
+                                                    Ok(t) => {
+                                                        if let Some(sql) = t.sql_string() {
+                                                            println!("{}", sql);
+                                                            send_query_and_wait(sql, &mut t_env, &view, &nb);
+                                                        } else {
+                                                            println!("Could not generate SQL string for table");
+                                                        }
+                                                    },
+                                                    Err(e) => println!("{}", e)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    },
+                    _ => { }
+                }
+            });
+        }
+
+        // let tables_nb_c = tables_nb.clone();
         let mut table_chooser = TableChooser::new(file_btn, table_env.clone());
         {
             let table_env = table_env.clone();
@@ -136,9 +271,14 @@ impl QueriesApp {
 
         // let sql_listener = Rc::new(RefCell::new(SqlListener::launch()));
         //let table_env_c = table_env.clone();
+        let query_popover : Popover =
+            builder.get_object("query_popover").unwrap();
+        let query_toggle : ToggleButton =
+            builder.get_object("query_toggle").unwrap();
         let queries_app = QueriesApp{
             exec_btn : exec_btn, view : view, tables_nb : tables_nb.clone(), header : header,
-            popover : popover, table_env : table_env.clone()
+            popover : popover, table_env : table_env.clone(), query_popover : query_popover,
+            query_toggle : query_toggle, ws_toggle : ws_toggle
         };
         let queries_app_c = queries_app.clone();
         // let sql_listener_c = sql_listener.clone();
@@ -148,11 +288,15 @@ impl QueriesApp {
         view_c.connect_key_release_event(move |view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
                 match table_env_c.try_borrow_mut() {
-                    Ok(mut env) => { update_queries(&mut env, &view.clone(), &tables_nb_c.clone()); },
+                    Ok(mut env) => {
+                        update_queries(&mut env, &view.clone(), &tables_nb_c.clone());
+                    },
                     _ => { println!("Error recovering references"); }
                 }
+                glib::signal::Inhibit(true)
+            } else {
+                glib::signal::Inhibit(false)
             }
-            glib::signal::Inhibit(false)
         });
         // Check if there is a SQL answer before setting the widgets to sensitive again.
         //let sql_listener_c = sql_listener.clone();
@@ -179,12 +323,9 @@ impl QueriesApp {
             }
             glib::source::Continue(true)
         });
-        let query_popover : Popover =
-            builder.get_object("query_popover").unwrap();
-        let table_menu_c = query_popover.clone();
-        let query_toggle : ToggleButton =
-            builder.get_object("query_toggle").unwrap();
-        query_toggle.connect_toggled(move |toggle| {
+
+        let table_menu_c = queries_app.query_popover.clone();
+        queries_app.query_toggle.connect_toggled(move |toggle| {
             if toggle.get_active() {
                 table_menu_c.show();
             } else {
@@ -192,8 +333,8 @@ impl QueriesApp {
             }
         });
 
-        let query_toggle_c = query_toggle.clone();
-        query_popover.connect_closed(move |_popover| {
+        let query_toggle_c = queries_app.query_toggle.clone();
+        queries_app.query_popover.connect_closed(move |_popover| {
             query_toggle_c.set_active(false);
         });
         {
@@ -275,8 +416,41 @@ fn build_ui(app: &gtk::Application) {
     let builder = Builder::new_from_file("assets/gui/gtk-queries.glade");
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
-    win.set_application(Some(app));
+
     let queries_app = QueriesApp::new_from_builder(&builder);
+
+    {
+        let toggle_q = queries_app.query_toggle.clone();
+        let toggle_w = queries_app.ws_toggle.clone();
+        let view = queries_app.view.clone();
+        win.connect_key_release_event(move |win, ev_key| {
+            if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
+                if ev_key.get_keyval() == key::q {
+                    if toggle_q.get_active() {
+                        toggle_q.set_active(false);
+                    } else {
+                        toggle_q.set_active(true);
+                        view.grab_focus();
+                    }
+                    return glib::signal::Inhibit(true)
+                }
+                if ev_key.get_keyval() == key::w {
+                    if toggle_w.get_active() {
+                        toggle_w.set_active(false);
+                    } else {
+                        toggle_w.set_active(true);
+                    }
+                    return glib::signal::Inhibit(true)
+                }
+                return glib::signal::Inhibit(false)
+            } else {
+                glib::signal::Inhibit(false)
+            }
+        });
+    }
+
+    win.set_application(Some(app));
+
     win.show_all();
 }
 
