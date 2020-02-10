@@ -179,9 +179,10 @@ impl QueriesApp {
                             if let (Ok(mut t_env), Some(p_str)) = (t_env.try_borrow_mut(), path.to_str()) {
                                 let res = t_env.update_source(
                                     EnvironmentSource::SQLite3((
-                                        p_str.into(),
+                                        Some(p_str.into()),
                                         String::from(""))
-                                    )
+                                    ),
+                                    true
                                 );
                                 match res {
                                     Ok(_) => { },
@@ -224,7 +225,7 @@ impl QueriesApp {
                             if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {
                                 if let Some(name) = name.map(|n| n.split('.').next()) {
                                     if let (Some(name), Ok(mut t_env)) = (name, t_env.try_borrow_mut()) {
-                                        let mut content : String = String::new();
+                                        let mut content = String::new();
                                         if let Ok(mut f) = File::open(path) {
                                             if let Ok(_) = f.read_to_string(&mut content) {
                                                 let t = tables::table::Table::new_from_text(
@@ -242,12 +243,23 @@ impl QueriesApp {
                                                     },
                                                     Err(e) => println!("{}", e)
                                                 }
+                                            } else {
+                                                println!("Could not read CSV content to string");
                                             }
+                                        } else {
+                                            println!("Could not open file");
                                         }
+                                    } else {
+                                        println!("Could not get mutable reference to tenv or recover file name");
                                     }
+                                } else {
+                                    println!("File should have .csv extension");
                                 }
+                            } else {
+                                println!("Could not recover file name as string");
                             }
-
+                        } else {
+                            println!("Filename not provided for dialog")
                         }
                     },
                     _ => { }
@@ -257,15 +269,36 @@ impl QueriesApp {
 
         // let tables_nb_c = tables_nb.clone();
         let mut table_chooser = TableChooser::new(file_btn, table_env.clone());
+        let table_info_box : Box = builder.get_object("table_info_box").unwrap();
         {
             let table_env = table_env.clone();
-            let tables_nb = tables_nb.clone();
+            //let tables_nb = tables_nb.clone();
             table_chooser.append_cb(boxed::Box::new(move |btn| {
-                if let Ok(t_env) = table_env.try_borrow_mut() {
+                /*if let Ok(t_env) = table_env.try_borrow_mut() {
                     set_tables(&t_env, &mut tables_nb.clone());
                 } else {
                     println!("Unable to get reference to table env");
+                }*/
+                if let Ok(t_env) = table_env.try_borrow_mut() {
+                    for w in table_info_box.get_children() {
+                        table_info_box.remove(&w);
+                    }
+                    if let Some(info) = t_env.table_names_as_hash() {
+                        for (table, cols) in info.iter() {
+                            let exp = Expander::new(Some(&table));
+                            let exp_content = Box::new(Orientation::Vertical, 0);
+                            for c in cols {
+                                exp_content.add(&Label::new(Some(&c.0)));
+                            }
+                            exp.add(&exp_content);
+                            table_info_box.add(&exp);
+                        }
+                        table_info_box.show_all();
+                    } else {
+                        println!("Could not get table info as hash");
+                    }
                 }
+
             }));
         }
 

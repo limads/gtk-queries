@@ -119,7 +119,8 @@ impl ConnPopover {
                         let msg = match ConnPopover::generate_conn_str(&entries) {
                             Ok(conn_str) => {
                                 let res = t_env.update_source(
-                                    EnvironmentSource::PostgreSQL((conn_str, "".into()))
+                                    EnvironmentSource::PostgreSQL((conn_str, "".into())),
+                                    true
                                 );
                                 match res {
                                     Ok(_) => String::from("Connected"),
