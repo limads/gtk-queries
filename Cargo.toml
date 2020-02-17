@@ -14,3 +14,14 @@ tables = { path = "../tables" }
 postgres = "0.15.1"
 # csv = "1.1.1"
 sourceview = "0.8.0"
+nlearn = { path="../nlearn" }
+
+[[bin]]
+name="queries"
+path="src/main.rs"
+
+[lib]
+name="gtk_queries"
+path="src/lib.rs"
+
+

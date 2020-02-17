@@ -1,6 +1,6 @@
 use gtk::*;
 use gio::prelude::*;
-use std::env::args;
+use std::env::{self, args};
 use std::rc::Rc;
 use std::cell::{RefCell, RefMut};
 use std::fs::File;
@@ -14,14 +14,14 @@ use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
 use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
-use tables::table_widget::*;
 mod conn_popover;
 use conn_popover::*;
-use tables::table_notebook::*;
 use sourceview::*;
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
+use gtk_queries::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
+use nlearn::table::Table;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -125,8 +125,9 @@ impl QueriesApp {
         let table_env = TableEnvironment::new(env_source);
         let table_env = Rc::new(RefCell::new(table_env));
         let conn_btn : Button = builder.get_object("conn_btn").unwrap();
-        let popover = ConnPopover::new_from_glade(
-            conn_btn,"assets/gui/conn-popover.glade");
+        let popover_path = utils::glade_path("conn-popover.glade")
+            .expect("Could not open glade path");
+        let popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
         popover.hook_signals(table_env.clone());
         let popover = Rc::new(RefCell::new(popover));
         let file_btn : FileChooserButton =
@@ -228,7 +229,7 @@ impl QueriesApp {
                                         let mut content = String::new();
                                         if let Ok(mut f) = File::open(path) {
                                             if let Ok(_) = f.read_to_string(&mut content) {
-                                                let t = tables::table::Table::new_from_text(
+                                                let t = Table::new_from_text(
                                                     Some(name.to_string()),
                                                     content
                                                 );
@@ -446,7 +447,8 @@ impl QueriesApp {
 }
 
 fn build_ui(app: &gtk::Application) {
-    let builder = Builder::new_from_file("assets/gui/gtk-queries.glade");
+    let path = utils::glade_path("gtk-queries.glade").expect("Failed to load glade file");
+    let builder = Builder::new_from_file(path);
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
 
