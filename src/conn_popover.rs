@@ -3,32 +3,32 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
-use postgres::{Connection, TlsMode};
+//use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
 use tables::TableEnvironment;
 use tables::sql::{SqlListener};
 use tables::environment_source::EnvironmentSource;
 use gtk::prelude::*;
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Read;
+use nlearn::table::*;
+use gtk_queries::status_stack::*;
 
-// Notice the lifetime of the popover (signaler)
-// and the connection (to-be-mutated) are both
-// tied to a parent struct.
+#[derive(Clone)]
 pub struct ConnPopover {
     btn : gtk::Button,
     popover : gtk::Popover,
-    //host_entry : gtk::Entry,
-    //user_entry : gtk::Entry,
-    //password_entry : gtk::Entry,
     entries : [gtk::Entry; 4],
-    //db_entry : gtk::Entry,
-    conn_label : gtk::Label,
-    // conn_switch : &'a mut gtk::Switch,
-    // conn : &'a mut Option<Connection>,
-    //fn_swtich_conn : boxed::Box<dyn Fn(&'a Switch)>
     conn_switch : Switch,
-    // rc_conn : Rc<RefCell<Option<Connection>>>,
-    // pub queries : Vec<PostgreQuery>,
-    // pub valid_queries : Vec<usize>
+    db_file_btn : Button,
+    db_file_dialog : FileChooserDialog,
+    query_file_dialog : FileChooserDialog,
+    db_file_img : Image,
+    db_path : Rc<RefCell<Vec<PathBuf>>>,
+    query_update_combo : ComboBoxText,
+    query_upload_btn : Button,
+    query_update_btn : Button
 }
 
 /*
@@ -81,70 +81,345 @@ impl ConnPopover {
 
         let conn_switch : Switch =
             builder.get_object("conn_switch").unwrap();
-        let conn_label : Label =
-            builder.get_object("conn_status_label").unwrap();
-        // let conn : Option<Connection> =  Option::None;
-        // let rc_conn = Rc::new(RefCell::new(conn));
-        /*{
-            let conn = Rc::clone(&conn);
-            conn_switch.connect_activate(move |switch| {
-                *conn = None;
-            //db_entry
+        let db_file_dialog : FileChooserDialog =
+            builder.get_object("db_file_dialog").unwrap();
+        let query_file_dialog : FileChooserDialog =
+            builder.get_object("query_file_dialog").unwrap();
+        let db_file_btn : Button =
+            builder.get_object("db_file_btn").unwrap();
+        let query_upload_btn : Button =
+            builder.get_object("query_upload_btn").unwrap();
+        let query_update_btn : Button =
+            builder.get_object("query_update_btn").unwrap();
+        let db_file_img : Image =
+            builder.get_object("db_file_img").unwrap();
+        let query_update_combo : ComboBoxText =
+            builder.get_object("query_update_combo").unwrap();
+
+        {
+            let db_file_dialog = db_file_dialog.clone();
+            db_file_btn.connect_clicked(move |_btn| {
+                println!("Here");
+                db_file_dialog.run();
+                db_file_dialog.hide();
             });
-        }*/
-        // Ownership will be passed to struct.
-        //let conn_ref = & mut conn;
-        // let conn_fn = |cs : &'a gtk::Switch| {
-        //    let active = conn_switch.get_active();
-        //    let is_connected = conn.is_some();
-        //};
-        // let fn_swtich_conn = boxed::Box::new(conn_fn);
-        //let queries = Vec::new();
-        //let valid_queries = Vec::new();
-        let popover = ConnPopover{btn,popover,entries,conn_label,conn_switch };
-        //popover.hook_signals();
-        popover
+        }
+
+        {
+            let query_file_dialog = query_file_dialog.clone();
+            query_upload_btn.connect_clicked(move |_btn| {
+                println!("Here");
+                query_file_dialog.run();
+                query_file_dialog.hide();
+            });
+        }
+
+        {
+            let query_upload_btn = query_upload_btn.clone();
+            let query_update_btn = query_update_btn.clone();
+            let query_file_dialog = query_file_dialog.clone();
+            query_update_combo.connect_changed(move |combo|{
+                if let Some(txt) = combo.get_active_text().map(|txt| txt.to_string()) {
+                    match &txt[..] {
+                        "Query off" => {
+                            query_upload_btn.set_sensitive(false);
+                            query_update_btn.set_sensitive(false);
+                            query_file_dialog.unselect_all();
+                            // TODO if auto-update, stop here.
+                        },
+                        other => {
+                            query_upload_btn.set_sensitive(true);
+                            query_update_btn.set_sensitive(true);
+                            match other {
+                                "1 Second" => { },
+                                "5 Seconds" => { },
+                                "10 Seconds" => { },
+                                _ => { }
+                            }
+                        },
+                    }
+                }
+            });
+        }
+        let db_path = Rc::new(RefCell::new(Vec::new()));
+        ConnPopover{
+            btn,
+            popover,
+            entries,
+            conn_switch,
+            db_file_btn,
+            db_file_dialog,
+            db_path,
+            db_file_img,
+            query_update_combo,
+            query_upload_btn,
+            query_update_btn,
+            query_file_dialog
+        }
     }
 
-    pub fn hook_signals(&self, table_env : Rc<RefCell<TableEnvironment>>) {
-        let entries = self.entries.clone();
-        let label = self.conn_label.clone();
+    fn try_remote_connection(
+        conn_popover : &ConnPopover,
+        t_env : &mut TableEnvironment
+    ) -> Result<(), String> {
+        if !t_env.is_engine_active() && !conn_popover.check_entries_clear() {
+            let msg = match ConnPopover::generate_conn_str(&conn_popover.entries) {
+                Ok(conn_str) => {
+                    let res = t_env.update_source(
+                        EnvironmentSource::PostgreSQL((conn_str, "".into())),
+                        true
+                    );
+                    match res {
+                        Ok(_) => String::from("Connected"),
+                        Err(e) => { return Err(format!("{}", e)); }
+                    }
+                },
+                Err(err_str) => {
+                    err_str.into()
+                }
+            };
+            println!("{}", msg);
+            // Now output message to logging system
+            conn_popover.set_db_loaded_mode();
+        }
+        Ok(())
+    }
+
+    fn try_local_connection(
+        conn_popover : &ConnPopover,
+        opt_path : Option<PathBuf>,
+        t_env : &mut TableEnvironment
+    ) -> Result<(), String> {
+        let source = EnvironmentSource::SQLite3((opt_path.clone(), String::new()));
+        if let Err(e) = t_env.update_source(source, true) {
+            println!("{}", e);
+            return Err(e);
+        }
+        let conn_name = match &opt_path {
+            Some(path) => {
+                if let Some(str_path) = path.to_str() {
+                    str_path
+                } else {
+                    "(Invalid UTF-8 path)"
+                }
+            }
+            None => "(In-memory database)"
+        };
+        conn_popover.entries[3].set_text(conn_name);
+        conn_popover.set_db_loaded_mode();
+        Ok(())
+    }
+
+    fn set_db_loaded_mode(&self) {
+        self.entries.iter().for_each(|entry| entry.set_sensitive(false) );
+        self.db_file_btn.set_sensitive(false);
+        self.query_update_combo.set_active_id(Some("0"));
+        self.query_update_combo.set_sensitive(true);
+    }
+
+    fn set_non_db_mode(&self) {
+        self.entries.iter().for_each(|entry| entry.set_sensitive(true) );
+        self.db_file_btn.set_sensitive(true);
+        self.query_update_combo.set_active_id(Some("0"));
+        self.query_update_combo.set_sensitive(false);
+        self.query_upload_btn.set_sensitive(false);
+        self.query_update_btn.set_sensitive(false);
+        if let Ok(mut db_p) = self.db_path.try_borrow_mut() {
+            *db_p = Vec::new();
+        } else {
+            println!("Could not get mutable reference to db path");
+        }
+    }
+
+    pub fn hook_signals(&self, table_env : Rc<RefCell<TableEnvironment>>, status : StatusStack) {
+        let conn_popover = self.clone();
         self.conn_switch.connect_state_set(move |_switch, state| {
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
-                match (state, t_env.is_engine_active()) {
-                    (false, true) => {
-                        t_env.disable_engine();
-                    },
-                    (true, false) => {
-                        let msg = match ConnPopover::generate_conn_str(&entries) {
-                            Ok(conn_str) => {
-                                let res = t_env.update_source(
-                                    EnvironmentSource::PostgreSQL((conn_str, "".into())),
-                                    true
-                                );
-                                match res {
-                                    Ok(_) => String::from("Connected"),
-                                    Err(e) => format!("{}", e)
+                if state {
+                    if let Ok(db_path) = conn_popover.db_path.try_borrow() {
+                        match (db_path.len(), conn_popover.check_entries_clear()) {
+                            (0, true) => {
+                                 match Self::try_local_connection(&conn_popover, None, &mut t_env) {
+                                    Ok(_) => status.update(Status::Connected),
+                                    Err(e) => status.update(Status::ConnectionErr(e))
+                                 }
+                            },
+                            (0, false) => {
+                                match Self::try_remote_connection(&conn_popover, &mut t_env) {
+                                    Ok(_) => status.update(Status::Connected),
+                                    Err(e) => status.update(Status::ConnectionErr(e))
                                 }
                             },
-                            Err(err_str) => {
-                                err_str.into()
+                            (1, true) => {
+                                println!("{:?}", db_path);
+                                if let Some(ext) = db_path[0].extension().map(|ext| ext.to_str()) {
+                                    match ext {
+                                        Some("csv") | Some("txt") => {
+                                            match Self::try_local_connection(&conn_popover, None, &mut t_env) {
+                                                Ok(_) => status.update(Status::Connected),
+                                                Err(e) => status.update(Status::ConnectionErr(e))
+                                            }
+                                            Self::upload_csv(db_path[0].clone(), &mut t_env);
+                                            Self::select_all_tables(&mut t_env);
+                                        },
+                                        _ => {
+                                            match Self::try_local_connection(&conn_popover, Some(db_path[0].clone()), &mut t_env) {
+                                                Ok(_) => status.update(Status::Connected),
+                                                Err(e) => status.update(Status::ConnectionErr(e))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    match Self::try_local_connection(&conn_popover, None, &mut t_env) {
+                                        Ok(_) => status.update(Status::Connected),
+                                        Err(e) => status.update(Status::ConnectionErr(e))
+                                    }
+                                }
+                            },
+                            (_, true) => {
+                                match Self::try_local_connection(&conn_popover, None, &mut t_env) {
+                                    Ok(_) => status.update(Status::Connected),
+                                    Err(e) => status.update(Status::ConnectionErr(e))
+                                }
+                                for p in db_path.iter() {
+                                    Self::upload_csv(p.clone(), &mut t_env);
+                                }
+                                Self::select_all_tables(&mut t_env);
+                            },
+                            _ => {
+                                println!("Invalid connection mode");
                             }
-                        };
-                        label.set_text(&msg[..]);
-                    },
-                    _ => { }
+                        }
+                    } else {
+                        println!("Could not acquire lock over DB path");
+                    }
+                } else {
+                    // Disable remote connection
+                    if t_env.is_engine_active() {
+                        t_env.disable_engine();
+                    }
+                    conn_popover.set_non_db_mode();
+                    conn_popover.clear_entries();
                 }
             } else {
                 println!("Could not acquire lock over table environment");
             }
-            Inhibit(false) //HERE
+            Inhibit(false)
         });
+
+        {
+            let conn_popover = self.clone();
+            self.db_file_dialog.connect_response(move |dialog, resp| {
+                match resp {
+                    ResponseType::Other(1) => {
+                        let fnames = dialog.get_filenames();
+                        if let Ok(mut db_p) = conn_popover.db_path.try_borrow_mut() {
+                            if fnames.len() >= 1 {
+                                conn_popover.clear_entries();
+                                db_p.clear();
+                                db_p.extend(fnames.clone());
+                                let path = &fnames[0];
+                                let db_name = if let Some(ext) = path.extension().map(|ext| ext.to_str()) {
+                                    match ext {
+                                        Some("csv") | Some("txt") => {
+                                            "In-memory"
+                                        },
+                                        Some("db") | Some("sqlite3") | Some("sqlite") => {
+                                            if let Some(path_str) = path.to_str() {
+                                                path_str
+                                            } else {
+                                                "(Non UTF-8 path)"
+                                            }
+                                        },
+                                        _ => {
+                                            "(Unknown extension)"
+                                        }
+                                    }
+                                } else {
+                                    "(Unknown extension)"
+                                };
+                                conn_popover.entries[3].set_text(db_name);
+                            }
+                        } else {
+                            println!("Failed to get lock over db path");
+                        }
+                    },
+                    _ => { }
+                }
+            });
+        }
 
         let popover = self.popover.clone();
         self.btn.connect_clicked(move |_| {
             popover.show();
         });
+    }
+
+    fn check_entries_clear(&self) -> bool {
+        for entry in self.entries.iter().take(3) {
+            if let Some(txt) = entry.get_text().map(|t| t.to_string()) {
+                if !txt.is_empty() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn clear_entries(&self) {
+        for entry in self.entries.iter() {
+            entry.set_text("");
+        }
+    }
+
+    /// Assume there is a 1:1 correspondence between table names
+    /// and tables at the database. Select all rows of all tables.
+    fn select_all_tables(t_env : &mut TableEnvironment) {
+        let names : Vec<_> =  t_env.all_tables().iter()
+            .map(|t| t.name.clone().unwrap_or("tbl".into()) ).collect();
+        for name in names {
+            let sql = format !("select * from {};", name);
+            t_env.send_query(sql);
+        }
+    }
+
+    fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment) {
+        if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {
+            if let Some(name) = name.map(|n| n.split('.').next()) {
+                if let Some(name) = name {
+                    let mut content = String::new();
+                    if let Ok(mut f) = File::open(path) {
+                        if let Ok(_) = f.read_to_string(&mut content) {
+                            let t = Table::new_from_text(
+                                Some(name.to_string()),
+                                content
+                            );
+                            match t {
+                                Ok(t) => {
+                                    if let Some(sql) = t.sql_string() {
+                                        println!("{}", sql);
+                                        t_env.send_query(sql);
+                                    } else {
+                                        println!("Could not generate SQL string for table");
+                                    }
+                                },
+                                Err(e) => println!("{}", e)
+                            }
+                        } else {
+                            println!("Could not read CSV content to string");
+                        }
+                    } else {
+                        println!("Could not open file");
+                    }
+                } else {
+                    println!("Could not get mutable reference to tenv or recover file name");
+                }
+            } else {
+                println!("File should have .csv extension");
+            }
+        } else {
+            println!("Could not recover file name as string");
+        }
     }
 
     fn generate_conn_str(

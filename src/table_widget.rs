@@ -16,9 +16,10 @@ use tables::{ environment_source::EnvironmentSource, TableEnvironment, button::T
 use nlearn::table::*;
 use crate::utils;
 
+#[derive(Clone)]
 pub struct TableWidget {
     grid : Grid,
-    data : Vec<Vec<String>>,
+    // data : Rc<RefCell<Vec<Vec<String>>>>,
     pub scroll_window : ScrolledWindow,
     box_container : Box,
     msg : Label,
@@ -28,9 +29,16 @@ pub struct TableWidget {
 
 impl TableWidget {
 
+    pub fn new_from_table(tbl : &Table) -> Self {
+        let mut tbl_wid = Self::new();
+        let data = tbl.as_rows();
+        tbl_wid.update_data(data);
+        tbl_wid
+    }
+
     pub fn new() -> TableWidget {
         let grid = Grid::new();
-        let data : Vec<Vec<String>> = Vec::new();
+        // let data = Rc::new(RefCell::new(Vec::new()));
         let message = Label::new(None);
         let provider = utils::provider_from_path("tables.css")
             .expect("Unable to load tables CSS");
@@ -46,8 +54,12 @@ impl TableWidget {
         );
         scroll_window.add(&box_container);
         scroll_window.show_all();
-        TableWidget{grid, data, scroll_window,
+        TableWidget{grid, /*data,*/ scroll_window,
             box_container, msg, parent_ctx, provider}
+    }
+
+    pub fn parent(&self) -> ScrolledWindow {
+        self.scroll_window.clone()
     }
 
     fn create_data_cell(&self,
@@ -63,6 +75,8 @@ impl TableWidget {
         ctx.set_parent(Some(&(self.parent_ctx)));
         ctx.add_provider(&(self.provider),800); // PROVIDER_CONTEXT_USER
         ctx.add_class("table-cell");
+
+        // Add this only when all columns have a title, maybe on a set_header method.
         if row == 0 {
             ctx.add_class("first-row");
         }

@@ -2,6 +2,8 @@ pub mod table_widget;
 
 pub mod table_notebook;
 
+pub mod status_stack;
+
 pub mod utils {
 
     use std::env;
