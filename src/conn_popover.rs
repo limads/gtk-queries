@@ -300,6 +300,7 @@ impl ConnPopover {
                     }
                     conn_popover.set_non_db_mode();
                     conn_popover.clear_entries();
+                    status.update(Status::Disconnected);
                 }
             } else {
                 println!("Could not acquire lock over table environment");
@@ -375,12 +376,12 @@ impl ConnPopover {
     /// Assume there is a 1:1 correspondence between table names
     /// and tables at the database. Select all rows of all tables.
     fn select_all_tables(t_env : &mut TableEnvironment) {
-        let names : Vec<_> =  t_env.all_tables().iter()
+        /*let names : Vec<_> =  t_env.all_tables().iter()
             .map(|t| t.name.clone().unwrap_or("tbl".into()) ).collect();
         for name in names {
             let sql = format !("select * from {};", name);
             t_env.send_query(sql);
-        }
+        }*/
     }
 
     fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment) {
@@ -398,7 +399,7 @@ impl ConnPopover {
                                 Ok(t) => {
                                     if let Some(sql) = t.sql_string() {
                                         println!("{}", sql);
-                                        t_env.send_query(sql);
+                                        t_env.prepare_and_send_query(sql);
                                     } else {
                                         println!("Could not generate SQL string for table");
                                     }

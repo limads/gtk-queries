@@ -4,6 +4,10 @@ pub mod table_notebook;
 
 pub mod status_stack;
 
+pub mod sql_popover;
+
+pub mod functions;
+
 pub mod utils {
 
     use std::env;

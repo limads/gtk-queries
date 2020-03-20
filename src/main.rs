@@ -23,22 +23,23 @@ use gtk::prelude::*;
 use gtk_queries::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
 use nlearn::table::Table;
 use gtk_queries::status_stack::*;
+use gtk_queries::sql_popover::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
-    exec_btn : Button,
-    view : sourceview::View,
-    tables_nb : TableNotebook,
+    //exec_btn : Button,
+    //view : sourceview::View,
+    //tables_nb : TableNotebook,
     // file_btn : FileChooserButton,
-    header : HeaderBar,
+    //header : HeaderBar,
     // unsaved_dialog : Dialog,
     // new_file : Rc<RefCell<bool>>,
     // unsaved_changes : Rc<RefCell<bool>>,
     // save_dialog : Dialog,
-    popover : ConnPopover,
+    conn_popover : ConnPopover,
+    sql_popover : SqlPopover,
     table_env : Rc<RefCell<TableEnvironment>>,
-    query_popover : Popover,
-    query_toggle : ToggleButton //,
+    //query_toggle : ToggleButton //,
     //ws_toggle : ToggleButton
 
     // old_source_content : Rc<RefCell<String>>
@@ -70,72 +71,34 @@ pub fn set_tables(
     }
 }
 
-pub fn send_query_and_wait(
-    sql : String,
-    tbl_env : &mut TableEnvironment,
-    view : &sourceview::View,
-    nb : &TableNotebook
-) {
-    tbl_env.send_query(sql);
-    view.set_sensitive(false);
-    nb.nb.set_sensitive(false);
-}
-
-pub fn update_queries(
-    tbl_env : &mut TableEnvironment,
-    view : &sourceview::View,
-    nb : &TableNotebook
-) {
-    if let Some(buffer) = view.get_buffer() {
-        let text : Option<String> = match buffer.get_selection_bounds() {
-            Some((from,to,)) => {
-                from.get_text(&to).map(|txt| txt.to_string())
-            },
-            None => {
-                buffer.get_text(
-                    &buffer.get_start_iter(),
-                    &buffer.get_end_iter(),
-                    true
-                ).map(|txt| txt.to_string())
-            }
-        };
-        if let Some(txt) = text {
-            send_query_and_wait(txt, tbl_env, view, nb);
-        }
-    } else {
-        println!("Could not retrieve text buffer");
-    }
-}
-
 impl QueriesApp {
 
     pub fn new_from_builder(builder : &Builder) -> Self {
-        let header : HeaderBar =
-            builder.get_object("header").unwrap();
+        //let header : HeaderBar =
+        //    builder.get_object("header").unwrap();
         let tables_nb = TableNotebook::new(&builder);
-        let exec_btn : Button =
-            builder.get_object("exec_btn").unwrap();
-        let view : sourceview::View =
-            builder.get_object("query_source").unwrap();
-        let lang_manager = LanguageManager::get_default().unwrap();
-        let buffer = view.get_buffer().unwrap()
-            .downcast::<sourceview::Buffer>().unwrap();
-        let lang = lang_manager.get_language("sql").unwrap();
-        buffer.set_language(Some(&lang));
+        //let exec_btn : Button =
+        //    builder.get_object("exec_btn").unwrap();
+
         let env_source = EnvironmentSource::File("".into(),"".into());
         let table_env = TableEnvironment::new(env_source);
         let table_env = Rc::new(RefCell::new(table_env));
         let conn_btn : Button = builder.get_object("conn_btn").unwrap();
         let popover_path = utils::glade_path("conn-popover.glade")
             .expect("Could not open glade path");
-        let popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
+        let conn_popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
         //let file_btn : FileChooserButton =
         //    builder.get_object("file_btn").unwrap();
-        let table_popover : Popover =
-            builder.get_object("table_popover").unwrap();
+        //let table_popover : Popover =
+        //    builder.get_object("table_popover").unwrap();
         let query_stack : Stack = builder.get_object("query_stack").unwrap();
         let status_stack = StatusStack::new(query_stack, tables_nb.nb.clone().upcast::<Widget>());
-        popover.hook_signals(table_env.clone(), status_stack.clone());
+        conn_popover.hook_signals(table_env.clone(), status_stack.clone());
+
+        let sql_popover = SqlPopover::new(builder.clone());
+        sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
+        sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
+        sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
 
         //let ops_stack : Stack =
         //    builder.get_object("ops_stack").unwrap();
@@ -164,7 +127,7 @@ impl QueriesApp {
             });
         }*/
 
-        let new_db_dialog : FileChooserDialog =
+        /*let new_db_dialog : FileChooserDialog =
             builder.get_object("new_db_dialog").unwrap();
         {
             let new_db_btn : Button =
@@ -174,9 +137,9 @@ impl QueriesApp {
                 new_db_dialog.run();
                 new_db_dialog.hide();
             });
-        }
+        }*/
 
-        {
+        /*{
             let t_env = table_env.clone();
             new_db_dialog.connect_response(move |dialog, resp|{
                 match resp {
@@ -204,39 +167,7 @@ impl QueriesApp {
                     _ => { }
                 }
             });
-        }
-
-        let csv_upload_btn : Button =
-            builder.get_object("csv_upload_btn").unwrap();
-        //let code_upload_btn : Button =
-        //    builder.get_object("new_db_btn").unwrap();
-        let csv_upload_dialog : FileChooserDialog =
-            builder.get_object("csv_upload_dialog").unwrap();
-        {
-            let csv_upload_dialog = csv_upload_dialog.clone();
-            csv_upload_btn.connect_clicked(move |_btn| {
-                csv_upload_dialog.run();
-                csv_upload_dialog.hide();
-            });
-        }
-
-        {
-            let t_env = table_env.clone();
-            let view = view.clone();
-            let nb = tables_nb.clone();
-            csv_upload_dialog.connect_response(move |dialog, resp|{
-                match resp {
-                    ResponseType::Other(1) => {
-                        if let Some(path) = dialog.get_filename() {
-
-                        } else {
-                            println!("Filename not provided for dialog")
-                        }
-                    },
-                    _ => { }
-                }
-            });
-        }
+        }*/
 
         // let tables_nb_c = tables_nb.clone();
         //let mut table_chooser = TableChooser::new(file_btn, table_env.clone());
@@ -275,94 +206,94 @@ impl QueriesApp {
 
         // let sql_listener = Rc::new(RefCell::new(SqlListener::launch()));
         //let table_env_c = table_env.clone();
-        let query_popover : Popover =
-            builder.get_object("query_popover").unwrap();
-        let query_toggle : ToggleButton =
-            builder.get_object("query_toggle").unwrap();
-        let queries_app = QueriesApp{
-            exec_btn : exec_btn, view : view, tables_nb : tables_nb.clone(), header : header,
-            popover : popover, table_env : table_env.clone(), query_popover : query_popover,
-            query_toggle : query_toggle //, ws_toggle : ws_toggle
-        };
-        let queries_app_c = queries_app.clone();
+        // let queries_app = QueriesApp{
+        //    exec_btn : exec_btn, view : view, tables_nb : tables_nb.clone(), header : header,
+        //    popover : popover, table_env : table_env.clone(), query_popover : query_popover,
+        //    query_toggle : query_toggle //, ws_toggle : ws_toggle
+        // };
+        //let queries_app_c = queries_app.clone();
         // let sql_listener_c = sql_listener.clone();
-        let table_env_c = queries_app.clone().table_env.clone();
-        let view_c = queries_app_c.view.clone();
-        let tables_nb_c = queries_app.clone().tables_nb.clone();
-        view_c.connect_key_press_event(move |view, ev_key| {
-            if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
-                match table_env_c.try_borrow_mut() {
-                    Ok(mut env) => {
-                        update_queries(&mut env, &view.clone(), &tables_nb_c.clone());
-                    },
-                    _ => { println!("Error recovering references"); }
-                }
-                glib::signal::Inhibit(true)
-            } else {
-                glib::signal::Inhibit(false)
-            }
-        });
+        //let table_env_c = queries_app.clone().table_env.clone();
+        //let view_c = queries_app_c.view.clone();
+        //let tables_nb_c = queries_app.clone().tables_nb.clone();
+
         // Check if there is a SQL answer before setting the widgets to sensitive again.
         //let sql_listener_c = sql_listener.clone();
         {
             let status_stack = status_stack.clone();
-            let queries_app_c = queries_app.clone();
-            let view_c = queries_app_c.view.clone();
-            let tables_nb_c = queries_app_c.tables_nb.clone();
+            //let queries_app_c = queries_app.clone();
+            let view_c = sql_popover.clone().view.clone();
+            let tables_nb_c = tables_nb.clone();
             let tbl_env_c = table_env.clone();
+            let sql_popover = sql_popover.clone();
             gtk::timeout_add(16, move || {
-                if !view_c.is_sensitive() {
-                    if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
-                        if let Some(last_cmd) = t_env.last_commands().last() {
-                            if &last_cmd[..] == "select" {
-                                match t_env.maybe_update_from_query_results() {
-                                    Some(Ok(_)) => {
-                                        set_tables(&t_env, &mut tables_nb_c.clone());
-                                        status_stack.update(Status::Ok);
-                                    },
-                                    Some(Err(e)) => {
-                                        println!("{}", e);
-                                        status_stack.update(Status::SqlErr(e));
-                                    },
-                                    None => { }
+                //println!("{}", sql_popover.query_sent.borrow());
+                if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
+                    if *sent {
+                        println!("Sent");
+                        //println!("{}", sql_popover.query_sent.borrow());
+                        if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
+                            let updated = if let Some(last_cmd) = t_env.last_commands().last() {
+                                println!("Query updated");
+                                println!("Last command: {}", last_cmd);
+                                if &last_cmd[..] == "select" {
+                                    match t_env.maybe_update_from_query_results() {
+                                        Some(ans) => {
+                                            match ans {
+                                                Ok(_) => {
+                                                    set_tables(&t_env, &mut tables_nb_c.clone());
+                                                    status_stack.update(Status::Ok);
+                                                },
+                                                Err(e) => {
+                                                    println!("{}", e);
+                                                    status_stack.update(Status::SqlErr(e));
+                                                }
+                                            }
+                                            true
+                                        },
+                                        None => false
+                                    }
+                                } else {
+                                    match t_env.result_last_statement() {
+                                        Some(ans) => {
+                                            match ans {
+                                                Ok(msg) => {
+                                                    status_stack.update(Status::StatementExecuted(msg));
+                                                },
+                                                Err(e) => {
+                                                    println!("{}", e);
+                                                    status_stack.update(Status::SqlErr(e));
+                                                }
+                                            }
+                                            true
+                                        },
+                                        None => false
+                                    }
                                 }
                             } else {
-                                match t_env.result_last_statement() {
-                                    Some(Ok(ans)) => {
-                                        status_stack.update(Status::StatementExecuted(ans));
-                                    },
-                                    Some(Err(e)) => {
-                                        println!("{}", e);
-                                        status_stack.update(Status::SqlErr(e));
-                                    },
-                                    None => { }
-                                }
+                                println!("Unable to retrieve last command");
+                                false
+                            };
+                            if updated {
+                                view_c.set_sensitive(true);
+                                tables_nb_c.nb.set_sensitive(true);
+                                *sent = false;
+                                println!("Sent set to false");
+                            } else {
+                                println!("Not updated yet");
                             }
-                        } else {
-                            println!("Unable to retrieve last command");
-                            return glib::source::Continue(true);
                         }
-                        view_c.set_sensitive(true);
-                        tables_nb_c.nb.set_sensitive(true);
-                    }
+                    } //else {
+                      //  println!("Query not sent");
+                    //}
+                } else {
+                    println!("Unable to retrieve reference to query sent status");
                 }
                 glib::source::Continue(true)
             });
         }
-        let table_menu_c = queries_app.query_popover.clone();
-        queries_app.query_toggle.connect_toggled(move |toggle| {
-            if toggle.get_active() {
-                table_menu_c.show();
-            } else {
-                table_menu_c.hide();
-            }
-        });
 
-        let query_toggle_c = queries_app.query_toggle.clone();
-        queries_app.query_popover.connect_closed(move |_popover| {
-            query_toggle_c.set_active(false);
-        });
-        {
+        /*{
             let queries_app = queries_app.clone();
             let table_env_c = table_env.clone();
             let view_c = queries_app_c.view.clone();
@@ -374,7 +305,7 @@ impl QueriesApp {
                     println!("Failed to acquire lock");
                 }
             });
-        }
+        }*/
 
         {
             let tables_nb = tables_nb.clone();
@@ -417,11 +348,11 @@ impl QueriesApp {
             });
         }
 
-        queries_app
+        Self { conn_popover, sql_popover, table_env }
     }
 
-    fn check_active_selection(&self) {
-        if let Some(buf) = self.view.get_buffer() {
+    //fn check_active_selection(&self) {
+    //    if let Some(buf) = self.view.get_buffer() {
 
             /*if buf.get_has_selection() {
                 self.exec_btn.set_sensitive(true);
@@ -429,8 +360,8 @@ impl QueriesApp {
                 self.exec_btn.set_sensitive(false);
             }*/
 
-        }
-    }
+       // }
+    //}
 
     /*fn run_query(popover : &mut ConnPopover, buffer : &TextBuffer) {
         let mut query = String::new();
@@ -457,9 +388,9 @@ fn build_ui(app: &gtk::Application) {
     let queries_app = QueriesApp::new_from_builder(&builder);
 
     {
-        let toggle_q = queries_app.query_toggle.clone();
+        let toggle_q = queries_app.sql_popover.query_toggle.clone();
         //let toggle_w = queries_app.ws_toggle.clone();
-        let view = queries_app.view.clone();
+        let view = queries_app.sql_popover.view.clone();
         win.connect_key_release_event(move |win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
                 if ev_key.get_keyval() == key::q {
@@ -498,7 +429,7 @@ fn main() {
     let _ = View::new();
 
     let app = gtk::Application::new(
-        Some("com.github.limads.gtk-plots"),
+        Some("com.github.limads.gtk-queries"),
         Default::default())
     .expect("Could not initialize Gtk");
 

@@ -1,5 +1,310 @@
-pub struct SqlPopover {
+use gtk::*;
+use gio::prelude::*;
+use std::env::{self, args};
+use std::rc::Rc;
+use std::cell::{RefCell, RefMut};
+use std::fs::File;
+use std::io::Write;
+use std::io::Read;
+use std::collections::HashMap;
+// use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
+use std::path::PathBuf;
+// use sourceview::*;
+use std::ffi::OsStr;
+use gdk::ModifierType;
+use gdk::{self, enums::key};
+use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use sourceview::*;
+use std::boxed;
+use std::process::Command;
+use gtk::prelude::*;
+use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
+use nlearn::table::Table;
+use crate::status_stack::*;
+use sourceview::View;
 
+pub enum ExecStatus {
+    File(String, usize),
+    View(String, usize),
+    None
 }
 
+#[derive(Clone)]
+pub struct SqlPopover {
+    pub view : View,
+    pub sql_load_dialog : FileChooserDialog,
+    pub refresh_btn : ToolButton,
+    pub popover : Popover,
+    pub query_toggle : ToggleButton,
+    pub sql_toggle : ToggleToolButton,
+    pub file_loaded : Rc<RefCell<bool>>,
+    pub query_sent : Rc<RefCell<bool>>
+}
 
+impl SqlPopover {
+
+    pub fn update_queries(
+        file_loaded : Rc<RefCell<bool>>,
+        query_sent : Rc<RefCell<bool>>,
+        tbl_env : &mut TableEnvironment,
+        view : &sourceview::View,
+        nb : &TableNotebook
+    ) {
+        if let Ok(loaded) = file_loaded.try_borrow() {
+            if *loaded {
+                tbl_env.send_current_query();
+                nb.nb.set_sensitive(false);
+            } else {
+                if let Some(buffer) = view.get_buffer() {
+                    let text : Option<String> = match buffer.get_selection_bounds() {
+                        Some((from,to,)) => {
+                            from.get_text(&to).map(|txt| txt.to_string())
+                        },
+                        None => {
+                            buffer.get_text(
+                                &buffer.get_start_iter(),
+                                &buffer.get_end_iter(),
+                                true
+                            ).map(|txt| txt.to_string())
+                        }
+                    };
+                    if let Some(txt) = text {
+                        //println!("{}", txt);
+                        tbl_env.prepare_and_send_query(txt);
+                        view.set_sensitive(false);
+                        nb.nb.set_sensitive(false);
+                    } else {
+                        println!("No text available to send");
+                    }
+                } else {
+                    println!("Could not retrieve text buffer");
+                    return;
+                }
+            }
+        } else {
+            println!("Could not retrieve reference to file status");
+            return;
+        }
+        if let Ok(mut sent) = query_sent.try_borrow_mut() {
+            *sent = true;
+            //println!("Query sent");
+        } else {
+            println!("Unable to acquire lock over query sent status");
+        }
+        println!("at update: {}", query_sent.borrow());
+    }
+
+    pub fn new(builder : Builder) -> Self {
+        //let query_toolbar : Toolbar = builder.get_object("query_toolbar").unwrap();
+        // let img_load = Image::new_from_icon_name(Some("document-open-symbolic"), IconSize::SmallToolbar);
+        //let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+
+        // let clear_item : ToolButton = ToolButton::new(Some(&img_clear), None);
+        let popover : Popover =
+            builder.get_object("query_popover").unwrap();
+        let query_toggle : ToggleButton =
+            builder.get_object("query_toggle").unwrap();
+        let view : View =
+            builder.get_object("query_source").unwrap();
+        let buffer = view.get_buffer().unwrap()
+            .downcast::<sourceview::Buffer>().unwrap();
+        let lang_manager = LanguageManager::get_default().unwrap();
+        let lang = lang_manager.get_language("sql").unwrap();
+        buffer.set_language(Some(&lang));
+        //let item_a = ToggleToolButton::new();
+        //let item_b = ToggleToolButton::new();
+        //item_a.set_label(Some("Off"));
+        //item_b.set_label(Some("1 s"));
+
+        let update_toolbar : Toolbar = builder.get_object("update_toolbar").unwrap();
+        let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
+        let update_btn : ToolButton = ToolButton::new(Some(&img_clock), Some("Off"));
+
+        update_toolbar.insert(&update_btn, 1);
+        //update_toolbar.insert(&item_b, 1);
+        //update_toolbar.show_all();
+        update_btn.connect_clicked(move|btn|{
+            let curr_label = btn.get_label().unwrap();
+            let new_label = match curr_label.as_str() {
+                "Off" => "0.5 s",
+                "0.5 s" => "1 s",
+                "1 s" => "5 s",
+                "5 s" => "Off",
+                _ => "Off"
+            };
+            btn.set_label(Some(new_label));
+        });
+
+        //load_item.set_icon_name(Some("emblem-documents"));
+        //load_item.add(&img);
+        let sql_toggle : ToggleToolButton = ToggleToolButton::new();
+        sql_toggle.set_icon_name(Some("document-open-symbolic"));
+        update_toolbar.insert(&sql_toggle, 0);
+        //load_item.set_sensitive(false);
+        update_toolbar.show_all();
+
+        let sql_load_dialog : FileChooserDialog =
+            builder.get_object("sql_load_dialog").unwrap();
+        {
+            let view = view.clone();
+
+            {
+                let sql_load_dialog = sql_load_dialog.clone();
+                sql_toggle.connect_toggled(move|item| {
+                    if item.get_active() {
+                        sql_load_dialog.run();
+                        sql_load_dialog.hide();
+                    } else {
+                        item.set_label(None);
+                        view.set_sensitive(true);
+                    }
+                });
+            }
+        }
+
+        let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
+        let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
+        let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
+        exec_toolbar.insert(&refresh_btn, 0);
+        exec_toolbar.show_all();
+
+        {
+            let popover = popover.clone();
+            query_toggle.connect_toggled(move |toggle| {
+                if toggle.get_active() {
+                    popover.show();
+                } else {
+                    popover.hide();
+                }
+            });
+        }
+
+        {
+            let query_toggle = query_toggle.clone();
+            popover.connect_closed(move |_popover| {
+                query_toggle.set_active(false);
+            });
+        }
+
+        Self {
+            view,
+            sql_load_dialog,
+            refresh_btn,
+            popover,
+            query_toggle,
+            sql_toggle,
+            file_loaded : Rc::new(RefCell::new(false)),
+            query_sent : Rc::new(RefCell::new(false))
+        }
+    }
+
+    pub fn set_file_mode(&self, fname : &str) {
+        if let Some(buf) = self.view.get_buffer() {
+            buf.set_text("");
+        }
+        self.sql_toggle.set_label(Some(fname));
+        self.view.set_sensitive(false);
+        self.sql_toggle.set_active(true);
+        if let Ok(mut fl) = self.file_loaded.try_borrow_mut() {
+            *fl = true;
+        } else {
+            println!("Could not retrieve mutable reference to file status");
+        }
+    }
+
+    pub fn set_view_mode(&self) {
+        if let Some(buf) = self.view.get_buffer() {
+            buf.set_text("");
+        }
+        self.sql_toggle.set_label(None);
+        self.sql_toggle.set_active(false);
+        self.view.set_sensitive(true);
+        if let Ok(mut fl) = self.file_loaded.try_borrow_mut() {
+            *fl = false;
+        } else {
+            println!("Could not retrieve mutable reference to file status");
+        }
+    }
+
+    pub fn connect_sql_load(&self, nb : TableNotebook, table_env : Rc<RefCell<TableEnvironment>>) {
+        //let view =  self.view.clone();
+        //let nb = nb.clone();
+        //let sql_toggle = self.sql_toggle.clone();
+        let sql_popover = self.clone();
+        self.sql_load_dialog.connect_response(move |dialog, resp|{
+            if let Ok(mut t_env) = table_env.try_borrow_mut() {
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+                            let p = path.as_path();
+                            let mut sql_content = String::new();
+                            if let Ok(mut f) = File::open(path.clone()) {
+                                f.read_to_string(&mut sql_content);
+                                t_env.prepare_query(sql_content);
+                            } else {
+                                println!("Unable to access informed path");
+                            }
+                            sql_popover.set_file_mode(p.to_str().unwrap_or(""));
+                        } else {
+                            sql_popover.set_view_mode();
+                            t_env.clear_queries();
+                        }
+                    },
+                    _ => {
+                        sql_popover.set_view_mode();
+                        t_env.clear_queries();
+                    }
+                }
+            } else {
+                println!("Unable to retrieve mutable reference to table environment");
+            }
+        });
+    }
+
+    pub fn connect_refresh(&self, table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook) {
+        let view = self.view.clone();
+        let file_loaded = self.file_loaded.clone();
+        let query_sent = self.query_sent.clone();
+        self.refresh_btn.connect_clicked(move|btn|{
+            match table_env.try_borrow_mut() {
+                Ok(mut env) => {
+                    //println!("before update: {}", query_sent.borrow());
+                    Self::update_queries(
+                        file_loaded.clone(),
+                        query_sent.clone(),
+                        &mut env,
+                        &view.clone(),
+                        &tables_nb.clone()
+                    );
+                    //println!("after update: {}", query_sent.borrow());
+                },
+                _ => { println!("Error recovering references"); }
+            }
+        });
+    }
+
+    pub fn connect_source_key_press(&self, table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook) {
+        //let sql_popover = self.clone();
+        let file_loaded = self.file_loaded.clone();
+        let query_sent = self.query_sent.clone();
+        self.view.connect_key_press_event(move |view, ev_key| {
+            if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
+                match table_env.try_borrow_mut() {
+                    Ok(mut env) => {
+                        Self::update_queries(
+                            file_loaded.clone(),
+                            query_sent.clone(),
+                            &mut env,
+                            &view.clone(),
+                            &tables_nb.clone()
+                        );
+                    },
+                    _ => { println!("Error recovering references"); }
+                }
+                glib::signal::Inhibit(true)
+            } else {
+                glib::signal::Inhibit(false)
+            }
+        });
+    }
+}
