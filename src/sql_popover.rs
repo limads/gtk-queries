@@ -18,7 +18,7 @@ use sourceview::*;
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
-use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
+use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook, status_stack::StatusStack };
 use nlearn::table::Table;
 use crate::status_stack::*;
 use sourceview::View;
@@ -40,7 +40,8 @@ pub struct SqlPopover {
     pub file_loaded : Rc<RefCell<bool>>,
     pub query_sent : Rc<RefCell<bool>>,
     pub extra_toolbar : Toolbar,
-    pub sql_stack : Stack
+    pub sql_stack : Stack,
+    pub status_stack : StatusStack
 }
 
 impl SqlPopover {
@@ -110,7 +111,85 @@ impl SqlPopover {
         self.extra_toolbar.show_all();
     }
 
-    pub fn new(query_toggle : ToggleButton) -> Self {
+    pub fn connect_result_arrived<F>(
+        &self,
+        tbl_env_c : Rc<RefCell<TableEnvironment>>,
+        mut f : F
+    )
+        where
+            F : FnMut(&TableEnvironment) -> Result<(), String> + 'static
+    {
+        let status_stack = self.status_stack.clone();
+        let view_c = self.view.clone();
+        let sql_popover = self.clone();
+        gtk::timeout_add(16, move || {
+            if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
+                if *sent {
+                    println!("Sent");
+                    //println!("{}", sql_popover.query_sent.borrow());
+                    if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
+                        let updated = if let Some(last_cmd) = t_env.last_commands().last() {
+                            println!("Query updated");
+                            println!("Last command: {}", last_cmd);
+                            if &last_cmd[..] == "select" {
+                                match t_env.maybe_update_from_query_results() {
+                                    Some(ans) => {
+                                        match ans {
+                                            Ok(_) => {
+                                                if let Err(e) = f(&t_env) {
+                                                    println!("{}", e);
+                                                    status_stack.update(Status::SqlErr(e));
+                                                } else {
+                                                    status_stack.update(Status::Ok);
+                                                }
+                                            },
+                                            Err(e) => {
+                                                println!("{}", e);
+                                                status_stack.update(Status::SqlErr(e));
+                                            }
+                                        }
+                                        true
+                                    },
+                                    None => false
+                                }
+                            } else {
+                                match t_env.result_last_statement() {
+                                    Some(ans) => {
+                                        match ans {
+                                            Ok(msg) => {
+                                                status_stack.update(Status::StatementExecuted(msg));
+                                            },
+                                            Err(e) => {
+                                                println!("{}", e);
+                                                status_stack.update(Status::SqlErr(e));
+                                            }
+                                        }
+                                        true
+                                    },
+                                    None => false
+                                }
+                            }
+                        } else {
+                            println!("Unable to retrieve last command");
+                            false
+                        };
+                        if updated {
+                            view_c.set_sensitive(true);
+                            *sent = false;
+                            println!("Sent set to false");
+                        } else {
+                            println!("Not updated yet");
+                        }
+                    }
+                }
+            } else {
+                println!("Unable to retrieve reference to query sent status");
+            }
+            glib::source::Continue(true)
+        });
+    }
+
+    pub fn new(query_toggle : ToggleButton, status_stack : StatusStack) -> Self {
         let query_popover_path = utils::glade_path("query-popover.glade").expect("Failed to load glade file");
         let builder = Builder::new_from_file(query_popover_path);
         let popover : Popover =
@@ -197,7 +276,8 @@ impl SqlPopover {
             // sql_toggle,
             file_loaded : Rc::new(RefCell::new(false)),
             query_sent : Rc::new(RefCell::new(false)),
-            sql_stack
+            sql_stack,
+            status_stack
         }
     }
 

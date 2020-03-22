@@ -119,7 +119,6 @@ impl QueriesApp {
 
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
-
         //let file_btn : FileChooserButton =
         //    builder.get_object("file_btn").unwrap();
         //let table_popover : Popover =
@@ -130,8 +129,8 @@ impl QueriesApp {
 
         let query_toggle : ToggleButton =
             builder.get_object("query_toggle").unwrap();
-        let sql_popover = SqlPopover::new(query_toggle.clone());
-        sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
+        let sql_popover = SqlPopover::new(query_toggle.clone(), status_stack.clone());
+        //sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
         sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
         sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
         let function_box : Box = builder.get_object("fn_box").unwrap();
@@ -307,19 +306,36 @@ impl QueriesApp {
         //let table_env_c = queries_app.clone().table_env.clone();
         //let view_c = queries_app_c.view.clone();
         //let tables_nb_c = queries_app.clone().tables_nb.clone();
-
         // Check if there is a SQL answer before setting the widgets to sensitive again.
         //let sql_listener_c = sql_listener.clone();
+
         {
+            let table_env_c = table_env.clone();
+            let tables_nb = tables_nb.clone();
+            let fn_search = fn_search.clone();
+            let f = move |t_env : &TableEnvironment| {
+                //if let Ok(t_env) = table_env_c.try_borrow() {
+                set_tables(&t_env, &mut tables_nb.clone(), fn_search.clone());
+                tables_nb.nb.set_sensitive(true);
+                Ok(())
+                //} else {
+                //    Err(String::from("Error retrieving reference to table environment"))
+               // }
+            };
+
+            let table_env = table_env.clone();
+            sql_popover.connect_result_arrived(table_env, f);
+        }
+
+        // Query update passed to sql_popover
+        /*{
             let status_stack = status_stack.clone();
-            //let queries_app_c = queries_app.clone();
             let view_c = sql_popover.clone().view.clone();
             let tables_nb_c = tables_nb.clone();
             let tbl_env_c = table_env.clone();
             let sql_popover = sql_popover.clone();
             let fn_search = fn_search.clone();
             gtk::timeout_add(16, move || {
-                //println!("{}", sql_popover.query_sent.borrow());
                 if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
                     if *sent {
                         println!("Sent");
@@ -375,15 +391,13 @@ impl QueriesApp {
                                 println!("Not updated yet");
                             }
                         }
-                    } //else {
-                      //  println!("Query not sent");
-                    //}
+                    }
                 } else {
                     println!("Unable to retrieve reference to query sent status");
                 }
                 glib::source::Continue(true)
             });
-        }
+        }*/
 
         /*{
             let queries_app = queries_app.clone();
