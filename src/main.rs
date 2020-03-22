@@ -24,6 +24,9 @@ use gtk_queries::{utils, table_widget::TableWidget, table_notebook::TableNoteboo
 use nlearn::table::Table;
 use gtk_queries::status_stack::*;
 use gtk_queries::sql_popover::*;
+use gtk_queries::functions::function_search::*;
+use gtk_queries::functions::num_function::*;
+use gdk::prelude::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -47,13 +50,19 @@ pub struct QueriesApp {
 
 pub fn set_tables(
     table_env : &TableEnvironment,
-    tables_nb : &mut TableNotebook
+    tables_nb : &mut TableNotebook,
+    fn_search : FunctionSearch
 ) {
     tables_nb.clear();
     let all_tbls = table_env.all_tables_as_rows();
     if all_tbls.len() == 0 {
-        tables_nb.add_page("application-exit",
-            None, Some("No queries"), None);
+        tables_nb.add_page(
+            "application-exit",
+            None,
+            Some("No queries"),
+            None,
+            fn_search.clone()
+        );
     } else {
         tables_nb.clear();
         for t_rows in all_tbls {
@@ -62,8 +71,13 @@ pub fn set_tables(
             if nrows > 0 {
                 let ncols = t_rows[0].len();
                 let name = format!("({} x {})", nrows - 1, ncols);
-                tables_nb.add_page("network-server-symbolic",
-                    Some(&name[..]), None, Some(t_rows));
+                tables_nb.add_page(
+                    "network-server-symbolic",
+                    Some(&name[..]),
+                    None,
+                    Some(t_rows),
+                    fn_search.clone()
+                );
             } else {
                 println!("No rows to display");
             }
@@ -71,9 +85,24 @@ pub fn set_tables(
     }
 }
 
+fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
+    if let Some(win) = window.get_window() {
+        let w = win.get_width();
+        match btn.get_active() {
+            false => {
+                main_paned.set_position(w);
+            },
+            true => {
+                let adj_w = (w as f32 * 0.8) as i32;
+                main_paned.set_position(adj_w);
+            }
+        }
+    }
+}
+
 impl QueriesApp {
 
-    pub fn new_from_builder(builder : &Builder) -> Self {
+    pub fn new_from_builder(builder : &Builder, window : Window) -> Self {
         //let header : HeaderBar =
         //    builder.get_object("header").unwrap();
         let tables_nb = TableNotebook::new(&builder);
@@ -87,6 +116,10 @@ impl QueriesApp {
         let popover_path = utils::glade_path("conn-popover.glade")
             .expect("Could not open glade path");
         let conn_popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
+
+        // fn get_property_gtk_theme_name(&self) -> Option<GString>
+        // Load icon based on theme type
+
         //let file_btn : FileChooserButton =
         //    builder.get_object("file_btn").unwrap();
         //let table_popover : Popover =
@@ -99,6 +132,59 @@ impl QueriesApp {
         sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
         sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
         sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
+
+        //let main_paned : Paned = builder.get_object("main_paned").unwrap();
+        let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
+        let fn_popover : Popover =  builder.get_object("fn_popover").unwrap();
+        {
+            let fn_popover = fn_popover.clone();
+            fn_toggle.connect_toggled(move |toggle| {
+                if toggle.get_active() {
+                    fn_popover.show();
+                } else {
+                    fn_popover.hide();
+                }
+            });
+        }
+
+        {
+            let query_toggle = fn_toggle.clone();
+            fn_popover.connect_closed(move |_popover| {
+                query_toggle.set_active(false);
+            });
+        }
+
+        /*{
+            let window = window.clone();
+            let fn_toggle = fn_toggle.clone();
+            let main_paned = main_paned.clone();
+            fn_toggle.connect_toggled(move |btn| {
+                ajust_sidebar_pos(&btn, &window, &main_paned);
+            });
+        }
+
+        {
+            let window = window.clone();
+            let fn_toggle = fn_toggle.clone();
+            let main_paned = main_paned.clone();
+            window.connect_check_resize(move |win| {
+                //ajust_sidebar_pos(&fn_toggle, &win, &main_paned);
+                println!("Resize request");
+            });
+
+            //window.connect_property_is_maximized_notify(move |win| {
+            //    println!("Maximized");
+            //});
+        }*/
+
+        let reg = Rc::new(NumRegistry::load().map_err(|e| { println!("{}", e); e }).unwrap());
+        let funcs = reg.function_list();
+        let fn_search = FunctionSearch::new(builder.clone(), reg.clone(), tables_nb.clone());
+        let func_names : Vec<String> = funcs.iter().map(|f| f.name.to_string()).collect();
+        println!("Function names: {:?}", func_names);
+        if let Err(e) = fn_search.populate_search(func_names) {
+            //println!("{}", e);
+        }
 
         //let ops_stack : Stack =
         //    builder.get_object("ops_stack").unwrap();
@@ -226,6 +312,7 @@ impl QueriesApp {
             let tables_nb_c = tables_nb.clone();
             let tbl_env_c = table_env.clone();
             let sql_popover = sql_popover.clone();
+            let fn_search = fn_search.clone();
             gtk::timeout_add(16, move || {
                 //println!("{}", sql_popover.query_sent.borrow());
                 if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
@@ -241,7 +328,7 @@ impl QueriesApp {
                                         Some(ans) => {
                                             match ans {
                                                 Ok(_) => {
-                                                    set_tables(&t_env, &mut tables_nb_c.clone());
+                                                    set_tables(&t_env, &mut tables_nb_c.clone(), fn_search.clone());
                                                     status_stack.update(Status::Ok);
                                                 },
                                                 Err(e) => {
@@ -379,13 +466,22 @@ impl QueriesApp {
 
 }
 
+fn build_func_menu(builder : Builder) {
+    let search_entry : Entry =
+            builder.get_object("fn_search_entry").unwrap();
+        let completion : EntryCompletion =
+            builder.get_object("fn_completion").unwrap();
+        completion.set_text_column(0);
+        completion.set_minimum_key_length(1);
+}
+
 fn build_ui(app: &gtk::Application) {
-    let path = utils::glade_path("gtk-queries.glade").expect("Failed to load glade file");
+    let path = utils::glade_path("gtk-queries-funcs-popover.glade").expect("Failed to load glade file");
     let builder = Builder::new_from_file(path);
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
 
-    let queries_app = QueriesApp::new_from_builder(&builder);
+    let queries_app = QueriesApp::new_from_builder(&builder, win.clone());
 
     {
         let toggle_q = queries_app.sql_popover.query_toggle.clone();

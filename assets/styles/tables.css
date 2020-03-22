@@ -6,8 +6,15 @@
   border : 1px solid #F0F0F0;
 }
 
+.selected {
+  background-color : #F5F6F7;
+  border : 1px solid #E9E9E9;
+}
+
 .first-row {
   /*background-color : #E9E9E9;*/
   font-weight : bold;
   border-bottom : 1px solid #F0F0F0;
 }
+
+

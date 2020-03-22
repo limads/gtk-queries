@@ -36,7 +36,7 @@ pub struct SqlPopover {
     pub refresh_btn : ToolButton,
     pub popover : Popover,
     pub query_toggle : ToggleButton,
-    pub sql_toggle : ToggleToolButton,
+    //pub sql_toggle : ToggleToolButton,
     pub file_loaded : Rc<RefCell<bool>>,
     pub query_sent : Rc<RefCell<bool>>
 }
@@ -116,15 +116,55 @@ impl SqlPopover {
         //item_a.set_label(Some("Off"));
         //item_b.set_label(Some("1 s"));
 
+        let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
+
         let update_toolbar : Toolbar = builder.get_object("update_toolbar").unwrap();
         let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
-        let update_btn : ToolButton = ToolButton::new(Some(&img_clock), Some("Off"));
-
+        let update_btn = ToggleToolButton::new();
+        update_btn.set_icon_widget(Some(&img_clock));
         update_toolbar.insert(&update_btn, 1);
+
+        // let source_toggle = ToggleToolButton::new();
+        // let source_img = Image::new_from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
+        // source_toggle.set_icon_widget(Some(&source_img));
+        //update_toolbar.insert(&source_toggle, 2);
+        let fn_toggle = ToggleToolButton::new();
+        let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
+        fn_toggle.set_icon_widget(Some(&fn_img));
+        update_toolbar.insert(&fn_toggle, 0);
+
+        /*{
+            let fn_toggle = fn_toggle.clone();
+            let sql_stack = sql_stack.clone();
+            source_toggle.connect_toggled(move|item| {
+                if item.get_active() {
+                    sql_stack.set_visible_child_name("source");
+                    fn_toggle.set_active(false);
+                } else {
+                    sql_stack.set_visible_child_name("function");
+                    fn_toggle.set_active(true);
+                }
+            });
+        }*/
+
+        {
+            //let source_toggle = source_toggle.clone();
+            let sql_stack = sql_stack.clone();
+            fn_toggle.connect_toggled(move|item| {
+                if item.get_active() {
+                    sql_stack.set_visible_child_name("function");
+                    //source_toggle.set_active(false);
+                } else {
+                    sql_stack.set_visible_child_name("source");
+                    //source_toggle.set_active(true);
+                }
+            });
+        }
+
         //update_toolbar.insert(&item_b, 1);
-        //update_toolbar.show_all();
-        update_btn.connect_clicked(move|btn|{
-            let curr_label = btn.get_label().unwrap();
+        update_toolbar.show_all();
+        update_btn.connect_toggled(move|btn|{
+            /*let curr_label = btn.get_label().unwrap();
             let new_label = match curr_label.as_str() {
                 "Off" => "0.5 s",
                 "0.5 s" => "1 s",
@@ -132,20 +172,20 @@ impl SqlPopover {
                 "5 s" => "Off",
                 _ => "Off"
             };
-            btn.set_label(Some(new_label));
+            btn.set_label(Some(new_label));*/
         });
 
         //load_item.set_icon_name(Some("emblem-documents"));
         //load_item.add(&img);
-        let sql_toggle : ToggleToolButton = ToggleToolButton::new();
+        /*let sql_toggle : ToggleToolButton = ToggleToolButton::new();
         sql_toggle.set_icon_name(Some("document-open-symbolic"));
         update_toolbar.insert(&sql_toggle, 0);
         //load_item.set_sensitive(false);
-        update_toolbar.show_all();
+        update_toolbar.show_all();*/
 
         let sql_load_dialog : FileChooserDialog =
             builder.get_object("sql_load_dialog").unwrap();
-        {
+        /*{
             let view = view.clone();
 
             {
@@ -160,7 +200,7 @@ impl SqlPopover {
                     }
                 });
             }
-        }
+        }*/
 
         let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
         let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
@@ -192,14 +232,14 @@ impl SqlPopover {
             refresh_btn,
             popover,
             query_toggle,
-            sql_toggle,
+            // sql_toggle,
             file_loaded : Rc::new(RefCell::new(false)),
             query_sent : Rc::new(RefCell::new(false))
         }
     }
 
     pub fn set_file_mode(&self, fname : &str) {
-        if let Some(buf) = self.view.get_buffer() {
+        /*if let Some(buf) = self.view.get_buffer() {
             buf.set_text("");
         }
         self.sql_toggle.set_label(Some(fname));
@@ -209,11 +249,11 @@ impl SqlPopover {
             *fl = true;
         } else {
             println!("Could not retrieve mutable reference to file status");
-        }
+        }*/
     }
 
     pub fn set_view_mode(&self) {
-        if let Some(buf) = self.view.get_buffer() {
+        /*if let Some(buf) = self.view.get_buffer() {
             buf.set_text("");
         }
         self.sql_toggle.set_label(None);
@@ -223,7 +263,7 @@ impl SqlPopover {
             *fl = false;
         } else {
             println!("Could not retrieve mutable reference to file status");
-        }
+        }*/
     }
 
     pub fn connect_sql_load(&self, nb : TableNotebook, table_env : Rc<RefCell<TableEnvironment>>) {

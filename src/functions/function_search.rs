@@ -101,13 +101,12 @@ pub struct FunctionSearch {
     search_entry : Entry,
     completion_list_store : ListStore,
     reg : Rc<NumRegistry>,
-    fn_update_btn : Button,
-    fn_remove_btn : Button,
-    fn_name_label : Label,
+    update_btn : ToolButton,
+    clear_btn : ToolButton,
+    curr_fn : Rc<RefCell<Option<(String, HashMap<String, String>)>>>,
     fn_doc_label : Label,
-    fn_arg_box : Box,
-    src_entry : Entry,
-    dst_entry : Entry
+    doc_stack : Stack,
+    cols_label : Label
 }
 
 impl FunctionSearch {
@@ -211,7 +210,7 @@ impl FunctionSearch {
         });
     }*/
 
-    fn update_param_box(&self, params : &[String]) {
+    /*fn update_param_box(&self, params : &[String]) {
         for child in self.fn_arg_box.get_children() {
             self.fn_arg_box.remove(&child);
         }
@@ -224,15 +223,15 @@ impl FunctionSearch {
             self.fn_arg_box.pack_end(&bx, true, true, 0);
         }
         self.fn_arg_box.show_all();
-    }
+    }*/
 
-    fn update_args(&self, args : &[String]) {
+    /*fn update_args(&self, args : &[String]) {
         for (entry, arg) in self.get_arg_widgets().iter().zip(args.iter()) {
             entry.set_text(arg);
         }
-    }
+    }*/
 
-    fn get_arg_widgets(&self) -> Vec<Entry> {
+    /*fn get_arg_widgets(&self) -> Vec<Entry> {
         let mut entries = Vec::new();
         for (i, child) in self.fn_arg_box.get_children().iter().enumerate() {
             let bx_child : Box = child.clone().downcast().unwrap();
@@ -244,9 +243,9 @@ impl FunctionSearch {
             }
         }
         entries
-    }
+    }*/
 
-    fn read_args(&self) -> Result<Vec<String>,impl Display> {
+    /*fn read_args(&self) -> Result<Vec<String>,impl Display> {
         let mut args = Vec::new();
         let entries = self.get_arg_widgets();
         if entries.len() == 0 {
@@ -260,34 +259,78 @@ impl FunctionSearch {
             }
         }
         Ok(args)
-    }
+    }*/
 
-    fn update_fn_info(&self, name : &str) {
-        if self.reg.has_func_name(&name[..]) {
-            self.fn_name_label.set_text(name);
-            if let Some(doc) = self.reg.get_doc(name) {
-                self.fn_doc_label.set_text(&doc[..]);
-            } else {
-                println!("No doc available");
-            }
-            if let Some(args) = self.reg.get_args(name) {
-                self.update_param_box(&args[..]);
-            } else {
-                println!("No args available");
-            }
+    pub fn set_active_status(&self, active : bool) {
+        self.search_entry.set_sensitive(active);
+        if active {
+            self.doc_stack.set_visible_child_name("page2");
         } else {
-            println!("{} not in function registry", name);
+            self.doc_stack.set_visible_child_name("page0");
         }
     }
 
-    pub fn new(builder : Builder, reg : Rc<NumRegistry>) -> Self {
+    pub fn split_args(call : &str) -> Option<(String, HashMap<String, String>)> {
+        let mut txts = call.split_whitespace();
+        let name = txts.next()?.to_string();
+        let mut args = HashMap::new();
+        for arg in txts {
+            if !arg.is_empty() && !arg.chars().all(|c| c.is_whitespace() ) {
+                let mut arg_pair = arg.split("=");
+                let arg_name = arg_pair.next()?;
+                let arg_val = arg_pair.next()?;
+                if !arg_pair.next().is_none() {
+                    return None;
+                }
+                args.insert(arg_name.to_string(), arg_val.to_string());
+            }
+        }
+        Some((name, args))
+    }
+
+    pub fn update_fn_info(&self, call : &str, selected : &[usize]) {
+        if selected.len() > 0 {
+            self.search_entry.set_sensitive(true);
+            if call.is_empty() {
+                self.doc_stack.set_visible_child_name("cols_selected");
+                self.cols_label.set_text(&format!("{} column(s) selected", selected.len())[..]);
+            } else {
+                if let Some((name, args)) = Self::split_args(call) {
+                    if self.reg.has_func_name(&name[..]) {
+                        if let Some(doc) = self.reg.get_doc(&name[..]) {
+                            self.doc_stack.set_visible_child_name("fn_doc");
+                            self.fn_doc_label.set_text(&doc[..]);
+                            if let Ok(mut curr_fn) = self.curr_fn.try_borrow_mut() {
+                                *curr_fn = Some((name, args));
+                            } else {
+                                println!("Unable to retrieve mutable reference to current fn");
+                            }
+                        } else {
+                            self.doc_stack.set_visible_child_name("invalid_call");
+                            //println!("No doc available");
+                        }
+                    } else {
+                        println!("{} not in function registry", name);
+                        self.doc_stack.set_visible_child_name("invalid_call");
+                    }
+                } else {
+                    self.doc_stack.set_visible_child_name("invalid_call");
+                }
+            }
+        } else {
+            self.search_entry.set_sensitive(false);
+            self.doc_stack.set_visible_child_name("no_columns");
+        }
+    }
+
+    pub fn new(builder : Builder, reg : Rc<NumRegistry>, tbl_nb : TableNotebook) -> Self {
         let search_entry : Entry =
-            builder.get_object("function_search_entry").unwrap();
+            builder.get_object("fn_search").unwrap();
         //let provider = utils::provider_from_path("entry.css").unwrap();
         //let ctx = search_entry.get_style_context();
         //ctx.add_provider(&provider,800);
         let completion : EntryCompletion =
-            builder.get_object("entrycompletion1").unwrap();
+            builder.get_object("fn_completion").unwrap();
         completion.set_text_column(0);
         completion.set_minimum_key_length(1);
         //completion.set_popup_completion(true);
@@ -295,73 +338,70 @@ impl FunctionSearch {
             builder.get_object("fn_list_store").unwrap();
         //let fn_tree_model_filter : TreeModelFilter =
         //    builder.get_object("treemodelfilter1").unwrap();
-        let fn_remove_btn : Button = builder.get_object("tbl_remove_btn").unwrap();
-        let fn_update_btn : Button = builder.get_object("tbl_rename_btn").unwrap();
-        let fn_arg_box : Box = builder.get_object("fn_arg_box").unwrap();
-        let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
+        // let fn_arg_box : Box = builder.get_object("fn_arg_box").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
-        let src_entry : Entry = builder.get_object("src_entry").unwrap();
-        let dst_entry : Entry = builder.get_object("dst_entry").unwrap();
+        let fn_toolbar : Toolbar = builder.get_object("fn_toolbar").unwrap();
+        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        let img_update = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
+        let clear_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
+        let update_btn : ToolButton = ToolButton::new(Some(&img_update), None);
+        let cols_label : Label = builder.get_object("cols_label").unwrap();
+        let doc_stack : Stack = builder.get_object("fn_doc_stack").unwrap();
+        fn_toolbar.insert(&clear_btn, 0);
+        fn_toolbar.insert(&update_btn, 1);
+        fn_toolbar.show_all();
 
-        {
-            let fn_update_btn = fn_update_btn.clone();
+       {
             let reg = reg.clone();
             search_entry.connect_key_release_event(move |entry, _ev_key| {
                 if let Some(name) = entry.get_text().map(|n| n.to_string()) {
                     if reg.has_func_name(&name[..]) {
-                        fn_update_btn.set_sensitive(true);
+                        //fn_update_btn.set_sensitive(true);
                     } else {
-                        fn_update_btn.set_sensitive(false);
+                        //fn_update_btn.set_sensitive(false);
                     }
                 }
                 glib::signal::Inhibit(false)
             });
         }
 
-        {
-            fn_remove_btn.connect_clicked(move |_| {
-                // removing a function position means removing
-                // all tables after it. We should iterate over widgets,
-                // table names and function calls and erase everything.
-            });
-        }
-
-        {
-            let fn_update_btn : Button = fn_update_btn.clone();
+        /*{
+            let fn_update_btn : Button = update_btn.clone();
             let fn_remove_btn : Button = fn_remove_btn.clone();
             search_entry.connect_focus(move |_entry, _focus_type| {
                 fn_update_btn.set_sensitive(false);
                 fn_remove_btn.set_sensitive(false);
                 glib::signal::Inhibit(false)
             });
-        }
+        }*/
 
+        let curr_fn = Rc::new(RefCell::new(None));
         let fn_search = Self {
             search_entry,
             completion_list_store,
             reg,
-            fn_update_btn,
-            fn_remove_btn,
-            fn_name_label,
+            update_btn,
+            clear_btn,
             fn_doc_label,
-            fn_arg_box,
-            src_entry,
-            dst_entry
+            doc_stack,
+            curr_fn,
+            cols_label
+            //fn_arg_box,
+
         };
 
         {
             let fn_search = fn_search.clone();
             let search_entry = fn_search.search_entry.clone();
+            let tbl_nb = tbl_nb.clone();
             search_entry.connect_key_press_event(move |entry, key_ev| {
                 match key_ev.get_keyval() {
                     key::Return => {
-                        match entry.get_text().map(|txt| txt.to_string()) {
-                            Some(text) =>  {
-                                fn_search.update_fn_info(&text[..]);
-                            },
-                            _ => {
-                                println!("Failed to acquire lock");
-                            }
+                        let text = entry.get_text().map(|txt| txt.to_string()).unwrap_or("".to_string());
+                        let selected = tbl_nb.selected_cols();
+                        fn_search.update_fn_info(&text[..], &selected[..]);
+                        if key_ev.get_state() == gdk::ModifierType::MOD2_MASK {
+                            println!("Execute");
                         }
                         glib::signal::Inhibit(true)
                     }
@@ -378,10 +418,15 @@ impl FunctionSearch {
             //    println!("{}", txt);
             //    true
             //});
-            //completion.connect_match_selected(move |compl, _model, _iter|{
-            //    println!("{:?}", compl.get_completion_prefix());
-            //    glib::signal::Inhibit(false)
-            //});
+            let tbl_nb = tbl_nb.clone();
+            completion.connect_match_selected(move |compl, model, iter|{
+                if let Ok(Some(text)) = model.get_value(iter, 0).get::<String>() {
+                    let selected = tbl_nb.selected_cols();
+                    fn_search.update_fn_info(&text[..], &selected[..]);
+                }
+                //println!("{:?}", ;
+                glib::signal::Inhibit(false)
+            });
             completion.connect_cursor_on_match(move |compl, _model, _iter|{
                 if let Some(prefix) = compl.get_completion_prefix().map(|p| p.to_string()) {
                     println!("{}", prefix);
@@ -393,13 +438,13 @@ impl FunctionSearch {
     }
 
     pub fn populate_search(&self, names : Vec<String>) -> Result<(), &'static str> {
-        //let name1 = "summary".to_string();
-        //let name2 = "fit".to_string();
-        //let name3 = "eval".to_string();
-        //let mut fn_names = Vec::new();
-        //fn_names.push(&name1 as &dyn ToValue);
-        //fn_names.push(&name2 as &dyn ToValue);
-        //fn_names.push(&name3 as &dyn ToValue);
+        // let name1 = "summary".to_string();
+        // let name2 = "fit".to_string();
+        // let name3 = "eval".to_string();
+        // let mut fn_names = Vec::new();
+        // fn_names.push(&name1 as &dyn ToValue);
+        // fn_names.push(&name2 as &dyn ToValue);
+        // fn_names.push(&name3 as &dyn ToValue);
         let dyn_names : Vec<_> = names.iter().map(|m| m as &dyn ToValue).collect();
         let cols = [0];
         for i in 0..dyn_names.len() {
