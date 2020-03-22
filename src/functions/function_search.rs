@@ -101,8 +101,8 @@ pub struct FunctionSearch {
     search_entry : Entry,
     completion_list_store : ListStore,
     reg : Rc<NumRegistry>,
-    update_btn : ToolButton,
-    clear_btn : ToolButton,
+    // update_btn : ToolButton,
+    // clear_btn : ToolButton,
     curr_fn : Rc<RefCell<Option<(String, HashMap<String, String>)>>>,
     fn_doc_label : Label,
     doc_stack : Stack,
@@ -340,16 +340,16 @@ impl FunctionSearch {
         //    builder.get_object("treemodelfilter1").unwrap();
         // let fn_arg_box : Box = builder.get_object("fn_arg_box").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
-        let fn_toolbar : Toolbar = builder.get_object("fn_toolbar").unwrap();
-        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
-        let img_update = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
-        let clear_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
-        let update_btn : ToolButton = ToolButton::new(Some(&img_update), None);
+        //let fn_toolbar : Toolbar = builder.get_object("fn_toolbar").unwrap();
+        //let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        //let img_update = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
+        //let clear_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
+        //let update_btn : ToolButton = ToolButton::new(Some(&img_update), None);
         let cols_label : Label = builder.get_object("cols_label").unwrap();
         let doc_stack : Stack = builder.get_object("fn_doc_stack").unwrap();
-        fn_toolbar.insert(&clear_btn, 0);
-        fn_toolbar.insert(&update_btn, 1);
-        fn_toolbar.show_all();
+        //fn_toolbar.insert(&clear_btn, 0);
+        //fn_toolbar.insert(&update_btn, 1);
+        //fn_toolbar.show_all();
 
        {
             let reg = reg.clone();
@@ -380,8 +380,8 @@ impl FunctionSearch {
             search_entry,
             completion_list_store,
             reg,
-            update_btn,
-            clear_btn,
+            //update_btn,
+            //clear_btn,
             fn_doc_label,
             doc_stack,
             curr_fn,

@@ -32,13 +32,15 @@ pub enum ExecStatus {
 #[derive(Clone)]
 pub struct SqlPopover {
     pub view : View,
-    pub sql_load_dialog : FileChooserDialog,
+    //pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : ToolButton,
     pub popover : Popover,
     pub query_toggle : ToggleButton,
     //pub sql_toggle : ToggleToolButton,
     pub file_loaded : Rc<RefCell<bool>>,
-    pub query_sent : Rc<RefCell<bool>>
+    pub query_sent : Rc<RefCell<bool>>,
+    pub extra_toolbar : Toolbar,
+    pub sql_stack : Stack
 }
 
 impl SqlPopover {
@@ -94,16 +96,25 @@ impl SqlPopover {
         println!("at update: {}", query_sent.borrow());
     }
 
-    pub fn new(builder : Builder) -> Self {
-        //let query_toolbar : Toolbar = builder.get_object("query_toolbar").unwrap();
-        // let img_load = Image::new_from_icon_name(Some("document-open-symbolic"), IconSize::SmallToolbar);
-        //let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+    pub fn add_extra_toolbar(&self, tool_btn : ToggleToolButton, bx : gtk::Box) {
+        self.sql_stack.add_named(&bx, "extra");
+        let sql_stack = self.sql_stack.clone();
+        tool_btn.connect_toggled(move|item| {
+            if item.get_active() {
+                sql_stack.set_visible_child_name("extra");
+            } else {
+                sql_stack.set_visible_child_name("source");
+            }
+        });
+        self.extra_toolbar.insert(&tool_btn, 0);
+        self.extra_toolbar.show_all();
+    }
 
-        // let clear_item : ToolButton = ToolButton::new(Some(&img_clear), None);
+    pub fn new(query_toggle : ToggleButton) -> Self {
+        let query_popover_path = utils::glade_path("query-popover.glade").expect("Failed to load glade file");
+        let builder = Builder::new_from_file(query_popover_path);
         let popover : Popover =
             builder.get_object("query_popover").unwrap();
-        let query_toggle : ToggleButton =
-            builder.get_object("query_toggle").unwrap();
         let view : View =
             builder.get_object("query_source").unwrap();
         let buffer = view.get_buffer().unwrap()
@@ -111,58 +122,15 @@ impl SqlPopover {
         let lang_manager = LanguageManager::get_default().unwrap();
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
-        //let item_a = ToggleToolButton::new();
-        //let item_b = ToggleToolButton::new();
-        //item_a.set_label(Some("Off"));
-        //item_b.set_label(Some("1 s"));
-
         let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
-
-        let update_toolbar : Toolbar = builder.get_object("update_toolbar").unwrap();
+        let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
+        let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
         let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
         let update_btn = ToggleToolButton::new();
         update_btn.set_icon_widget(Some(&img_clock));
-        update_toolbar.insert(&update_btn, 1);
-
-        // let source_toggle = ToggleToolButton::new();
-        // let source_img = Image::new_from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
-        // source_toggle.set_icon_widget(Some(&source_img));
-        //update_toolbar.insert(&source_toggle, 2);
-        let fn_toggle = ToggleToolButton::new();
-        let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
-        fn_toggle.set_icon_widget(Some(&fn_img));
-        update_toolbar.insert(&fn_toggle, 0);
-
-        /*{
-            let fn_toggle = fn_toggle.clone();
-            let sql_stack = sql_stack.clone();
-            source_toggle.connect_toggled(move|item| {
-                if item.get_active() {
-                    sql_stack.set_visible_child_name("source");
-                    fn_toggle.set_active(false);
-                } else {
-                    sql_stack.set_visible_child_name("function");
-                    fn_toggle.set_active(true);
-                }
-            });
-        }*/
-
-        {
-            //let source_toggle = source_toggle.clone();
-            let sql_stack = sql_stack.clone();
-            fn_toggle.connect_toggled(move|item| {
-                if item.get_active() {
-                    sql_stack.set_visible_child_name("function");
-                    //source_toggle.set_active(false);
-                } else {
-                    sql_stack.set_visible_child_name("source");
-                    //source_toggle.set_active(true);
-                }
-            });
-        }
-
-        //update_toolbar.insert(&item_b, 1);
-        update_toolbar.show_all();
+        sql_toolbar.insert(&update_btn, 1);
+        // update_toolbar.insert(&item_b, 1);
+        // extra_toolbar.show_all();
         update_btn.connect_toggled(move|btn|{
             /*let curr_label = btn.get_label().unwrap();
             let new_label = match curr_label.as_str() {
@@ -174,17 +142,8 @@ impl SqlPopover {
             };
             btn.set_label(Some(new_label));*/
         });
-
-        //load_item.set_icon_name(Some("emblem-documents"));
-        //load_item.add(&img);
-        /*let sql_toggle : ToggleToolButton = ToggleToolButton::new();
-        sql_toggle.set_icon_name(Some("document-open-symbolic"));
-        update_toolbar.insert(&sql_toggle, 0);
-        //load_item.set_sensitive(false);
-        update_toolbar.show_all();*/
-
-        let sql_load_dialog : FileChooserDialog =
-            builder.get_object("sql_load_dialog").unwrap();
+        //let sql_load_dialog : FileChooserDialog =
+        //    builder.get_object("sql_load_dialog").unwrap();
         /*{
             let view = view.clone();
 
@@ -202,11 +161,11 @@ impl SqlPopover {
             }
         }*/
 
-        let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
+        //let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
         let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
         let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
-        exec_toolbar.insert(&refresh_btn, 0);
-        exec_toolbar.show_all();
+        sql_toolbar.insert(&refresh_btn, 0);
+        sql_toolbar.show_all();
 
         {
             let popover = popover.clone();
@@ -226,15 +185,19 @@ impl SqlPopover {
             });
         }
 
+        popover.set_relative_to(Some(&query_toggle));
+
         Self {
             view,
-            sql_load_dialog,
+            //sql_load_dialog,
             refresh_btn,
             popover,
             query_toggle,
+            extra_toolbar,
             // sql_toggle,
             file_loaded : Rc::new(RefCell::new(false)),
-            query_sent : Rc::new(RefCell::new(false))
+            query_sent : Rc::new(RefCell::new(false)),
+            sql_stack
         }
     }
 
@@ -270,7 +233,7 @@ impl SqlPopover {
         //let view =  self.view.clone();
         //let nb = nb.clone();
         //let sql_toggle = self.sql_toggle.clone();
-        let sql_popover = self.clone();
+        /*let sql_popover = self.clone();
         self.sql_load_dialog.connect_response(move |dialog, resp|{
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
                 match resp {
@@ -298,7 +261,7 @@ impl SqlPopover {
             } else {
                 println!("Unable to retrieve mutable reference to table environment");
             }
-        });
+        });*/
     }
 
     pub fn connect_refresh(&self, table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook) {

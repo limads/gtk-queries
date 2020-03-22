@@ -23,12 +23,12 @@ pub struct ConnPopover {
     conn_switch : Switch,
     db_file_btn : Button,
     db_file_dialog : FileChooserDialog,
-    query_file_dialog : FileChooserDialog,
+    //query_file_dialog : FileChooserDialog,
     db_file_img : Image,
     db_path : Rc<RefCell<Vec<PathBuf>>>,
-    query_update_combo : ComboBoxText,
-    query_upload_btn : Button,
-    query_update_btn : Button
+    //query_update_combo : ComboBoxText,
+    //query_upload_btn : Button,
+    //query_update_btn : Button
 }
 
 /*
@@ -83,18 +83,18 @@ impl ConnPopover {
             builder.get_object("conn_switch").unwrap();
         let db_file_dialog : FileChooserDialog =
             builder.get_object("db_file_dialog").unwrap();
-        let query_file_dialog : FileChooserDialog =
-            builder.get_object("query_file_dialog").unwrap();
+        //let query_file_dialog : FileChooserDialog =
+        //    builder.get_object("query_file_dialog").unwrap();
         let db_file_btn : Button =
             builder.get_object("db_file_btn").unwrap();
-        let query_upload_btn : Button =
-            builder.get_object("query_upload_btn").unwrap();
-        let query_update_btn : Button =
-            builder.get_object("query_update_btn").unwrap();
+        //let query_upload_btn : Button =
+        //    builder.get_object("query_upload_btn").unwrap();
+        //let query_update_btn : Button =
+        //    builder.get_object("query_update_btn").unwrap();
         let db_file_img : Image =
             builder.get_object("db_file_img").unwrap();
-        let query_update_combo : ComboBoxText =
-            builder.get_object("query_update_combo").unwrap();
+        //let query_update_combo : ComboBoxText =
+        //    builder.get_object("query_update_combo").unwrap();
 
         {
             let db_file_dialog = db_file_dialog.clone();
@@ -105,16 +105,16 @@ impl ConnPopover {
             });
         }
 
-        {
+        /*{
             let query_file_dialog = query_file_dialog.clone();
             query_upload_btn.connect_clicked(move |_btn| {
                 println!("Here");
                 query_file_dialog.run();
                 query_file_dialog.hide();
             });
-        }
+        }*/
 
-        {
+        /*{
             let query_upload_btn = query_upload_btn.clone();
             let query_update_btn = query_update_btn.clone();
             let query_file_dialog = query_file_dialog.clone();
@@ -140,7 +140,7 @@ impl ConnPopover {
                     }
                 }
             });
-        }
+        }*/
         let db_path = Rc::new(RefCell::new(Vec::new()));
         ConnPopover{
             btn,
@@ -151,10 +151,10 @@ impl ConnPopover {
             db_file_dialog,
             db_path,
             db_file_img,
-            query_update_combo,
-            query_upload_btn,
-            query_update_btn,
-            query_file_dialog
+            //query_update_combo,
+            //query_upload_btn,
+            //query_update_btn,
+            //query_file_dialog
         }
     }
 
@@ -213,17 +213,17 @@ impl ConnPopover {
     fn set_db_loaded_mode(&self) {
         self.entries.iter().for_each(|entry| entry.set_sensitive(false) );
         self.db_file_btn.set_sensitive(false);
-        self.query_update_combo.set_active_id(Some("0"));
-        self.query_update_combo.set_sensitive(true);
+        //self.query_update_combo.set_active_id(Some("0"));
+        //self.query_update_combo.set_sensitive(true);
     }
 
     fn set_non_db_mode(&self) {
         self.entries.iter().for_each(|entry| entry.set_sensitive(true) );
         self.db_file_btn.set_sensitive(true);
-        self.query_update_combo.set_active_id(Some("0"));
-        self.query_update_combo.set_sensitive(false);
-        self.query_upload_btn.set_sensitive(false);
-        self.query_update_btn.set_sensitive(false);
+        //self.query_update_combo.set_active_id(Some("0"));
+        //self.query_update_combo.set_sensitive(false);
+        //self.query_upload_btn.set_sensitive(false);
+        //self.query_update_btn.set_sensitive(false);
         if let Ok(mut db_p) = self.db_path.try_borrow_mut() {
             *db_p = Vec::new();
         } else {

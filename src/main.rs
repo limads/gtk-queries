@@ -128,13 +128,20 @@ impl QueriesApp {
         let status_stack = StatusStack::new(query_stack, tables_nb.nb.clone().upcast::<Widget>());
         conn_popover.hook_signals(table_env.clone(), status_stack.clone());
 
-        let sql_popover = SqlPopover::new(builder.clone());
+        let query_toggle : ToggleButton =
+            builder.get_object("query_toggle").unwrap();
+        let sql_popover = SqlPopover::new(query_toggle.clone());
         sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
         sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
         sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
+        let function_box : Box = builder.get_object("fn_box").unwrap();
+        let fn_toggle = ToggleToolButton::new();
+        let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
+        fn_toggle.set_icon_widget(Some(&fn_img));
+        sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
 
         //let main_paned : Paned = builder.get_object("main_paned").unwrap();
-        let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
+        /*let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
         let fn_popover : Popover =  builder.get_object("fn_popover").unwrap();
         {
             let fn_popover = fn_popover.clone();
@@ -145,15 +152,13 @@ impl QueriesApp {
                     fn_popover.hide();
                 }
             });
-        }
-
-        {
+        }*/
+        /*{
             let query_toggle = fn_toggle.clone();
             fn_popover.connect_closed(move |_popover| {
                 query_toggle.set_active(false);
             });
-        }
-
+        }*/
         /*{
             let window = window.clone();
             let fn_toggle = fn_toggle.clone();
