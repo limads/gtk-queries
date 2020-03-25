@@ -10,6 +10,8 @@ pub mod functions;
 
 pub mod conn_popover;
 
+pub mod plots;
+
 pub mod utils {
 
     use std::env;

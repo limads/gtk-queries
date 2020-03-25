@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<gridplot>
+  <object class="design" name="design">
+    <property name="bg_color">#ffffff</property>
+    <property name="grid_color">#d3d7cf</property>
+    <property name="grid_width">1</property>
+    <property name="font">Monospace Regular 12</property>
+  </object>
+  <object class="grid_segment" name="x">
+    <property name="label">X Label</property>
+    <property name="from">0.0</property>
+    <property name="to">1.0</property>
+    <property name="n_intervals">4</property>
+    <property name="precision">3</property>
+    <property name="invert">false</property>
+    <property name="log_scaling">false</property>
+    <property name="grid_offset">0</property>
+    <property name="grid_density">4</property>
+  </object>
+  <object class="grid_segment" name="y">
+    <property name="label">Y Label</property>
+    <property name="from">0.0</property>
+    <property name="to">1.0</property>
+    <property name="n_intervals">4</property>
+    <property name="precision">3</property>
+    <property name="invert">false</property>
+    <property name="log_scaling">false</property>
+    <property name="grid_offset">0</property>
+    <property name="grid_density">4</property>
+  </object>
+
+</gridplot>

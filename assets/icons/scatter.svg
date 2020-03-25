@@ -15,13 +15,13 @@
    y="0px"
    viewBox="0 0 16 16"
    xml:space="preserve"
-   sodipodi:docname="text.svg"
+   sodipodi:docname="scatter.svg"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    width="16"
    height="16"><metadata
    id="metadata57"><rdf:RDF><cc:Work
        rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
-         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title /></cc:Work></rdf:RDF></metadata><defs
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title></dc:title></cc:Work></rdf:RDF></metadata><defs
    id="defs55" /><sodipodi:namedview
    pagecolor="#ffffff"
    bordercolor="#666666"
@@ -32,14 +32,14 @@
    inkscape:pageopacity="0"
    inkscape:pageshadow="2"
    inkscape:window-width="1920"
-   inkscape:window-height="1016"
+   inkscape:window-height="1012"
    id="namedview53"
    showgrid="false"
-   inkscape:zoom="27.040962"
-   inkscape:cx="1.4052725"
-   inkscape:cy="12.358276"
+   inkscape:zoom="13.520481"
+   inkscape:cx="4.6235767"
+   inkscape:cy="15.668418"
    inkscape:window-x="0"
-   inkscape:window-y="27"
+   inkscape:window-y="32"
    inkscape:window-maximized="1"
    inkscape:current-layer="g18" />
 <g
@@ -47,26 +47,44 @@
    transform="translate(0,-1.455)">
 	<g
    id="g18">
+		<polygon
+   style="fill:#030104"
+   points="17.455,17.325 17.455,15.667 1.658,15.667 1.658,0.13 0,0.13 0,17.325 "
+   id="polygon2"
+   transform="matrix(0.90412115,0,0,0.90412115,0,1.6611015)" />
+		<circle
+   style="fill:#030104;stroke-width:0.90412116"
+   cx="4.641758"
+   cy="12.368608"
+   r="1.3733602"
+   id="circle4" />
+		<circle
+   style="fill:#030104;stroke-width:0.90412116"
+   cx="5.5576324"
+   cy="8.5604496"
+   r="1.3733602"
+   id="circle6" />
 		
 		
-		
-		
-		
-		
-		
-		
-	<text
-   xml:space="preserve"
-   style="font-style:normal;font-weight:normal;font-size:21.11164856px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.5277912"
-   x="0.33568814"
-   y="17.150238"
-   id="text839"><tspan
-     sodipodi:role="line"
-     id="tspan837"
-     x="0.33568814"
-     y="17.150238"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:serif;-inkscape-font-specification:serif;stroke-width:0.5277912">A</tspan></text>
-</g>
+		<circle
+   style="fill:#030104;stroke-width:0.90412116"
+   cx="12.530214"
+   cy="7.5903282"
+   r="1.3742641"
+   id="circle12" />
+		<circle
+   style="fill:#030104;stroke-width:0.90412116"
+   cx="9.7524033"
+   cy="10.336144"
+   r="1.3742641"
+   id="circle14" />
+		<circle
+   style="fill:#030104;stroke-width:0.90412116"
+   cx="10.823235"
+   cy="4.8427038"
+   r="1.3733602"
+   id="circle16" />
+	</g>
 </g>
 <g
    id="g22"

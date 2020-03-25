@@ -26,6 +26,9 @@ use gtk_queries::sql_popover::*;
 use gtk_queries::functions::function_search::*;
 use gtk_queries::functions::num_function::*;
 use gdk::prelude::*;
+use gtkplotview::plot_view::PlotView;
+use gtk_plots::save_widgets;
+use gtk_queries::plots::layout_menu::PlotSidebar;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -101,13 +104,33 @@ fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned)
 
 impl QueriesApp {
 
-    fn build_toggles(builder : Builder) {
+    fn build_plots_widgets(
+        table_env : Rc<RefCell<TableEnvironment>>,
+        pl_da : DrawingArea,
+        sidebar_stack : Stack
+    ) -> PlotSidebar {
+        let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
+        let pl_view = PlotView::new_with_draw_area(
+            "assets/plot_layout/layout.xml", pl_da.clone());
+        save_widgets::build_save_widgets(&builder, pl_view.clone());
+        let sidebar = PlotSidebar::new(pl_view.clone(), table_env.clone());
+        sidebar_stack.add_named(&sidebar.layout_stack, "layout");
+        sidebar
+    }
+
+    fn build_toggles(
+        builder : Builder,
+        sidebar_stack : Stack,
+        content_stack : Stack
+    ) {
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
         let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
         let plot_toggle : ToggleButton = builder.get_object("plot_toggle").unwrap();
         {
             let main_paned = main_paned.clone();
             let plot_toggle = plot_toggle.clone();
+            let sidebar_stack = sidebar_stack.clone();
+            let content_stack = content_stack.clone();
             table_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -120,9 +143,12 @@ impl QueriesApp {
                     },
                     true => {
                         main_paned.set_position(360);
+                        sidebar_stack.set_visible_child_name("function");
+                        content_stack.set_visible_child_name("tables");
                         if plot_toggle.get_active() {
                             plot_toggle.set_active(false);
                             //plot_toggle.toggled();
+
                         }
                     }
                 }
@@ -143,6 +169,8 @@ impl QueriesApp {
                     },
                     true => {
                         main_paned.set_position(360);
+                        sidebar_stack.set_visible_child_name("layout");
+                        content_stack.set_visible_child_name("plot");
                         if table_toggle.get_active() {
                             table_toggle.set_active(false);
                         }
@@ -159,13 +187,19 @@ impl QueriesApp {
         //let exec_btn : Button =
         //    builder.get_object("exec_btn").unwrap();
 
+        let main_stack : Stack = builder.get_object("main_stack").unwrap();
+        let sidebar_stack : Stack = builder.get_object("sidebar_stack").unwrap();
+        let content_stack : Stack = builder.get_object("content_stack").unwrap();
+        let status_stack = StatusStack::new(main_stack, content_stack.clone().upcast::<Widget>());
+
         let env_source = EnvironmentSource::File("".into(),"".into());
-        let table_env = TableEnvironment::new(env_source);
-        let table_env = Rc::new(RefCell::new(table_env));
+        let table_env = Rc::new(RefCell::new(TableEnvironment::new(env_source)));
         let conn_btn : Button = builder.get_object("conn_btn").unwrap();
         let popover_path = utils::glade_path("conn-popover.glade")
             .expect("Could not open glade path");
         let conn_popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
+        let pl_da : DrawingArea = builder.get_object("plot").unwrap();
+        Self::build_plots_widgets(table_env.clone(), pl_da.clone(), sidebar_stack.clone());
 
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
@@ -173,8 +207,7 @@ impl QueriesApp {
         //    builder.get_object("file_btn").unwrap();
         //let table_popover : Popover =
         //    builder.get_object("table_popover").unwrap();
-        let query_stack : Stack = builder.get_object("query_stack").unwrap();
-        let status_stack = StatusStack::new(query_stack, tables_nb.nb.clone().upcast::<Widget>());
+
         conn_popover.hook_signals(table_env.clone(), status_stack.clone());
 
         let query_toggle : ToggleButton =
@@ -197,7 +230,11 @@ impl QueriesApp {
         let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
         fn_toggle.set_icon_widget(Some(&fn_img));
         //sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
-        Self::build_toggles(builder.clone());
+        Self::build_toggles(
+            builder.clone(),
+            sidebar_stack.clone(),
+            content_stack.clone()
+        );
         //let main_paned : Paned = builder.get_object("main_paned").unwrap();
         /*let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
         let fn_popover : Popover =  builder.get_object("fn_popover").unwrap();
@@ -456,7 +493,6 @@ impl QueriesApp {
                 glib::source::Continue(true)
             });
         }*/
-
         /*{
             let queries_app = queries_app.clone();
             let table_env_c = table_env.clone();
@@ -475,7 +511,7 @@ impl QueriesApp {
             let tables_nb = tables_nb.clone();
             let tbl_env = table_env.clone();
             let csv_btn : Button =
-                builder.get_object("csv_btn").unwrap();
+                builder.get_object("save_text_btn").unwrap();
             let save_dialog : FileChooserDialog =
                 builder.get_object("save_dialog").unwrap();
             save_dialog.connect_response(move |dialog, resp|{
@@ -487,6 +523,9 @@ impl QueriesApp {
                                     match ext {
                                         "db" | "sqlite" | "sqlite3" => {
                                             t.try_backup(path);
+                                        },
+                                        "xml" => {
+                                            // save plot layout
                                         },
                                         _ => {
                                             if let Ok(mut f) = File::create(path) {

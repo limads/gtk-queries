@@ -15,7 +15,7 @@
    y="0px"
    viewBox="0 0 16 16"
    xml:space="preserve"
-   sodipodi:docname="text.svg"
+   sodipodi:docname="surface.svg"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    width="16"
    height="16"><metadata
@@ -36,8 +36,8 @@
    id="namedview53"
    showgrid="false"
    inkscape:zoom="27.040962"
-   inkscape:cx="1.4052725"
-   inkscape:cy="12.358276"
+   inkscape:cx="21.066857"
+   inkscape:cy="13.217665"
    inkscape:window-x="0"
    inkscape:window-y="27"
    inkscape:window-maximized="1"
@@ -55,18 +55,22 @@
 		
 		
 		
-	<text
-   xml:space="preserve"
-   style="font-style:normal;font-weight:normal;font-size:21.11164856px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.5277912"
-   x="0.33568814"
-   y="17.150238"
-   id="text839"><tspan
-     sodipodi:role="line"
-     id="tspan837"
-     x="0.33568814"
-     y="17.150238"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:serif;-inkscape-font-specification:serif;stroke-width:0.5277912">A</tspan></text>
-</g>
+	
+<ellipse
+   style="fill:#ffffff;fill-opacity:0;stroke:#000000;stroke-width:0.8;stroke-miterlimit:4;stroke-dasharray:none"
+   id="path830"
+   cx="2.2269244"
+   cy="12.190607"
+   rx="7.8887906"
+   ry="4.3683248"
+   transform="rotate(-30.237286)" /><ellipse
+   transform="rotate(-30.237286)"
+   ry="2.3890707"
+   rx="4.3144407"
+   cy="12.031007"
+   cx="2.3570104"
+   id="ellipse832"
+   style="fill:#ffffff;fill-opacity:0;stroke:#000000;stroke-width:0.8;stroke-miterlimit:4;stroke-dasharray:none" /></g>
 </g>
 <g
    id="g22"
