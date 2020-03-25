@@ -107,13 +107,14 @@ impl QueriesApp {
     fn build_plots_widgets(
         table_env : Rc<RefCell<TableEnvironment>>,
         pl_da : DrawingArea,
-        sidebar_stack : Stack
+        sidebar_stack : Stack,
+        status_stack : StatusStack
     ) -> PlotSidebar {
         let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let pl_view = PlotView::new_with_draw_area(
             "assets/plot_layout/layout.xml", pl_da.clone());
         save_widgets::build_save_widgets(&builder, pl_view.clone());
-        let sidebar = PlotSidebar::new(pl_view.clone(), table_env.clone());
+        let sidebar = PlotSidebar::new(pl_view.clone(), table_env.clone(), status_stack);
         sidebar_stack.add_named(&sidebar.layout_stack, "layout");
         sidebar
     }
@@ -121,7 +122,9 @@ impl QueriesApp {
     fn build_toggles(
         builder : Builder,
         sidebar_stack : Stack,
-        content_stack : Stack
+        content_stack : Stack,
+        status_stack : StatusStack,
+        plot_sidebar : PlotSidebar
     ) {
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
         let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
@@ -171,6 +174,11 @@ impl QueriesApp {
                         main_paned.set_position(360);
                         sidebar_stack.set_visible_child_name("layout");
                         content_stack.set_visible_child_name("plot");
+                        if !plot_sidebar.layout_loaded() {
+                            status_stack.show_curr_status();
+                        //} else {
+                        //
+                        }
                         if table_toggle.get_active() {
                             table_toggle.set_active(false);
                         }
@@ -199,7 +207,7 @@ impl QueriesApp {
             .expect("Could not open glade path");
         let conn_popover = ConnPopover::new_from_glade(conn_btn, &popover_path[..]);
         let pl_da : DrawingArea = builder.get_object("plot").unwrap();
-        Self::build_plots_widgets(table_env.clone(), pl_da.clone(), sidebar_stack.clone());
+        let sidebar = Self::build_plots_widgets(table_env.clone(), pl_da.clone(), sidebar_stack.clone(), status_stack.clone());
 
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
@@ -233,7 +241,9 @@ impl QueriesApp {
         Self::build_toggles(
             builder.clone(),
             sidebar_stack.clone(),
-            content_stack.clone()
+            content_stack.clone(),
+            status_stack.clone(),
+            sidebar.clone()
         );
         //let main_paned : Paned = builder.get_object("main_paned").unwrap();
         /*let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
@@ -634,6 +644,9 @@ fn build_ui(app: &gtk::Application) {
     win.show_all();
 }
 
+// cp queries.desktop /usr/share/applications
+// cp assets/icons/queries.svg /usr/share/icons/hicolor/128x128/apps
+// cp target/debug/queries /usr/bin/
 fn main() {
     gtk::init();
 
@@ -641,7 +654,7 @@ fn main() {
     let _ = View::new();
 
     let app = gtk::Application::new(
-        Some("com.github.limads.gtk-queries"),
+        Some("com.github.limads.queries"),
         Default::default())
     .expect("Could not initialize Gtk");
 

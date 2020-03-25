@@ -918,180 +918,6 @@
     <property name="can_focus">False</property>
     <property name="icon_name">list-remove-symbolic</property>
   </object>
-  <object class="GtkImage" id="image3">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="icon_name">document-save-as-symbolic</property>
-  </object>
-  <object class="GtkImage" id="image4">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="icon_name">bash-symbolic</property>
-  </object>
-  <object class="GtkWindow" id="main_window">
-    <property name="can_focus">False</property>
-    <property name="default_width">1280</property>
-    <property name="default_height">720</property>
-    <child type="titlebar">
-      <object class="GtkHeaderBar" id="header">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="title" translatable="yes">Plots</property>
-        <property name="subtitle" translatable="yes">plot.xml</property>
-        <property name="show_close_button">True</property>
-        <child>
-          <object class="GtkToggleButton" id="toggle_sidebar">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="image">image2</property>
-            <property name="always_show_image">True</property>
-            <property name="active">True</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkButton" id="conn_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="image">image15</property>
-            <property name="always_show_image">True</property>
-          </object>
-          <packing>
-            <property name="position">3</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkToggleButton" id="query_toggle">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="image">image4</property>
-            <property name="always_show_image">True</property>
-          </object>
-          <packing>
-            <property name="position">3</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkButton" id="save_layout_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="image">image3</property>
-          </object>
-          <packing>
-            <property name="pack_type">end</property>
-            <property name="position">3</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkButton" id="save_image_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="image">image1</property>
-          </object>
-          <packing>
-            <property name="pack_type">end</property>
-            <property name="position">5</property>
-          </packing>
-        </child>
-      </object>
-    </child>
-    <child>
-      <object class="GtkPaned" id="main_paned">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="position">330</property>
-        <property name="position_set">True</property>
-        <child>
-          <object class="GtkBox" id="notebook_box">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="orientation">vertical</property>
-            <child>
-              <placeholder/>
-            </child>
-          </object>
-          <packing>
-            <property name="resize">True</property>
-            <property name="shrink">True</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkStack" id="plot_stack">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <child>
-              <object class="GtkDrawingArea" id="plot">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-              </object>
-              <packing>
-                <property name="name">page0</property>
-                <property name="title" translatable="yes">page0</property>
-              </packing>
-            </child>
-          </object>
-          <packing>
-            <property name="resize">True</property>
-            <property name="shrink">True</property>
-          </packing>
-        </child>
-      </object>
-    </child>
-  </object>
-  <object class="GtkImage" id="image5">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="icon_name">list-add</property>
-  </object>
-  <object class="GtkImage" id="image8">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="pixbuf">../icons/text.svg</property>
-  </object>
-  <object class="GtkImage" id="image9">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <property name="pixbuf">../icons/area.svg</property>
-  </object>
-  <object class="GtkBox" id="layout_box">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <child>
-      <object class="GtkBox">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="orientation">vertical</property>
-        <child>
-          <placeholder/>
-        </child>
-        <child>
-          <placeholder/>
-        </child>
-      </object>
-      <packing>
-        <property name="expand">True</property>
-        <property name="fill">True</property>
-        <property name="position">0</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkToolbar" id="manage_layout_toolbar">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="orientation">vertical</property>
-        <property name="toolbar_style">text</property>
-      </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">1</property>
-      </packing>
-    </child>
-  </object>
   <object class="GtkStack" id="layout_stack">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
@@ -1136,6 +962,8 @@
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="margin_top">6</property>
+                    <property name="margin_bottom">6</property>
                     <property name="label" translatable="yes">No template loaded</property>
                   </object>
                   <packing>
@@ -1148,6 +976,8 @@
                   <object class="GtkButtonBox">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="margin_top">6</property>
+                    <property name="margin_bottom">6</property>
                     <property name="homogeneous">True</property>
                     <property name="layout_style">expand</property>
                     <child>
@@ -1923,6 +1753,180 @@
       <packing>
         <property name="name">layout</property>
         <property name="title" translatable="yes">page0</property>
+        <property name="position">1</property>
+      </packing>
+    </child>
+  </object>
+  <object class="GtkImage" id="image3">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">document-save-as-symbolic</property>
+  </object>
+  <object class="GtkImage" id="image4">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">bash-symbolic</property>
+  </object>
+  <object class="GtkWindow" id="main_window">
+    <property name="can_focus">False</property>
+    <property name="default_width">1280</property>
+    <property name="default_height">720</property>
+    <child type="titlebar">
+      <object class="GtkHeaderBar" id="header">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="title" translatable="yes">Plots</property>
+        <property name="subtitle" translatable="yes">plot.xml</property>
+        <property name="show_close_button">True</property>
+        <child>
+          <object class="GtkToggleButton" id="toggle_sidebar">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">image2</property>
+            <property name="always_show_image">True</property>
+            <property name="active">True</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkButton" id="conn_btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">image15</property>
+            <property name="always_show_image">True</property>
+          </object>
+          <packing>
+            <property name="position">3</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkToggleButton" id="query_toggle">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">image4</property>
+            <property name="always_show_image">True</property>
+          </object>
+          <packing>
+            <property name="position">3</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="save_layout_btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">image3</property>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">3</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="save_image_btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="image">image1</property>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">5</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkPaned" id="main_paned">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="position">330</property>
+        <property name="position_set">True</property>
+        <child>
+          <object class="GtkBox" id="notebook_box">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
+            <child>
+              <placeholder/>
+            </child>
+          </object>
+          <packing>
+            <property name="resize">True</property>
+            <property name="shrink">True</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkStack" id="plot_stack">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <child>
+              <object class="GtkDrawingArea" id="plot">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">page0</property>
+                <property name="title" translatable="yes">page0</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="resize">True</property>
+            <property name="shrink">True</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object class="GtkImage" id="image5">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">list-add</property>
+  </object>
+  <object class="GtkImage" id="image8">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="pixbuf">../icons/text.svg</property>
+  </object>
+  <object class="GtkImage" id="image9">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="pixbuf">../icons/area.svg</property>
+  </object>
+  <object class="GtkBox" id="layout_box">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <placeholder/>
+        </child>
+        <child>
+          <placeholder/>
+        </child>
+      </object>
+      <packing>
+        <property name="expand">True</property>
+        <property name="fill">True</property>
+        <property name="position">0</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkToolbar" id="manage_layout_toolbar">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="toolbar_style">text</property>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
         <property name="position">1</property>
       </packing>
     </child>

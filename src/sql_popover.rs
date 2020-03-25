@@ -32,14 +32,14 @@ pub enum ExecStatus {
 #[derive(Clone)]
 pub struct SqlPopover {
     pub view : View,
-    //pub sql_load_dialog : FileChooserDialog,
+    pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : ToolButton,
     pub popover : Popover,
     pub query_toggle : ToggleButton,
     //pub sql_toggle : ToggleToolButton,
     pub file_loaded : Rc<RefCell<bool>>,
     pub query_sent : Rc<RefCell<bool>>,
-    pub extra_toolbar : Toolbar,
+    //pub extra_toolbar : Toolbar,
     pub sql_stack : Stack,
     pub status_stack : StatusStack,
     t_env : Rc<RefCell<TableEnvironment>>
@@ -100,7 +100,7 @@ impl SqlPopover {
         //println!("at update: {}", query_sent.borrow());
     }
 
-    pub fn add_extra_toolbar(&self, tool_btn : ToggleToolButton, bx : gtk::Box) {
+    /*pub fn add_extra_toolbar(&self, tool_btn : ToggleToolButton, bx : gtk::Box) {
         self.sql_stack.add_named(&bx, "extra");
         let sql_stack = self.sql_stack.clone();
         tool_btn.connect_toggled(move|item| {
@@ -112,7 +112,7 @@ impl SqlPopover {
         });
         self.extra_toolbar.insert(&tool_btn, 0);
         self.extra_toolbar.show_all();
-    }
+    }*/
 
     pub fn connect_result_arrived<F>(
         &self,
@@ -193,6 +193,10 @@ impl SqlPopover {
         });
     }
 
+    fn build_load_btn(&self) {
+
+    }
+
     pub fn new(query_toggle : ToggleButton, status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
         let query_popover_path = utils::glade_path("query-popover.glade").expect("Failed to load glade file");
         let builder = Builder::new_from_file(query_popover_path);
@@ -200,17 +204,53 @@ impl SqlPopover {
             builder.get_object("query_popover").unwrap();
         let view : View =
             builder.get_object("query_source").unwrap();
+        //view.realize();
         let buffer = view.get_buffer().unwrap()
             .downcast::<sourceview::Buffer>().unwrap();
         let lang_manager = LanguageManager::get_default().unwrap();
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
         let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
-        let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
+        sql_stack.set_visible_child_name("empty");
+        let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
+        let sql_load_btn : Button = builder.get_object("sql_load_btn").unwrap();
+        {
+            let sql_stack = sql_stack.clone();
+            sql_new_btn.connect_clicked(move |btn| {
+                sql_stack.set_visible_child_name("source");
+            });
+        }
+        let sql_load_dialog : FileChooserDialog =
+            builder.get_object("sql_load_dialog").unwrap();
+        {
+            let sql_load_dialog = sql_load_dialog.clone();
+            sql_load_btn.connect_clicked(move |btn| {
+                sql_load_dialog.run();
+                sql_load_dialog.hide();
+            });
+        }
+        //let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
         let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
         let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
         let update_btn = ToggleToolButton::new();
         update_btn.set_icon_widget(Some(&img_clock));
+
+        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        let clear_btn = ToolButton::new(Some(&img_clear), None);
+        {
+            let t_env = t_env.clone();
+            let sql_stack = sql_stack.clone();
+            clear_btn.connect_clicked(move |btn| {
+                if let Ok(mut t_env) = t_env.try_borrow_mut() {
+                    t_env.prepare_query(String::new());
+                } else {
+                    println!("Error fetching mutable reference to table environment");
+                }
+                sql_stack.set_visible_child_name("empty");
+
+            });
+        }
+        sql_toolbar.insert(&clear_btn, 0);
         sql_toolbar.insert(&update_btn, 1);
         // update_toolbar.insert(&item_b, 1);
         // extra_toolbar.show_all();
@@ -225,29 +265,20 @@ impl SqlPopover {
             };
             btn.set_label(Some(new_label));*/
         });
-        //let sql_load_dialog : FileChooserDialog =
-        //    builder.get_object("sql_load_dialog").unwrap();
+
         /*{
             let view = view.clone();
 
             {
                 let sql_load_dialog = sql_load_dialog.clone();
-                sql_toggle.connect_toggled(move|item| {
-                    if item.get_active() {
-                        sql_load_dialog.run();
-                        sql_load_dialog.hide();
-                    } else {
-                        item.set_label(None);
-                        view.set_sensitive(true);
-                    }
-                });
+
             }
         }*/
 
         //let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
         let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
         let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
-        sql_toolbar.insert(&refresh_btn, 0);
+        sql_toolbar.insert(&refresh_btn, 2);
         sql_toolbar.show_all();
 
         {
@@ -269,6 +300,7 @@ impl SqlPopover {
         }
 
         popover.set_relative_to(Some(&query_toggle));
+        Self::connect_sql_load(sql_load_dialog.clone(), t_env.clone());
 
         Self {
             view,
@@ -276,7 +308,8 @@ impl SqlPopover {
             refresh_btn,
             popover,
             query_toggle,
-            extra_toolbar,
+            sql_load_dialog,
+            //extra_toolbar,
             // sql_toggle,
             file_loaded : Rc::new(RefCell::new(false)),
             query_sent : Rc::new(RefCell::new(false)),
@@ -314,12 +347,9 @@ impl SqlPopover {
         }*/
     }
 
-    pub fn connect_sql_load(&self, nb : TableNotebook, table_env : Rc<RefCell<TableEnvironment>>) {
-        //let view =  self.view.clone();
-        //let nb = nb.clone();
-        //let sql_toggle = self.sql_toggle.clone();
-        /*let sql_popover = self.clone();
-        self.sql_load_dialog.connect_response(move |dialog, resp|{
+    pub fn connect_sql_load(sql_load_dialog : FileChooserDialog, table_env : Rc<RefCell<TableEnvironment>>) {
+        //let sql_popover = self.clone();
+        sql_load_dialog.connect_response(move |dialog, resp|{
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
                 match resp {
                     ResponseType::Other(1) => {
@@ -327,26 +357,28 @@ impl SqlPopover {
                             let p = path.as_path();
                             let mut sql_content = String::new();
                             if let Ok(mut f) = File::open(path.clone()) {
-                                f.read_to_string(&mut sql_content);
+                                if let Err(e) = f.read_to_string(&mut sql_content) {
+                                    println!("{}", e);
+                                }
                                 t_env.prepare_query(sql_content);
                             } else {
                                 println!("Unable to access informed path");
                             }
-                            sql_popover.set_file_mode(p.to_str().unwrap_or(""));
+                            // sql_popover.set_file_mode(p.to_str().unwrap_or(""));
                         } else {
-                            sql_popover.set_view_mode();
+                            //sql_popover.set_view_mode();
                             t_env.clear_queries();
                         }
                     },
                     _ => {
-                        sql_popover.set_view_mode();
+                        //sql_popover.set_view_mode();
                         t_env.clear_queries();
                     }
                 }
             } else {
                 println!("Unable to retrieve mutable reference to table environment");
             }
-        });*/
+        });
     }
 
     // Action to be executed if there is text on the buffer and the user either pressed
@@ -416,6 +448,7 @@ impl SqlPopover {
         let file_loaded = self.file_loaded.clone();
         let query_sent = self.query_sent.clone();
         let table_env = self.t_env.clone();
+        // TODO verify that view is realized before accepting key press
         self.view.connect_key_press_event(move |view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
                 match table_env.try_borrow_mut() {

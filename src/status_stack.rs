@@ -18,10 +18,21 @@ use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
 #[derive(Clone)]
 pub enum Status {
     Disconnected,
+
+    /// There is a connection to the database and no queries were
+    /// executed yet.
     Connected,
     ConnectionErr(String),
+
+    /// There is a connection to the database AND all last executed
+    /// non-select statements were successful.
     StatementExecuted(String),
+
+    /// Last executed query or other statement were unsucessful.
     SqlErr(String),
+
+    /// There is a connection to the database AND all last executed
+    /// queries were succesful.
     Ok
 }
 
@@ -88,6 +99,32 @@ impl StatusStack {
             conn_err_label,
             alt_wid,
             status_boxes
+        }
+    }
+
+    /// Show the current status, hiding the alt widget if status is a successful one
+    pub fn show_curr_status(&self) {
+        let status = if let Ok(status) = self.status.try_borrow() {
+            status.clone()
+        } else {
+            return;
+        };
+        match status {
+            Status::Ok => self.update(Status::Connected),
+            status => self.update(status)
+        }
+    }
+
+    /// Show alt widget if status is a successful one (Ok|Connected);
+    /// do nothing otherwise.
+    pub fn try_show_alt(&self) {
+        if let Ok(status) = self.status.try_borrow() {
+            match *status {
+                Status::Ok | Status::Connected => self.parent_stack.set_visible_child(&self.alt_wid),
+                _ => ()
+            }
+        } else {
+            println!("Could not borrow status");
         }
     }
 

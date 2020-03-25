@@ -15,6 +15,7 @@ use gtk_plots::design_menu::*;
 use gtk_plots::scale_menu::*;
 use std::collections::HashMap;
 use crate::utils;
+use crate::status_stack::StatusStack;
 
 /// PlotsSidebar holds the information of the used mappings
 #[derive(Clone)]
@@ -28,9 +29,19 @@ pub struct PlotSidebar {
 
 impl PlotSidebar {
 
+    pub fn layout_loaded(&self) -> bool {
+        let sel_name = self.layout_stack.get_visible_child_name()
+            .map(|n| n.to_string()).unwrap_or(String::from("empty"));
+        match &sel_name[..] {
+            "layout" => true,
+            _ => false
+        }
+    }
+
     pub fn new(
         pl_view : Rc<RefCell<PlotView>>,
-        table_env : Rc<RefCell<TableEnvironment>>
+        table_env : Rc<RefCell<TableEnvironment>>,
+        status_stack : StatusStack
     ) -> Self {
         let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let mapping_menus : Vec<MappingMenu> = Vec::new();
@@ -51,6 +62,7 @@ impl PlotSidebar {
             &builder,
             pl_view.clone(),
             table_env.clone(),
+            status_stack,
             sidebar.clone()
         );
         sidebar
@@ -298,7 +310,8 @@ impl LayoutMenu {
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
-        sidebar : PlotSidebar
+        sidebar : PlotSidebar,
+        status_stack : StatusStack
     ) -> Button {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
@@ -362,6 +375,8 @@ impl LayoutMenu {
                                 }
                             }
                             sidebar.notebook.show_all();
+                            status_stack.try_show_alt();
+                            sidebar.layout_stack.set_visible_child_name("layout");
                             //println!("{:?}", mappings);
                         } else {
                             println!("No info to update");
@@ -509,21 +524,25 @@ impl LayoutMenu {
         builder : &Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
+        status_stack : StatusStack,
         sidebar : PlotSidebar
     ) -> Self {
         let load_layout_btn = Self::build_layout_load_button(
             builder.clone(),
             plot_view.clone(),
             data_source.clone(),
-            sidebar.clone()
+            sidebar.clone(),
+            status_stack.clone()
         );
         let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
         let layout_stack = sidebar.layout_stack.clone();
         //layout_stack.add_named(&sidebar.notebook, "layout");
         {
             let layout_stack = layout_stack.clone();
+            let status_stack = status_stack.clone();
             new_layout_btn.connect_clicked(move |btn| {
                 layout_stack.set_visible_child_name("layout");
+                status_stack.try_show_alt();
             });
         }
         let add_mapping_btn : Button = builder.get_object("add_mapping_btn").unwrap();
@@ -538,6 +557,7 @@ impl LayoutMenu {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                     pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
                     layout_stack.set_visible_child_name("empty");
+                    status_stack.show_curr_status();
                     if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
                         mappings.clear();
                     } else {
@@ -616,13 +636,7 @@ impl LayoutMenu {
 
         {
             let plot_notebook = sidebar.notebook.clone();
-            //let sidebar = sidebar.clone();
-            //let name_entry = name_entry.clone();
-            //let edit_btn = edit_btn.clone();
-            //let add_btn = add_btn.clone();
             let remove_mapping_btn = remove_mapping_btn.clone();
-            //let scatter_radio = scatter_radio.clone();
-            //plot_notebook.clone().connect_switch_page(move |_nb, _wid, _page| {
             plot_notebook.clone().connect_switch_page(move |_nb, wid, page| {
                 //let page = plot_notebook.get_property_page();
                 println!("{}", page);
@@ -631,267 +645,24 @@ impl LayoutMenu {
                 } else {
                     remove_mapping_btn.set_sensitive(false);
                 }
-                //true
-                //if manage_mapping_popover.is_visible() {
-                /*Self::change_manage_popover_state(
-                    &plot_notebook,
-                    &sidebar,
-                    &name_entry,
-                    &add_btn,
-                    &edit_btn,
-                    &remove_btn,
-                    &scatter_radio
-                );*/
-                //}
             });
         }
 
-        /*{
-            for btn in scatter_radio.get_group() {
-                let edit_btn = edit_btn.clone();
-                // let scatter_radio = scatter_radio.clone();
-                let sidebar = sidebar.clone();
-                let plot_notebook = sidebar.notebook.clone();
-                let name_entry = name_entry.clone();
-                let remove_btn = remove_btn.clone();
-                btn.connect_toggled(move |radio| {
-                    //if let Some(selected_type) = Self::selected_mapping_radio(&scatter_radio) {
-                    let (names, types) = sidebar.used_names_and_types();
-                    let sel_page = plot_notebook.get_property_page();
-                    if sel_page > 3 {
-                        let sel_type = types[(sel_page - 4) as usize].clone();
-                        let sel_name = names[(sel_page - 4) as usize].clone();
-                        if let Some(new_type) = WidgetExt::get_widget_name(radio) {
-                            if new_type != sel_type && !edit_btn.is_sensitive() {
-                                edit_btn.set_sensitive(true);
-                                remove_btn.set_sensitive(false);
-                            } else {
-                                if let Some(name) = name_entry.get_text().map(|t| t.to_string()) {
-                                    if name == sel_name && edit_btn.is_sensitive() {
-                                        edit_btn.set_sensitive(false);
-                                    }
-                                    remove_btn.set_sensitive(true);
-                                }
-                            }
-                        }
-                    }
-                    //}
-                });
-            }
-        }*/
-
-        /*{
-            let manage_mapping_popover = manage_mapping_popover.clone();
-            let plot_notebook = sidebar.notebook.clone();
-            let sidebar = sidebar.clone();
-            let name_entry = name_entry.clone();
-            let edit_btn = edit_btn.clone();
-            let add_btn = add_btn.clone();
-            let remove_btn = remove_btn.clone();
-            let scatter_radio = scatter_radio.clone();
-            manage_btn.connect_clicked(move |_| {
-                Self::change_manage_popover_state(
-                    &plot_notebook,
-                    &sidebar,
-                    &name_entry,
-                    &add_btn,
-                    &edit_btn,
-                    &remove_btn,
-                    &scatter_radio
-                );
-                manage_mapping_popover.show();
-            });
-        }*/
-
-        /*{
-            let manage_mapping_popover = manage_mapping_popover.clone();
-            let sidebar = sidebar.clone();
-            let plot_view = plot_view.clone();
-            let scatter_radio = scatter_radio.clone();
-            let name_entry = name_entry.clone();
-            let plot_notebook = sidebar.notebook.clone();
-            let builder = builder.clone();
-            let data_source = data_source.clone();
-            edit_btn.connect_clicked(move |_|{
-                let menu = match plot_view.try_borrow_mut() {
-                    Ok(mut pl_view) => {
-                        let new_type = Self::selected_mapping_radio(&scatter_radio);
-                        let new_name = name_entry.get_text().map(|txt| txt.to_string());
-                        // here sidebar.mapping_menus is NOT mutably borrowed.
-                        /*if let Ok(m) = sidebar.mapping_menus.try_borrow() {
-                            println!("Could borrow here");
-                        } else {
-                            println!("Could not!");
-                        }*/
-                        let (names, types) = sidebar.used_names_and_types();
-                        let sel_ix = (plot_notebook.get_property_page() - 4) as usize;
-                        let old_name = names.get(sel_ix);
-                        let old_type = types.get(sel_ix);
-                        match (old_name, old_type, new_name, new_type) {
-                            (Some(old_n), Some(old_t), Some(new_n), Some(new_t)) => {
-                                if &new_n != old_n || &new_t != old_t {
-                                    pl_view.update(&mut UpdateContent::RemoveMapping(old_n.clone()));
-                                    Self::create_new_mapping_menu(
-                                        builder.clone(),
-                                        new_n,
-                                        new_t,
-                                        data_source.clone(),
-                                        plot_view.clone(),
-                                        None,
-                                        sidebar.clone()
-                                    )
-                                } else {
-                                    Err("No update requested by user")
-                                }
-                            },
-                            _ => {
-                                Err("Unable to retrieve (type, name) pair when updating mapping.")
-                            }
-                        }
-                    },
-                    Err(_) => {
-                        Err("Unable to retrieve mutable reference to plot view")
-                    }
-                };
-                match menu {
-                    Ok(m) => {
-                        let page_pos = plot_notebook.get_property_page();
-                        let m_parent = m.get_parent();
-                        Self::remove_selected_mapping_page(
-                            &plot_notebook,
-                            sidebar.mapping_menus.clone()
-                        );
-                        Self::append_mapping_menu(
-                            m.clone(),
-                            sidebar.mapping_menus.clone(),
-                            plot_notebook.clone(),
-                            plot_view.clone(),
-                            data_source.clone(),
-                            Some( (page_pos - 4) as usize)
-                        );
-                        // if let Some(mut m_menus) = mappings.try_borrow_mut() {
-                        //    let last_pos = m_menus.len() - 1;
-                        //    m_menus.swap( (page_pos - 4) as usize, last_pos);
-                        // }
-                        plot_notebook.reorder_child(&m_parent, Some(page_pos as u32));
-                        name_entry.set_text(&m.get_mapping_name());
-                        Self::set_mapping_radio(&scatter_radio, m.mapping_type.clone());
-                        // for m in mappings.borrow().iter() {
-                        //    println!("{}; {}", m.get_mapping_name(), m.mapping_type);
-                        // }
-                        plot_notebook.show_all();
-                    },
-                    Err(e) => {
-                        println!("Unable to create new mapping menu: {}", e);
-                    }
-                }
-                manage_mapping_popover.hide();
-            });
-        }*/
-
         {
-            //let manage_mapping_popover = manage_mapping_popover.clone();
             let sidebar = sidebar.clone();
             let plot_view = plot_view.clone();
-            //let name_entry = name_entry.clone();
             let plot_notebook = sidebar.notebook.clone();
             remove_mapping_btn.connect_clicked(move |_| {
-                //let name = name_entry.get_text().map(|txt| txt.to_string());
-                //match plot_view.try_borrow_mut() {
-                    //Ok(mut pl_view) =>  {
                     Self::remove_selected_mapping_page(
                         &plot_notebook,
                         sidebar.mapping_menus.clone(),
                         plot_view.clone()
                     );
-                    //},
-                    //_ => {
-                    //    println!("Unable to retrieve reference to plot or to mapping name when deleting.");
-                   // }
-                //}
                 plot_notebook.show_all();
-                //manage_mapping_popover.hide();
             });
         }
 
-        /*{
-            let sidebar = sidebar.clone();
-            let remove_btn = remove_btn.clone();
-            let add_btn = add_btn.clone();
-            let plot_notebook = sidebar.notebook.clone();
-            name_entry.connect_key_release_event(move |entry, _ev_key| {
-                if let Some(txt) = entry.get_text().map(|txt| txt.to_string()) {
-                    let (names, _) = sidebar.used_names_and_types();
-                    let sel_page = plot_notebook.get_property_page();
-                    let has_name = names.iter().find(|t| { *t == &txt[..] }).is_some();
-                    if sel_page > 3 {
-                        let name_match = txt == names[(sel_page - 4) as usize];
-                        match (has_name, name_match) {
-                            (true, true) => {
-                                remove_btn.set_sensitive(true);
-                                add_btn.set_sensitive(false);
-                                edit_btn.set_sensitive(false);
-                            },
-                            _ => {
-                                add_btn.set_sensitive(true);
-                                edit_btn.set_sensitive(true);
-                                remove_btn.set_sensitive(false);
-                            }
-                        }
-                    } else {
-                        match has_name {
-                            true => add_btn.set_sensitive(false),
-                            false => add_btn.set_sensitive(true)
-                        }
-                        remove_btn.set_sensitive(false);
-                        edit_btn.set_sensitive(false);
-                    }
-                }
-                glib::signal::Inhibit(false)
-            });
-        }*/
 
-        /*{
-            let builder_clone = builder.clone();
-            let name_entry = name_entry.clone();
-            let manage_mapping_popover = manage_mapping_popover.clone();
-            add_btn.connect_clicked(move |_btn| {
-                let mapping_type = Self::selected_mapping_radio(&scatter_radio);
-                match mapping_type {
-                    Some(mapping_type) => {
-                        let mapping_name = name_entry.get_text().map(|t| t.to_string());
-                        if let Some(name) = mapping_name {
-                            let menu = LayoutMenu::create_new_mapping_menu(
-                                builder_clone.clone(),
-                                name.as_str().to_owned(),
-                                mapping_type.as_str().to_owned(),
-                                data_source.clone(),
-                                plot_view.clone(),
-                                None,
-                                sidebar.clone()
-                            );
-                            match menu {
-                                Ok(m) => {
-                                    Self::append_mapping_menu(
-                                        m,
-                                        sidebar.mapping_menus.clone(),
-                                        sidebar.notebook.clone(),
-                                        plot_view.clone(),
-                                        data_source.clone(),
-                                        None
-                                    );
-                                },
-                                Err(e) => { println!("{}", e); return; }
-                            }
-                        } else {
-                            println!("Could not retrieve mapping name");
-                        }
-                    },
-                    _ => { println!("Unknown mapping type"); }
-                }
-                manage_mapping_popover.hide();
-            });
-        }*/
         Self {
             load_layout_btn,
             add_mapping_btn,
