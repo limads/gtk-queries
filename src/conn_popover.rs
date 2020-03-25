@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
 use nlearn::table::*;
-use gtk_queries::status_stack::*;
+use crate::status_stack::*;
 
 #[derive(Clone)]
 pub struct ConnPopover {

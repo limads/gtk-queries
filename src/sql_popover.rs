@@ -41,7 +41,8 @@ pub struct SqlPopover {
     pub query_sent : Rc<RefCell<bool>>,
     pub extra_toolbar : Toolbar,
     pub sql_stack : Stack,
-    pub status_stack : StatusStack
+    pub status_stack : StatusStack,
+    t_env : Rc<RefCell<TableEnvironment>>
 }
 
 impl SqlPopover {
@@ -51,12 +52,12 @@ impl SqlPopover {
         query_sent : Rc<RefCell<bool>>,
         tbl_env : &mut TableEnvironment,
         view : &sourceview::View,
-        nb : &TableNotebook
-    ) {
+        //nb : &TableNotebook
+    ) -> Result<(), &'static str> {
         if let Ok(loaded) = file_loaded.try_borrow() {
             if *loaded {
                 tbl_env.send_current_query();
-                nb.nb.set_sensitive(false);
+                //nb.nb.set_sensitive(false);
             } else {
                 if let Some(buffer) = view.get_buffer() {
                     let text : Option<String> = match buffer.get_selection_bounds() {
@@ -75,26 +76,28 @@ impl SqlPopover {
                         //println!("{}", txt);
                         tbl_env.prepare_and_send_query(txt);
                         view.set_sensitive(false);
-                        nb.nb.set_sensitive(false);
+                        //nb.nb.set_sensitive(false);
                     } else {
                         println!("No text available to send");
                     }
                 } else {
                     println!("Could not retrieve text buffer");
-                    return;
+                    return Err("Error");
                 }
             }
         } else {
             println!("Could not retrieve reference to file status");
-            return;
+            return Err("Error");
         }
         if let Ok(mut sent) = query_sent.try_borrow_mut() {
             *sent = true;
             //println!("Query sent");
+            Ok(())
         } else {
             println!("Unable to acquire lock over query sent status");
+            Err("Error")
         }
-        println!("at update: {}", query_sent.borrow());
+        //println!("at update: {}", query_sent.borrow());
     }
 
     pub fn add_extra_toolbar(&self, tool_btn : ToggleToolButton, bx : gtk::Box) {
@@ -113,12 +116,13 @@ impl SqlPopover {
 
     pub fn connect_result_arrived<F>(
         &self,
-        tbl_env_c : Rc<RefCell<TableEnvironment>>,
+        //tbl_env_c : Rc<RefCell<TableEnvironment>>,
         mut f : F
     )
         where
             F : FnMut(&TableEnvironment) -> Result<(), String> + 'static
     {
+        let tbl_env_c = self.t_env.clone();
         let status_stack = self.status_stack.clone();
         let view_c = self.view.clone();
         let sql_popover = self.clone();
@@ -189,7 +193,7 @@ impl SqlPopover {
         });
     }
 
-    pub fn new(query_toggle : ToggleButton, status_stack : StatusStack) -> Self {
+    pub fn new(query_toggle : ToggleButton, status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
         let query_popover_path = utils::glade_path("query-popover.glade").expect("Failed to load glade file");
         let builder = Builder::new_from_file(query_popover_path);
         let popover : Popover =
@@ -277,7 +281,8 @@ impl SqlPopover {
             file_loaded : Rc::new(RefCell::new(false)),
             query_sent : Rc::new(RefCell::new(false)),
             sql_stack,
-            status_stack
+            status_stack,
+            t_env
         }
     }
 
@@ -344,10 +349,46 @@ impl SqlPopover {
         });*/
     }
 
-    pub fn connect_refresh(&self, table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook) {
+    // Action to be executed if there is text on the buffer and the user either pressed
+    // the refresh button or pressed CTRL+Enter
+    pub fn connect_send_query<F>(&self, f : F)
+        where
+            F : Fn() -> Result<(), String> + 'static,
+            F : Clone
+    {
+        {
+            let view = self.view.clone();
+            let file_loaded = self.file_loaded.clone();
+            let query_sent = self.query_sent.clone();
+            let table_env = self.t_env.clone();
+            let f = f.clone();
+            self.refresh_btn.connect_clicked(move |btn|{
+                match table_env.try_borrow_mut() {
+                    Ok(mut env) => {
+                        let update_res = Self::update_queries(
+                            file_loaded.clone(),
+                            query_sent.clone(),
+                            &mut env,
+                            &view.clone(),
+                        );
+                        if let Ok(_) = update_res {
+                            if let Err(e) = f() {
+                                println!("{}", e);
+                            }
+                        }
+                    },
+                    _ => { println!("Error recovering references"); }
+                }
+            });
+        }
+        self.connect_source_key_press(f);
+    }
+
+    /*pub fn connect_refresh(&self, /*table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook*/ ) {
         let view = self.view.clone();
         let file_loaded = self.file_loaded.clone();
         let query_sent = self.query_sent.clone();
+        let table_env = self.t_env.clone();
         self.refresh_btn.connect_clicked(move|btn|{
             match table_env.try_borrow_mut() {
                 Ok(mut env) => {
@@ -357,30 +398,39 @@ impl SqlPopover {
                         query_sent.clone(),
                         &mut env,
                         &view.clone(),
-                        &tables_nb.clone()
+                        //&tables_nb.clone()
                     );
                     //println!("after update: {}", query_sent.borrow());
                 },
                 _ => { println!("Error recovering references"); }
             }
         });
-    }
+    }*/
 
-    pub fn connect_source_key_press(&self, table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook) {
+    fn connect_source_key_press<F>(&self, f : F)
+        where
+            F : Fn() -> Result<(), String> + 'static,
+            F : Clone
+    {
         //let sql_popover = self.clone();
         let file_loaded = self.file_loaded.clone();
         let query_sent = self.query_sent.clone();
+        let table_env = self.t_env.clone();
         self.view.connect_key_press_event(move |view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
                 match table_env.try_borrow_mut() {
                     Ok(mut env) => {
-                        Self::update_queries(
+                        let update_res = Self::update_queries(
                             file_loaded.clone(),
                             query_sent.clone(),
                             &mut env,
                             &view.clone(),
-                            &tables_nb.clone()
                         );
+                        if let Ok(_) = update_res {
+                            if let Err(e) = f() {
+                                println!("{}", e);
+                            }
+                        }
                     },
                     _ => { println!("Error recovering references"); }
                 }

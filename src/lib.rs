@@ -8,6 +8,8 @@ pub mod sql_popover;
 
 pub mod functions;
 
+pub mod conn_popover;
+
 pub mod utils {
 
     use std::env;

@@ -14,8 +14,7 @@ use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
 use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
-mod conn_popover;
-use conn_popover::*;
+use gtk_queries::conn_popover::*;
 use sourceview::*;
 use std::boxed;
 use std::process::Command;
@@ -102,6 +101,57 @@ fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned)
 
 impl QueriesApp {
 
+    fn build_toggles(builder : Builder) {
+        let main_paned : Paned =  builder.get_object("main_paned").unwrap();
+        let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
+        let plot_toggle : ToggleButton = builder.get_object("plot_toggle").unwrap();
+        {
+            let main_paned = main_paned.clone();
+            let plot_toggle = plot_toggle.clone();
+            table_toggle.connect_toggled(move |btn| {
+                match btn.get_active() {
+                    false => {
+                        main_paned.set_position(0);
+                        if plot_toggle.get_active() {
+                            //plot_toggle.set_active(false);
+                            //plot_toggle.toggled();
+                            main_paned.set_position(360);
+                        }
+                    },
+                    true => {
+                        main_paned.set_position(360);
+                        if plot_toggle.get_active() {
+                            plot_toggle.set_active(false);
+                            //plot_toggle.toggled();
+                        }
+                    }
+                }
+            });
+        }
+
+        {
+            let main_paned = main_paned.clone();
+            let table_toggle = table_toggle.clone();
+            plot_toggle.connect_toggled(move |btn| {
+                match btn.get_active() {
+                    false => {
+                        main_paned.set_position(0);
+                        if table_toggle.get_active() {
+                            //table_toggle.set_active(false);
+                            main_paned.set_position(360);
+                        }
+                    },
+                    true => {
+                        main_paned.set_position(360);
+                        if table_toggle.get_active() {
+                            table_toggle.set_active(false);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     pub fn new_from_builder(builder : &Builder, window : Window) -> Self {
         //let header : HeaderBar =
         //    builder.get_object("header").unwrap();
@@ -129,16 +179,25 @@ impl QueriesApp {
 
         let query_toggle : ToggleButton =
             builder.get_object("query_toggle").unwrap();
-        let sql_popover = SqlPopover::new(query_toggle.clone(), status_stack.clone());
+        let sql_popover = SqlPopover::new(query_toggle.clone(), status_stack.clone(), table_env.clone());
         //sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
-        sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
-        sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
+        //sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
+        //sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
+
+        {
+            let tables_nb = tables_nb.clone();
+            sql_popover.connect_send_query(move ||{
+                tables_nb.nb.set_sensitive(false);
+                Ok(())
+            });
+        }
+
         let function_box : Box = builder.get_object("fn_box").unwrap();
         let fn_toggle = ToggleToolButton::new();
         let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
         fn_toggle.set_icon_widget(Some(&fn_img));
-        sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
-
+        //sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
+        Self::build_toggles(builder.clone());
         //let main_paned : Paned = builder.get_object("main_paned").unwrap();
         /*let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
         let fn_popover : Popover =  builder.get_object("fn_popover").unwrap();
@@ -187,7 +246,7 @@ impl QueriesApp {
         let func_names : Vec<String> = funcs.iter().map(|f| f.name.to_string()).collect();
         println!("Function names: {:?}", func_names);
         if let Err(e) = fn_search.populate_search(func_names) {
-            //println!("{}", e);
+            println!("{}", e);
         }
 
         //let ops_stack : Stack =
@@ -310,7 +369,7 @@ impl QueriesApp {
         //let sql_listener_c = sql_listener.clone();
 
         {
-            let table_env_c = table_env.clone();
+            //let table_env_c = table_env.clone();
             let tables_nb = tables_nb.clone();
             let fn_search = fn_search.clone();
             let f = move |t_env : &TableEnvironment| {
@@ -322,9 +381,8 @@ impl QueriesApp {
                 //    Err(String::from("Error retrieving reference to table environment"))
                // }
             };
-
-            let table_env = table_env.clone();
-            sql_popover.connect_result_arrived(table_env, f);
+            //let table_env = table_env.clone();
+            sql_popover.connect_result_arrived(f);
         }
 
         // Query update passed to sql_popover
