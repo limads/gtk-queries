@@ -21,6 +21,8 @@ syn = { version = "1.0.17", features = ["full"] }
 quote = "1.0.3"
 gtkplotview = { path = "../gtkplotview" }
 gtk-plots = { path = "../gtk-plots" }
+toml = "0.5.6"
+chrono = "0.4.11"
 
 [[bin]]
 name="queries"

@@ -602,7 +602,7 @@ fn build_func_menu(builder : Builder) {
 }
 
 fn build_ui(app: &gtk::Application) {
-    let path = utils::glade_path("gtk-queries-funcs-popover.glade").expect("Failed to load glade file");
+    let path = utils::glade_path("gtk-queries-funcs-popover-2.glade").expect("Failed to load glade file");
     let builder = Builder::new_from_file(path);
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");

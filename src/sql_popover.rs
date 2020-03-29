@@ -114,6 +114,9 @@ impl SqlPopover {
         self.extra_toolbar.show_all();
     }*/
 
+    // TODO change stack to table any time a new query result arrives.
+    // But toggle should stay off (full table view).
+
     pub fn connect_result_arrived<F>(
         &self,
         //tbl_env_c : Rc<RefCell<TableEnvironment>>,
@@ -235,6 +238,10 @@ impl SqlPopover {
         let update_btn = ToggleToolButton::new();
         update_btn.set_icon_widget(Some(&img_clock));
 
+        let img_append = Image::new_from_file(utils::glade_path("../icons/append.svg").unwrap());
+        let append_btn = ToggleToolButton::new();
+        append_btn.set_icon_widget(Some(&img_append));
+
         let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_btn = ToolButton::new(Some(&img_clear), None);
         {
@@ -252,6 +259,7 @@ impl SqlPopover {
         }
         sql_toolbar.insert(&clear_btn, 0);
         sql_toolbar.insert(&update_btn, 1);
+        sql_toolbar.insert(&append_btn, 2);
         // update_toolbar.insert(&item_b, 1);
         // extra_toolbar.show_all();
         update_btn.connect_toggled(move|btn|{
@@ -278,7 +286,7 @@ impl SqlPopover {
         //let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
         let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
         let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
-        sql_toolbar.insert(&refresh_btn, 2);
+        sql_toolbar.insert(&refresh_btn, 3);
         sql_toolbar.show_all();
 
         {
