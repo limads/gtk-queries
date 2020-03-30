@@ -18,7 +18,7 @@ use crate::status_stack::*;
 #[derive(Clone)]
 pub struct ConnPopover {
     btn : gtk::Button,
-    popover : gtk::Popover,
+    pub popover : gtk::Popover,
     entries : [gtk::Entry; 4],
     conn_switch : Switch,
     db_file_btn : Button,

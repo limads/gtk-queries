@@ -43,49 +43,15 @@ pub struct QueriesApp {
     // save_dialog : Dialog,
     conn_popover : ConnPopover,
     sql_popover : SqlPopover,
+    fn_popover : Popover,
     table_env : Rc<RefCell<TableEnvironment>>,
+    tables_nb : TableNotebook
     //query_toggle : ToggleButton //,
     //ws_toggle : ToggleButton
 
     // old_source_content : Rc<RefCell<String>>
 }
 
-pub fn set_tables(
-    table_env : &TableEnvironment,
-    tables_nb : &mut TableNotebook,
-    fn_search : FunctionSearch
-) {
-    tables_nb.clear();
-    let all_tbls = table_env.all_tables_as_rows();
-    if all_tbls.len() == 0 {
-        tables_nb.add_page(
-            "application-exit",
-            None,
-            Some("No queries"),
-            None,
-            fn_search.clone()
-        );
-    } else {
-        tables_nb.clear();
-        for t_rows in all_tbls {
-            let nrows = t_rows.len();
-            //println!("New table with {} rows", nrows);
-            if nrows > 0 {
-                let ncols = t_rows[0].len();
-                let name = format!("({} x {})", nrows - 1, ncols);
-                tables_nb.add_page(
-                    "network-server-symbolic",
-                    Some(&name[..]),
-                    None,
-                    Some(t_rows),
-                    fn_search.clone()
-                );
-            } else {
-                println!("No rows to display");
-            }
-        }
-    }
-}
 
 fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
     if let Some(win) = window.get_window() {
@@ -245,183 +211,31 @@ impl QueriesApp {
             status_stack.clone(),
             sidebar.clone()
         );
-        //let main_paned : Paned = builder.get_object("main_paned").unwrap();
-        /*let fn_toggle : ToggleButton = builder.get_object("fn_toggle").unwrap();
-        let fn_popover : Popover =  builder.get_object("fn_popover").unwrap();
-        {
-            let fn_popover = fn_popover.clone();
-            fn_toggle.connect_toggled(move |toggle| {
-                if toggle.get_active() {
-                    fn_popover.show();
-                } else {
-                    fn_popover.hide();
-                }
-            });
-        }*/
-        /*{
-            let query_toggle = fn_toggle.clone();
-            fn_popover.connect_closed(move |_popover| {
-                query_toggle.set_active(false);
-            });
-        }*/
-        /*{
-            let window = window.clone();
-            let fn_toggle = fn_toggle.clone();
-            let main_paned = main_paned.clone();
-            fn_toggle.connect_toggled(move |btn| {
-                ajust_sidebar_pos(&btn, &window, &main_paned);
-            });
-        }
 
-        {
-            let window = window.clone();
-            let fn_toggle = fn_toggle.clone();
-            let main_paned = main_paned.clone();
-            window.connect_check_resize(move |win| {
-                //ajust_sidebar_pos(&fn_toggle, &win, &main_paned);
-                println!("Resize request");
-            });
-
-            //window.connect_property_is_maximized_notify(move |win| {
-            //    println!("Maximized");
-            //});
-        }*/
-
+        let fn_popover : Popover = builder.get_object("fn_popover").unwrap();
         let reg = Rc::new(NumRegistry::load().map_err(|e| { println!("{}", e); e }).unwrap());
         let funcs = reg.function_list();
-        let fn_search = FunctionSearch::new(builder.clone(), reg.clone(), tables_nb.clone());
+        let fn_search = FunctionSearch::new(
+            builder.clone(),
+            reg.clone(),
+            tables_nb.clone(),
+            fn_popover.clone(),
+            table_env.clone()
+        );
         let func_names : Vec<String> = funcs.iter().map(|f| f.name.to_string()).collect();
         println!("Function names: {:?}", func_names);
         if let Err(e) = fn_search.populate_search(func_names) {
             println!("{}", e);
         }
 
-        //let ops_stack : Stack =
-        //    builder.get_object("ops_stack").unwrap();
-        /*let ws_toggle : ToggleButton =
-            builder.get_object("ws_toggle").unwrap();
-        //let query_toggle : ToggleButton =
-        //    builder.get_object("query_toggle").unwrap();
-
-        {
-            let table_popover = table_popover.clone();
-            ws_toggle.connect_toggled(move |toggle| {
-                if toggle.get_active() {
-                    table_popover.show();
-                } else {
-                    table_popover.hide();
-                    //filter_popover.hide();
-                }
-            });
-        }*/
-
-        /*{
-            let ws_toggle = ws_toggle.clone();
-            let table_popover = table_popover.clone();
-            table_popover.connect_closed(move |_popover| {
-                ws_toggle.set_active(false);
-            });
-        }*/
-
-        /*let new_db_dialog : FileChooserDialog =
-            builder.get_object("new_db_dialog").unwrap();
-        {
-            let new_db_btn : Button =
-                builder.get_object("new_db_btn").unwrap();
-            let new_db_dialog = new_db_dialog.clone();
-            new_db_btn.connect_clicked(move |_btn| {
-                new_db_dialog.run();
-                new_db_dialog.hide();
-            });
-        }*/
-
-        /*{
-            let t_env = table_env.clone();
-            new_db_dialog.connect_response(move |dialog, resp|{
-                match resp {
-                    ResponseType::Other(1) => {
-                        if let Some(path) = dialog.get_filename() {
-                            if let (Ok(mut t_env), Some(p_str)) = (t_env.try_borrow_mut(), path.to_str()) {
-                                let res = t_env.update_source(
-                                    EnvironmentSource::SQLite3((
-                                        Some(p_str.into()),
-                                        String::from(""))
-                                    ),
-                                    true
-                                );
-                                match res {
-                                    Ok(_) => { },
-                                    Err(s) => println!("{}", s)
-                                }
-                            } else {
-                                println!("Could not acquire mutable reference t_env/path not convertible");
-                            }
-                        } else {
-                            println!("No filename informed");
-                        }
-                    },
-                    _ => { }
-                }
-            });
-        }*/
-
-        // let tables_nb_c = tables_nb.clone();
-        //let mut table_chooser = TableChooser::new(file_btn, table_env.clone());
-        /*let table_info_box : Box = builder.get_object("table_info_box").unwrap();
-        {
-            let table_env = table_env.clone();
-            //let tables_nb = tables_nb.clone();
-            table_chooser.append_cb(boxed::Box::new(move |btn| {
-                /*if let Ok(t_env) = table_env.try_borrow_mut() {
-                    set_tables(&t_env, &mut tables_nb.clone());
-                } else {
-                    println!("Unable to get reference to table env");
-                }*/
-                if let Ok(t_env) = table_env.try_borrow_mut() {
-                    for w in table_info_box.get_children() {
-                        table_info_box.remove(&w);
-                    }
-                    if let Some(info) = t_env.table_names_as_hash() {
-                        for (table, cols) in info.iter() {
-                            let exp = Expander::new(Some(&table));
-                            let exp_content = Box::new(Orientation::Vertical, 0);
-                            for c in cols {
-                                exp_content.add(&Label::new(Some(&c.0)));
-                            }
-                            exp.add(&exp_content);
-                            table_info_box.add(&exp);
-                        }
-                        table_info_box.show_all();
-                    } else {
-                        println!("Could not get table info as hash");
-                    }
-                }
-
-            }));
-        }*/
-
-        // let sql_listener = Rc::new(RefCell::new(SqlListener::launch()));
-        //let table_env_c = table_env.clone();
-        // let queries_app = QueriesApp{
-        //    exec_btn : exec_btn, view : view, tables_nb : tables_nb.clone(), header : header,
-        //    popover : popover, table_env : table_env.clone(), query_popover : query_popover,
-        //    query_toggle : query_toggle //, ws_toggle : ws_toggle
-        // };
-        //let queries_app_c = queries_app.clone();
-        // let sql_listener_c = sql_listener.clone();
-        //let table_env_c = queries_app.clone().table_env.clone();
-        //let view_c = queries_app_c.view.clone();
-        //let tables_nb_c = queries_app.clone().tables_nb.clone();
-        // Check if there is a SQL answer before setting the widgets to sensitive again.
-        //let sql_listener_c = sql_listener.clone();
-
         {
             //let table_env_c = table_env.clone();
             let tables_nb = tables_nb.clone();
             let fn_search = fn_search.clone();
+            let fn_popover = fn_popover.clone();
             let f = move |t_env : &TableEnvironment| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
-                set_tables(&t_env, &mut tables_nb.clone(), fn_search.clone());
+                utils::set_tables(&t_env, &mut tables_nb.clone(), fn_search.clone(), fn_popover.clone());
                 tables_nb.nb.set_sensitive(true);
                 Ok(())
                 //} else {
@@ -561,7 +375,7 @@ impl QueriesApp {
             });
         }
 
-        Self { conn_popover, sql_popover, table_env }
+        Self { conn_popover, sql_popover, table_env, fn_popover, tables_nb }
     }
 
     //fn check_active_selection(&self) {
@@ -611,6 +425,9 @@ fn build_ui(app: &gtk::Application) {
 
     {
         let toggle_q = queries_app.sql_popover.query_toggle.clone();
+        let conn_popover = queries_app.conn_popover.clone();
+        let fn_popover = queries_app.fn_popover.clone();
+        let tables_nb = queries_app.tables_nb.clone();
         //let toggle_w = queries_app.ws_toggle.clone();
         let view = queries_app.sql_popover.view.clone();
         win.connect_key_release_event(move |win, ev_key| {
@@ -620,17 +437,30 @@ fn build_ui(app: &gtk::Application) {
                         toggle_q.set_active(false);
                     } else {
                         toggle_q.set_active(true);
-                        view.grab_focus();
+                        if view.get_realized() {
+                            view.grab_focus();
+                        }
                     }
                     return glib::signal::Inhibit(true)
                 }
-                if ev_key.get_keyval() == key::w {
-                    //if toggle_w.get_active() {
-                    //    toggle_w.set_active(false);
-                    //} else {
-                    //    toggle_w.set_active(true);
-                    //}
+                if ev_key.get_keyval() == key::c {
+                    conn_popover.popover.show();
                     return glib::signal::Inhibit(true)
+                }
+                if ev_key.get_keyval() == key::f {
+                    if tables_nb.selected_cols().len() > 0 {
+                        if !fn_popover.is_visible() {
+                            fn_popover.show();
+                        } else {
+                            fn_popover.hide();
+                        }
+                    }
+                }
+                if ev_key.get_keyval() == key::Escape {
+                    fn_popover.hide();
+                    conn_popover.popover.hide();
+                    toggle_q.set_active(false);
+                    tables_nb.unselect_at_table();
                 }
                 return glib::signal::Inhibit(false)
             } else {
@@ -643,6 +473,8 @@ fn build_ui(app: &gtk::Application) {
 
     win.show_all();
 }
+
+// TODO change back to table when user goes to connected status message at the plot screen.
 
 // cp queries.desktop /usr/share/applications
 // cp assets/icons/queries.svg /usr/share/icons/hicolor/128x128/apps

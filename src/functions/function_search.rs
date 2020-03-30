@@ -323,7 +323,13 @@ impl FunctionSearch {
         }
     }
 
-    pub fn new(builder : Builder, reg : Rc<NumRegistry>, tbl_nb : TableNotebook) -> Self {
+    pub fn new(
+        builder : Builder,
+        reg : Rc<NumRegistry>,
+        tbl_nb : TableNotebook,
+        fn_popover : Popover,
+        t_env : Rc<RefCell<TableEnvironment>>
+    ) -> Self {
         let search_entry : Entry =
             builder.get_object("fn_search").unwrap();
         //let provider = utils::provider_from_path("entry.css").unwrap();
@@ -379,11 +385,11 @@ impl FunctionSearch {
         let fn_search = Self {
             search_entry,
             completion_list_store,
-            reg,
+            reg : reg.clone(),
             //update_btn,
             //clear_btn,
             fn_doc_label,
-            doc_stack,
+            doc_stack : doc_stack.clone(),
             curr_fn,
             cols_label
             //fn_arg_box,
@@ -394,15 +400,56 @@ impl FunctionSearch {
             let fn_search = fn_search.clone();
             let search_entry = fn_search.search_entry.clone();
             let tbl_nb = tbl_nb.clone();
+            let doc_stack = doc_stack.clone();
+            let reg = reg.clone();
+            let fn_popover = fn_popover.clone();
             search_entry.connect_key_press_event(move |entry, key_ev| {
                 match key_ev.get_keyval() {
                     key::Return => {
                         let text = entry.get_text().map(|txt| txt.to_string()).unwrap_or("".to_string());
                         let selected = tbl_nb.selected_cols();
-                        fn_search.update_fn_info(&text[..], &selected[..]);
-                        if key_ev.get_state() == gdk::ModifierType::MOD2_MASK {
-                            println!("Execute");
+                        if let Some(_) = text.chars().find(|c| *c == '?') {
+                            doc_stack.show();
+                            let filt_text : String = text.chars().filter(|c| *c != '?').collect();
+                            fn_search.update_fn_info(&filt_text[..], &selected[..]);
+                        } else {
+                            doc_stack.hide();
+                            //if let Ok(reg) = reg.try_borrow() {
+                            if reg.has_func_name(&text[..]) {
+                                if let Some(f) = reg.retrieve_func(&text[..]) {
+                                    let tbl = tbl_nb.selected_data().get(0).unwrap().clone();
+                                    let ans = unsafe { f(&tbl, &[]) };
+                                    match ans {
+                                        Ok(res_tbl) => {
+                                            if let Ok(mut t_env) = t_env.try_borrow_mut() {
+                                                println!("{:?}", res_tbl);
+                                                t_env.append_external_table(res_tbl);
+                                                utils::set_tables(
+                                                    &t_env,
+                                                    &mut tbl_nb.clone(),
+                                                    fn_search.clone(),
+                                                    fn_popover.clone()
+                                                );
+                                            } else {
+                                                println!("Unable to retrieve mutable reference to table environment");
+                                            }
+                                        },
+                                        Err(e) => {
+                                            println!("{}", e);
+                                        }
+                                    }
+                                } else {
+                                    println!("Error retrieving function");
+                                }
+                             //   } else {
+                             //       println!("Function {} not in registry", text);
+                             //   }
+                            } else {
+                                println!("Could not retrieve reference to function registry");
+                            }
                         }
+                        //if key_ev.get_state() == gdk::ModifierType::MOD2_MASK {
+                        //}
                         glib::signal::Inhibit(true)
                     }
                     _ => {

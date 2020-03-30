@@ -30,6 +30,7 @@ pub struct TableWidget {
     provider : CssProvider,
     nrows : usize,
     ncols : usize,
+    tbl : Table,
     selected : Rc<RefCell<Vec<(String, usize, bool)>>>
 }
 
@@ -61,8 +62,9 @@ impl TableWidget {
         scroll_window.add(&box_container);
         scroll_window.show_all();
         let selected = Rc::new(RefCell::new(Vec::new()));
+        let tbl = Table::new_empty(None);
         TableWidget{grid, /*data,*/ scroll_window,
-            box_container, msg, parent_ctx, provider, selected, nrows : 0, ncols : 0}
+            box_container, msg, parent_ctx, provider, selected, nrows : 0, ncols : 0, tbl}
     }
 
     pub fn parent(&self) -> ScrolledWindow {
@@ -192,6 +194,17 @@ impl TableWidget {
             }
         }
         unselected
+    }
+
+    pub fn unselect_all(&self) {
+        let selected = self.selected_cols();
+        if let Ok(mut sel) = self.selected.try_borrow_mut() {
+            for s in selected {
+                Self::switch_selected(self.grid.clone(), &mut sel, s);
+            }
+        } else {
+            println!("Could not retrieve mutable reference to selected");
+        }
     }
 
     fn switch_all(grid : Grid, cols : &mut [(String, usize, bool)]) {
@@ -360,5 +373,12 @@ impl TableWidget {
         self.msg.hide();
         self.grid.show();
     }
+
+    pub fn get_selected_data(&self) -> Table {
+        let tbl = Table::new_empty(None);
+        let selected = self.selected_cols();
+        tbl
+    }
+
 }
 

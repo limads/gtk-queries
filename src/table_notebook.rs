@@ -55,7 +55,8 @@ impl TableNotebook {
         label : Option<&str>,
         err_msg : Option<&str>,
         data : Option<Vec<Vec<String>>>,
-        fn_search : FunctionSearch
+        fn_search : FunctionSearch,
+        fn_popover : Popover
     ) {
         let img = Image::new_from_icon_name(
             Some(icon), IconSize::LargeToolbar
@@ -77,6 +78,7 @@ impl TableNotebook {
             table_w.set_selected_action(move |ev_bx, ev, selected| {
                 println!("Selected: {:?}", selected);
                 fn_search.update_fn_info("", &selected[..]);
+                fn_popover.set_relative_to(Some(ev_bx));
                 glib::signal::Inhibit(false)
             });
         }
@@ -102,6 +104,27 @@ impl TableNotebook {
         } else {
             println!("Could not retrieve mutable reference to table widget");
             Vec::new()
+        }
+    }
+
+    pub fn selected_data(&self) -> Vec<Table> {
+        let mut tbl_data = Vec::new();
+        if let Ok(tbls) = self.tbls.try_borrow() {
+            for t in tbls.iter() {
+                tbl_data.push(t.get_selected_data());
+            }
+        }
+        tbl_data
+    }
+
+    pub fn unselect_at_table(&self) {
+        let ix = self.get_page_index();
+        if let Ok(tbls) = self.tbls.try_borrow() {
+            if let Some(tbl) = tbls.get(ix) {
+                tbl.unselect_all();
+            }
+        } else {
+            println!("Unable to retrieve reference to tables");
         }
     }
 

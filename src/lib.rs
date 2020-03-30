@@ -12,11 +12,55 @@ pub mod conn_popover;
 
 pub mod plots;
 
+
 pub mod utils {
 
     use std::env;
     use gtk::*;
     use gio::prelude::*;
+    use tables::TableEnvironment;
+    use crate::table_notebook::*;
+    use crate::functions::function_search::*;
+
+    pub fn set_tables(
+        table_env : &TableEnvironment,
+        tables_nb : &mut TableNotebook,
+        fn_search : FunctionSearch,
+        fn_popover : Popover
+    ) {
+        tables_nb.clear();
+        let all_tbls = table_env.all_tables_as_rows();
+        if all_tbls.len() == 0 {
+            tables_nb.add_page(
+                "application-exit",
+                None,
+                Some("No queries"),
+                None,
+                fn_search.clone(),
+                fn_popover.clone()
+            );
+        } else {
+            tables_nb.clear();
+            for t_rows in all_tbls {
+                let nrows = t_rows.len();
+                //println!("New table with {} rows", nrows);
+                if nrows > 0 {
+                    let ncols = t_rows[0].len();
+                    let name = format!("({} x {})", nrows - 1, ncols);
+                    tables_nb.add_page(
+                        "network-server-symbolic",
+                        Some(&name[..]),
+                        None,
+                        Some(t_rows),
+                        fn_search.clone(),
+                        fn_popover.clone()
+                    );
+                } else {
+                    println!("No rows to display");
+                }
+            }
+        }
+    }
 
     fn exec_dir() -> Result<String, &'static str> {
         let exe_path = env::current_exe().map_err(|_| "Could not get executable path")?;
