@@ -29,6 +29,7 @@ use gdk::prelude::*;
 use gtkplotview::plot_view::PlotView;
 use gtk_plots::save_widgets;
 use gtk_queries::plots::layout_menu::PlotSidebar;
+use gtk_queries::upload_popover::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -51,7 +52,6 @@ pub struct QueriesApp {
 
     // old_source_content : Rc<RefCell<String>>
 }
-
 
 fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
     if let Some(win) = window.get_window() {
@@ -175,6 +175,7 @@ impl QueriesApp {
         let pl_da : DrawingArea = builder.get_object("plot").unwrap();
         let sidebar = Self::build_plots_widgets(table_env.clone(), pl_da.clone(), sidebar_stack.clone(), status_stack.clone());
 
+        let upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
         //let file_btn : FileChooserButton =

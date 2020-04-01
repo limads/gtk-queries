@@ -12,6 +12,7 @@ pub mod conn_popover;
 
 pub mod plots;
 
+pub mod upload_popover;
 
 pub mod utils {
 

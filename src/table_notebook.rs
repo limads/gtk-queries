@@ -93,6 +93,28 @@ impl TableNotebook {
         }
     }
 
+    /// Get selected cols across whole session. Indices are set relative to
+    /// the first column of the first table, and increase up to the last
+    /// column of the last table.
+    pub fn full_selected_cols(&self) -> Vec<usize> {
+        let mut cols = Vec::new();
+        let mut base_ix = 0;
+        if let Ok(tbls) = self.tbls.try_borrow() {
+            for tbl in tbls.iter() {
+                let mut selected = tbl.selected_cols();
+                selected.iter_mut().for_each(|ix| *ix += base_ix);
+                cols.extend(selected);
+                base_ix += tbl.dimensions().1;
+            }
+        }
+        cols
+    }
+
+    // pub fn get_columns(&self) -> Vec<Column> {
+    //}
+
+    /// Get selected cols at the current selected page. Indices are relative to
+    /// the first column of the selected table.
     pub fn selected_cols(&self) -> Vec<usize> {
         let ix = self.get_page_index();
         if let Ok(tbls) = self.tbls.try_borrow() {

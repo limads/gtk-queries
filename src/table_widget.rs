@@ -380,5 +380,9 @@ impl TableWidget {
         tbl
     }
 
+    pub fn dimensions(&self) -> (usize, usize) {
+        (self.nrows, self.ncols)
+    }
+
 }
 
