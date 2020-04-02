@@ -13,7 +13,7 @@ use std::path::PathBuf;
 // use sourceview::*;
 use std::ffi::OsStr;
 use gdk::ModifierType;
-use tables::{ environment_source::EnvironmentSource, TableEnvironment, button::TableChooser};
+use tables::{ environment_source::EnvironmentSource, TableEnvironment};
 use nlearn::table::*;
 use crate::utils;
 use gdk::prelude::*;

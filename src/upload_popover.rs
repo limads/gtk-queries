@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use tables::{self, environment_source::EnvironmentSource, TableEnvironment, sql::SqlListener};
 use crate::conn_popover::*;
 use sourceview::*;
 use std::boxed;

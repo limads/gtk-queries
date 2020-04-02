@@ -23,6 +23,10 @@ gtkplotview = { path = "../gtkplotview" }
 gtk-plots = { path = "../gtk-plots" }
 toml = "0.5.6"
 chrono = "0.4.11"
+rust_decimal = { version = "1.3.0", features = ["postgres"] }
+csv = "1.1.1"
+sqlparser = "0.5.0"
+nalgebra = "0.19.0"
 
 [[bin]]
 name="queries"

@@ -14,6 +14,8 @@ pub mod plots;
 
 pub mod upload_popover;
 
+pub mod tables;
+
 pub mod utils {
 
     use std::env;
