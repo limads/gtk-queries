@@ -6,6 +6,7 @@ use super::nullable_column::*;
 use std::fmt::Display;
 use super::table::*;
 
+#[derive(Debug)]
 enum SqliteColumn {
     I64(Vec<Option<i64>>),
     F64(Vec<Option<f64>>),
@@ -31,28 +32,44 @@ impl SqliteColumn {
                 match value {
                     Value::Integer(i) => v.push(Some(i)),
                     Value::Null => v.push(None),
-                    _ => { return Err("Invalid type"); }
+                    _ => {
+                        println!("Column type: {:?}", self);
+                        println!("Error parsing to: {}", value.data_type());
+                        return Err("Invalid type");
+                    }
                 }
             },
             Self::F64(ref mut v) => {
                 match value {
                     Value::Real(r) => v.push(Some(r)),
                     Value::Null => v.push(None),
-                    _ => { return Err("Invalid type"); }
+                    _ => {
+                        println!("Column type: {:?}", self);
+                        println!("Error parsing to: {}", value.data_type());
+                        return Err("Invalid type");
+                    }
                 }
             },
             Self::Str(ref mut v) => {
                 match value {
                     Value::Text(t) => v.push(Some(t)),
                     Value::Null => v.push(None),
-                    _ => { return Err("Invalid type"); }
+                    _ => {
+                        println!("Column type: {:?}", self);
+                        println!("Error parsing to: {}", value.data_type());
+                        return Err("Invalid type");
+                    }
                 }
             },
             Self::Bytes(ref mut v) => {
                 match value {
                     Value::Blob(b) => v.push(Some(b)),
                     Value::Null => v.push(None),
-                    _ => { return Err("Invalid type"); }
+                    _ => {
+                        println!("Column type: {:?}", self);
+                        println!("Error parsing to: {}", value.data_type());
+                        return Err("Invalid type");
+                    }
                 }
             }
         }
@@ -103,7 +120,7 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
     while let Ok(row) = rows.next() {
         match row {
             Some(r) => {
-                for (i, n) in names.iter().enumerate() {
+                for (i, _) in names.iter().enumerate() {
                     let value = r.get::<usize, rusqlite::types::Value>(i)
                         .unwrap_or(rusqlite::types::Value::Null);
                     sqlite_cols[i].try_append(value)?;

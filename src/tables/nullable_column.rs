@@ -31,16 +31,19 @@ impl<'a> NullableColumn {
     }
 
     pub fn display_content(&self) -> Vec<String> {
+        if let Column::Nullable(_) = self.col {
+            println!("Recursive nullable column identified");
+            return Vec::new()
+        }
         let valid_content = self.col.display_content();
         let mut content = Vec::new();
         let mut n_ix = 0;
-        let any_null = self.null_ix.len() > 0;
         for i in 0..self.n {
-            if any_null && i == self.null_ix[n_ix] {
+            if n_ix < self.null_ix.len() && i == self.null_ix[n_ix] {
                 content.push(String::from(Self::NULL));
                 n_ix += 1;
             } else {
-                content.push(valid_content[i].clone());
+                content.push(valid_content[i - n_ix].clone());
             }
         }
         content
@@ -49,6 +52,9 @@ impl<'a> NullableColumn {
     /// Tries to convert to a complete representation, or just return a nullable
     /// variant otherwise.
     pub fn to_column(self) -> Column {
+        if let Column::Nullable(_) = self.col {
+            println!("Recursive nullable column identified");
+        }
         if self.null_ix.len() == 0 {
             self.col
         } else {
@@ -59,16 +65,19 @@ impl<'a> NullableColumn {
     pub fn ref_content(&'a self) -> Vec<&'a (dyn ToSql + Sync)>
         where &'a str : FromSql<'a>
     {
+        if let Column::Nullable(_) = self.col {
+            println!("Recursive nullable column identified");
+            return Vec::new()
+        }
         let valid_refs = self.col.ref_content();
         let mut full_refs = Vec::new();
         let mut n_ix = 0;
-        let any_null = self.null_ix.len() > 0;
         for i in 0..self.n {
-            if any_null && i == self.null_ix[n_ix] {
+            if n_ix < self.null_ix.len() && i == self.null_ix[n_ix] {
                 full_refs.push(&Self::NULL as &'a (dyn ToSql + Sync));
                 n_ix += 1;
             } else {
-                full_refs.push(valid_refs[i]);
+                full_refs.push(valid_refs[i - n_ix]);
             }
         }
         full_refs
@@ -113,14 +122,16 @@ impl<T> TryInto<Vec<Option<T>>> for NullableColumn
             .map_err(|_| "Error performing conversion")?;
         let mut opt_cols : Vec<Option<T>> = Vec::new();
         let mut n_ix = 0;
-        let any_null = null_ix.len() > 0;
-        for (i, val) in valid_vals.drain(0..n).enumerate() {
-            if any_null && i == self.null_ix[n_ix] {
+        for i  in 0..n {
+            if n_ix < self.null_ix.len() && i == self.null_ix[n_ix] {
                 opt_cols.push(None);
                 n_ix += 1;
             } else {
-                opt_cols.push(Some(val));
+                opt_cols.push(Some(valid_vals.remove(0)));
             }
+        }
+        if valid_vals.len() > 0 {
+            return Err("Data vector not cleared");
         }
         Ok(opt_cols)
     }
