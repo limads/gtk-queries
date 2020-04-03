@@ -1,18 +1,18 @@
-use tables::sql::*;
+use crate::tables::sql::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
 //use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
-use tables::TableEnvironment;
-use tables::sql::{SqlListener};
-use tables::environment_source::EnvironmentSource;
+use crate::tables::environment::TableEnvironment;
+use crate::tables::sql::{SqlListener};
+use crate::tables::source::EnvironmentSource;
 use gtk::prelude::*;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-use nlearn::table::*;
+use crate::tables::table::*;
 use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
 
 #[derive(Clone)]

@@ -13,13 +13,13 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
 use sourceview::*;
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
 use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook, status_stack::StatusStack };
-use nlearn::table::Table;
+use crate::tables::table::Table;
 use crate::status_stack::*;
 use sourceview::View;
 

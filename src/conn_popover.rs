@@ -1,18 +1,18 @@
-use tables::sql::*;
+use crate::tables::sql::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
 //use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
-use tables::TableEnvironment;
-use tables::sql::{SqlListener};
-use tables::environment_source::EnvironmentSource;
+use crate::tables::environment::TableEnvironment;
+use crate::tables::sql::{SqlListener};
+use crate::tables::source::EnvironmentSource;
 use gtk::prelude::*;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-use nlearn::table::*;
+use crate::tables::table::*;
 use crate::status_stack::*;
 
 #[derive(Clone)]
@@ -391,13 +391,10 @@ impl ConnPopover {
                     let mut content = String::new();
                     if let Ok(mut f) = File::open(path) {
                         if let Ok(_) = f.read_to_string(&mut content) {
-                            let t = Table::new_from_text(
-                                Some(name.to_string()),
-                                content
-                            );
+                            let t = Table::new_from_text(content);
                             match t {
                                 Ok(t) => {
-                                    if let Some(sql) = t.sql_string() {
+                                    if let Some(sql) = t.sql_string(name) {
                                         println!("{}", sql);
                                         t_env.prepare_and_send_query(sql);
                                     } else {

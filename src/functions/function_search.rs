@@ -9,12 +9,12 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
+use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
 use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
-use nlearn::table::Table;
+use crate::tables::table::Table;
 use std::fmt::Display;
 use std::io::{Read, Write};
 use crate::functions::num_function::*;
@@ -417,11 +417,12 @@ impl FunctionSearch {
                             //if let Ok(reg) = reg.try_borrow() {
                             if reg.has_func_name(&text[..]) {
                                 if let Some(f) = reg.retrieve_func(&text[..]) {
-                                    let tbl = tbl_nb.selected_data().get(0).unwrap().clone();
-                                    let ans = unsafe { f(&tbl, &[]) };
-                                    match ans {
-                                        Ok(res_tbl) => {
-                                            if let Ok(mut t_env) = t_env.try_borrow_mut() {
+                                    if let Ok(mut t_env) = t_env.try_borrow_mut() {
+                                        let full_sel = tbl_nb.full_selected_cols();
+                                        let columns = t_env.get_columns(&full_sel[..]);
+                                        let ans = unsafe { f(columns) };
+                                        match ans {
+                                            Ok(res_tbl) => {
                                                 println!("{:?}", res_tbl);
                                                 t_env.append_external_table(res_tbl);
                                                 utils::set_tables(
@@ -430,13 +431,13 @@ impl FunctionSearch {
                                                     fn_search.clone(),
                                                     fn_popover.clone()
                                                 );
-                                            } else {
-                                                println!("Unable to retrieve mutable reference to table environment");
+                                            },
+                                            Err(e) => {
+                                                println!("{}", e);
                                             }
-                                        },
-                                        Err(e) => {
-                                            println!("{}", e);
                                         }
+                                    } else {
+                                        println!("Unable to retrieve mutable reference to table environment");
                                     }
                                 } else {
                                     println!("Error retrieving function");

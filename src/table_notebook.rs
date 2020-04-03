@@ -12,11 +12,11 @@ use std::path::PathBuf;
 // use sourceview::*;
 use std::ffi::OsStr;
 use gdk::ModifierType;
-use tables::{ environment_source::EnvironmentSource, TableEnvironment, button::TableChooser};
+use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment, /*button::TableChooser*/ };
 use crate::table_widget::*;
 //use gtk::builder::BuilderExtManual;
 use gtk::prelude::*;
-use nlearn::table::*;
+use crate::tables::table::*;
 use crate::functions::function_search::*;
 
 #[derive(Clone)]
@@ -129,7 +129,7 @@ impl TableNotebook {
         }
     }
 
-    pub fn selected_data(&self) -> Vec<Table> {
+    /*pub fn selected_data(&self) -> Vec<Table> {
         let mut tbl_data = Vec::new();
         if let Ok(tbls) = self.tbls.try_borrow() {
             for t in tbls.iter() {
@@ -137,7 +137,7 @@ impl TableNotebook {
             }
         }
         tbl_data
-    }
+    }*/
 
     pub fn unselect_at_table(&self) {
         let ix = self.get_page_index();

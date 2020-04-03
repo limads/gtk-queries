@@ -594,6 +594,23 @@ impl TableEnvironment {
         }
     }*/
 
+    /// Get informed columns, where indices are counted
+    /// from the first column of the first table up to the
+    /// last column of the last table.
+    pub fn get_columns<'a>(&'a self, ixs : &[usize]) -> Columns<'a> {
+        let mut cols = Columns::new();
+        let mut base_ix : usize = 0;
+        for tbl in self.tables.iter() {
+            let ncols = tbl.shape().1;
+            let curr_ixs : Vec<usize> = ixs.iter()
+                .filter(|ix| **ix >= base_ix && **ix < base_ix + ncols)
+                .map(|ix| ix - base_ix).collect();
+            cols = cols.clone().take_and_extend(tbl.get_columns(&curr_ixs));
+            base_ix += ncols;
+        }
+        cols
+    }
+
     pub fn set_table_at_index(
         &mut self,
         content : String,

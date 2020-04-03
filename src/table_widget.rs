@@ -13,8 +13,8 @@ use std::path::PathBuf;
 // use sourceview::*;
 use std::ffi::OsStr;
 use gdk::ModifierType;
-use tables::{ environment_source::EnvironmentSource, TableEnvironment};
-use nlearn::table::*;
+use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment};
+use crate::tables::table::*;
 use crate::utils;
 use gdk::prelude::*;
 use gdk::{Cursor, CursorType};
@@ -30,7 +30,7 @@ pub struct TableWidget {
     provider : CssProvider,
     nrows : usize,
     ncols : usize,
-    tbl : Table,
+    //tbl : Table,
     selected : Rc<RefCell<Vec<(String, usize, bool)>>>
 }
 
@@ -38,7 +38,7 @@ impl TableWidget {
 
     pub fn new_from_table(tbl : &Table) -> Self {
         let mut tbl_wid = Self::new();
-        let data = tbl.as_rows();
+        let data = tbl.text_rows();
         tbl_wid.update_data(data);
         tbl_wid
     }
@@ -62,9 +62,9 @@ impl TableWidget {
         scroll_window.add(&box_container);
         scroll_window.show_all();
         let selected = Rc::new(RefCell::new(Vec::new()));
-        let tbl = Table::new_empty(None);
+        //let tbl = Table::new_empty(None);
         TableWidget{grid, /*data,*/ scroll_window,
-            box_container, msg, parent_ctx, provider, selected, nrows : 0, ncols : 0, tbl}
+            box_container, msg, parent_ctx, provider, selected, nrows : 0, ncols : 0, /*tbl*/ }
     }
 
     pub fn parent(&self) -> ScrolledWindow {
@@ -372,12 +372,6 @@ impl TableWidget {
         self.msg.set_text("");
         self.msg.hide();
         self.grid.show();
-    }
-
-    pub fn get_selected_data(&self) -> Table {
-        let tbl = Table::new_empty(None);
-        let selected = self.selected_cols();
-        tbl
     }
 
     pub fn dimensions(&self) -> (usize, usize) {

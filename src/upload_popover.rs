@@ -13,21 +13,21 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use tables::{self, environment_source::EnvironmentSource, TableEnvironment, sql::SqlListener};
+use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
 use crate::conn_popover::*;
 use sourceview::*;
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
 use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
-use nlearn::table::Table;
+use crate::tables::table::Table;
 use crate::status_stack::*;
 use crate::sql_popover::*;
 use crate::functions::function_search::*;
 use crate::functions::num_function::*;
 use gdk::prelude::*;
 use gtkplotview::plot_view::PlotView;
-use gtk_plots::save_widgets;
+//use gtk_plots::save_widgets;
 use crate::plots::layout_menu::PlotSidebar;
 
 #[derive(Clone)]

@@ -1,18 +1,18 @@
 use gtk::*;
 use gtk::prelude::*;
 // use gio::prelude::*;
-use gtk_plots::mapping_menu::*;
+use super::mapping_menu::*;
 //use crate::PlotSidebar;
 use std::rc::Rc;
 use std::cell::RefCell;
-use tables::{environment_source::EnvironmentSource, TableEnvironment};
+use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
 use gtkplotview::plot_view::{PlotView, UpdateContent};
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
 use gio::FileExt;
-use gtk_plots::design_menu::*;
-use gtk_plots::scale_menu::*;
+use super::design_menu::*;
+use super::scale_menu::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::status_stack::StatusStack;
@@ -252,7 +252,7 @@ impl LayoutMenu {
     ) {
         match (plot_view.try_borrow_mut(), data_source.try_borrow_mut(), mappings.try_borrow_mut()) {
             (Ok(mut pl), Ok(source), Ok(mut mappings)) => {
-                m.update_available_cols(source.col_names(), &pl);
+                //m.update_available_cols(source.col_names(), &pl);
                 match pos {
                     Some(p) => mappings.insert(p, m.clone()),
                     None => mappings.push(m.clone())

@@ -180,6 +180,21 @@ impl Table {
         q
     }
 
+    pub fn shape(&self) -> (usize, usize) {
+        (self.nrows, self.cols.len())
+    }
+
+    pub fn get_columns<'a>(&'a self, ixs : &[usize]) -> Columns<'a> {
+        let mut cols = Columns::new();
+        for ix in ixs.iter() {
+            match (self.names.get(*ix), self.cols.get(*ix)) {
+                (Some(name), Some(col)) => { cols = cols.take_and_push(name, col); },
+                _ => println!("Column not found at index {}", ix)
+            }
+        }
+        cols
+    }
+
 }
 
 impl Display for Table {
@@ -203,9 +218,51 @@ impl Display for Table {
 /// Referential structure that encapsulate iteration over named columns.
 /// Since columns might have different tables as their source,
 /// there is no guarantee columns will have the same size.
+#[derive(Clone)]
 pub struct Columns<'a> {
-    names : &'a [&'a str],
-    cols : &'a [Column]
+    names : Vec<&'a str>,
+    cols : Vec<&'a Column>
 }
+
+impl<'a> Columns<'a> {
+
+    pub fn new() -> Self {
+        Self{ names : Vec::new(), cols: Vec::new() }
+    }
+
+    pub fn take_and_push(mut self, name : &'a str, col : &'a Column) -> Self {
+        self.names.push(name);
+        self.cols.push(col);
+        self
+    }
+
+    pub fn take_and_extend(mut self, cols : Columns<'a>) -> Self {
+        self.names.extend(cols.names);
+        self.cols.extend(cols.cols);
+        self
+    }
+
+    pub fn names(&'a self) -> &'a [&'a str] {
+        &self.names[..]
+    }
+
+    pub fn get(&'a self, ix : usize) -> Option<&'a Column> {
+        self.cols.get(ix).map(|c| *c)
+    }
+
+    /*pub fn try_get<T>(&'a self, ix : usize) -> Option<&'a Vec<T>>
+        where
+            Vec<T> : TryFrom<Column>
+    {
+        if let Some(ref c) = self.get(ix) {
+            c.try_into().ok()
+        } else {
+            None
+        }
+    }*/
+
+}
+
+
 
 

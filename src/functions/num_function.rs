@@ -1,5 +1,5 @@
 use libloading;
-use nlearn::table::Table;
+use crate::tables::table::{Table, Columns};
 use libloading::{Library, Symbol};
 use std::env;
 use rusqlite::Connection;
@@ -10,7 +10,7 @@ use std::cell::RefCell;
 // (1) Examine sources and update database with library/function names
 // (2) Call libloading to load all functions that were parsed.
 
-pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(&Table, &[&str])->Result<Table,String>>;
+pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns)->Result<Table,String>>;
 
 #[derive(Debug)]
 pub struct NumRegistry {
@@ -139,7 +139,7 @@ impl NumFunctionLibrary {
 
     pub fn retrieve_all<'a>(
         &'a self
-    ) -> Result<HashMap<&'a str, Symbol<'a, unsafe extern fn(&Table, &[&str])->Result<Table,String>>>, &'static str> {
+    ) -> Result<HashMap<&'a str, TableFunc<'a>>, &'static str> {
         let mut func_ptrs = HashMap::new();
         for func in &self.funcs {
             let func_ptr = self.retrieve_single(&func.name[..])?;
@@ -151,13 +151,12 @@ impl NumFunctionLibrary {
     pub fn retrieve_single<'a>(
         &'a self,
         name : &str
-    ) -> Result<Symbol<'a, unsafe extern fn(&Table, &[&str])->Result<Table,String>>, &'static str> {
+    ) -> Result<TableFunc<'a>, &'static str> {
         if !self.funcs.iter().any(|func| func.name == name) {
             return Err("No function with the given name");
         }
         unsafe {
-            let func_ptr : Symbol<unsafe extern fn(&Table, &[&str])->Result<Table,String>> =
-            self.lib.get(name.as_bytes())
+            let func_ptr : TableFunc<'a> = self.lib.get(name.as_bytes())
                 .map_err(|_| { println!("Error loading {}", name); "Could not load function" })?;
             Ok(func_ptr)
         }
