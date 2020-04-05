@@ -16,6 +16,7 @@ use super::scale_menu::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::status_stack::StatusStack;
+use crate::table_notebook::TableNotebook;
 
 /// PlotsSidebar holds the information of the used mappings
 #[derive(Clone)]
@@ -43,6 +44,7 @@ impl PlotSidebar {
         builder : Builder,
         pl_view : Rc<RefCell<PlotView>>,
         table_env : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
         status_stack : StatusStack
     ) -> Self {
         //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
@@ -50,7 +52,7 @@ impl PlotSidebar {
         let mapping_menus = Rc::new(RefCell::new(mapping_menus));
         let design_menu = build_design_menu(&builder, pl_view.clone());
         let plot_notebook : Notebook =
-        builder.get_object("plot_notebook").unwrap();
+            builder.get_object("plot_notebook").unwrap();
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
         //let sidebar_box : Box = builder.get_object("sidebar_box").unwrap();
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
@@ -66,6 +68,7 @@ impl PlotSidebar {
             &builder,
             pl_view.clone(),
             table_env.clone(),
+            tbl_nb.clone(),
             status_stack,
             sidebar.clone()
         );
@@ -149,7 +152,7 @@ impl LayoutMenu {
         builder : Builder,
         mapping_name : String,
         mapping_type : String,
-        data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_env : Rc<RefCell<TableEnvironment>>,
         pl_view : Rc<RefCell<PlotView>>,
         properties : Option<HashMap<String, String>>,
         sidebar : PlotSidebar
@@ -158,76 +161,14 @@ impl LayoutMenu {
         if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
             return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");
         }
-        //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let box_name = mapping_type.clone() + "_box";
         let mapping_box : Box = builder.get_object(&box_name).unwrap();
-        /*let combos = MappingMenu::build_combo_columns_menu(
-            &builder,
-            mapping_type.clone()
-        );*/
-        /*for combo in combos.iter() {
-            let data_source = data_source.clone();
-            let pl_view = pl_view.clone();
-            let curr_name = Rc::new(RefCell::new(mapping_name.clone()));
-            let data_source = data_source.clone();
-            let sidebar_c = sidebar.clone();
-            combo.connect_changed(move |_combo| {
-                let data_source = data_source.try_borrow_mut();
-                //let pl_view = ;
-                let curr_name = curr_name.try_borrow_mut();
-                let menus = sidebar_c.mapping_menus.try_borrow_mut();
-                let res = match (data_source, pl_view.try_borrow_mut(), curr_name, menus) {
-                    (Ok(data), Ok(mut pl), Ok(name), Ok(menus)) => {
-                        let m = menus.iter().find(
-                            |m| { m.mapping_name == *name });
-                        if let Some(m) = m {
-                            if let Some(cols) = m.get_selected_cols() {
-                                 let res = update_mapping_data(
-                                        &data,
-                                        name.to_string(),
-                                        m.mapping_type.clone(),
-                                        cols.clone(),
-                                        &mut pl
-                                    );
-                                    if let Ok(_) = res {
-                                        pl.update(&mut UpdateContent::MappingColumn(name.to_string(), cols));
-                                    } else {
-                                        println!("Error updating data. Column names will not be updated");
-                                    }
-                                    res
-                            } else {
-                                Err("No selected cols")
-                            }
-                        } else {
-                            Err("Invalid mapping name")
-                        }
-                    },
-                    _ => {
-                        Err("Could not retrieve reference to table environment|plot view|menus")
-                    }
-                };
-                match res {
-                    Ok(_) => {
-                        Self::update_layout_widgets(
-                            sidebar_c.clone(),
-                            pl_view.clone()
-                        );
-                    },
-                    Err(e) => {
-                        println!("Error updating data : {}", e);
-                    }
-                }
-            });
-        }*/
-
         let design_widgets = HashMap::new();
-        let mut m = MappingMenu{
+        let mut m = MappingMenu {
             mapping_name,
             mapping_type,
             mapping_box,
-            //combos,
             design_widgets,
-            //sidebar.notebook.clone()
         };
         m.build_mapping_design_widgets(
             &builder,
@@ -252,11 +193,12 @@ impl LayoutMenu {
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         notebook : Notebook,
         plot_view : Rc<RefCell<PlotView>>,
-        data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_env : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
         pos : Option<usize>
     ) {
-        match (plot_view.try_borrow_mut(), data_source.try_borrow_mut(), mappings.try_borrow_mut()) {
-            (Ok(mut pl), Ok(source), Ok(mut mappings)) => {
+        match (plot_view.try_borrow_mut(), tbl_env.try_borrow(), mappings.try_borrow_mut()) {
+            (Ok(mut pl), Ok(t_env), Ok(mut mappings)) => {
                 //m.update_available_cols(source.col_names(), &pl);
                 match pos {
                     Some(p) => mappings.insert(p, m.clone()),
@@ -272,6 +214,12 @@ impl LayoutMenu {
                     m.mapping_name.to_string(),
                     m.mapping_type.to_string())
                 );
+                let selected = tbl_nb.full_selected_cols();
+                let cols = t_env.get_columns(&selected[..]);
+                println!("{:?}", cols);
+                if let Err(e) = m.update_data(cols, &mut pl) {
+                    println!("{}", e);
+                }
             },
             (_,_,Err(e)) => { println!("{}", e); },
             _ => {
@@ -316,6 +264,7 @@ impl LayoutMenu {
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
         sidebar : PlotSidebar,
+        tbl_nb : TableNotebook,
         status_stack : StatusStack,
         layout_clear_btn : ToolButton
     ) -> Button {
@@ -375,6 +324,7 @@ impl LayoutMenu {
                                             sidebar.notebook.clone(),
                                             plot_view.clone(),
                                             data_source.clone(),
+                                            tbl_nb.clone(),
                                             None
                                         );
                                     },
@@ -447,53 +397,12 @@ impl LayoutMenu {
         }
     }
 
-    /*fn change_manage_popover_state(
-        plot_notebook : &Notebook,
-        sidebar : &PlotSidebar,
-        name_entry : &Entry,
-        add_btn : &Button,
-        edit_btn : &Button,
-        remove_btn : &Button,
-        scatter_radio : &RadioButton
-    ) {
-        let page = plot_notebook.get_property_page();
-        let (names, types) = sidebar.used_names_and_types();
-        if page > 3 {
-            if let Some(n) = names.get( (page - 4) as usize) {
-                name_entry.set_text(&n);
-            } else {
-                println!("No mapping name for page {}", page - 4);
-                return;
-            }
-            if let Some(t) = types.get( (page - 4) as usize) {
-                Self::set_mapping_radio(scatter_radio, t.clone());
-            } else {
-                println!("No mapping type for page {}", page - 4);
-                return;
-            }
-            add_btn.set_sensitive(false);
-            edit_btn.set_sensitive(false);
-            remove_btn.set_sensitive(true);
-        } else {
-            let n_children = plot_notebook.get_children().len();
-            let new_std_name = format!("mapping_{}", n_children - 3);
-            name_entry.set_text(&new_std_name[..]);
-            if names.iter().find(|t| { *t == &new_std_name[..] }).is_none() {
-                add_btn.set_sensitive(true);
-            } else {
-                add_btn.set_sensitive(false);
-            }
-            edit_btn.set_sensitive(false);
-            remove_btn.set_sensitive(false);
-        }
-        name_entry.grab_focus();
-    }*/
-
     /// Add mapping from a type string description, attributing to its
     /// name the number of mappings currently used.
     pub fn add_mapping_from_type(
         mapping_type : &str,
         data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
         plot_view : Rc<RefCell<PlotView>>,
         sidebar : PlotSidebar,
         builder_clone : Builder
@@ -520,6 +429,7 @@ impl LayoutMenu {
                     sidebar.notebook.clone(),
                     plot_view.clone(),
                     data_source.clone(),
+                    tbl_nb.clone(),
                     None
                 );
             },
@@ -531,6 +441,7 @@ impl LayoutMenu {
         builder : &Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
         status_stack : StatusStack,
         sidebar : PlotSidebar
     ) -> Self {
@@ -554,13 +465,13 @@ impl LayoutMenu {
             plot_view.clone(),
             data_source.clone(),
             sidebar.clone(),
+            tbl_nb.clone(),
             status_stack.clone(),
             clear_layout_btn.clone()
         );
 
         let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
         let layout_stack = sidebar.layout_stack.clone();
-        //layout_stack.add_named(&sidebar.notebook, "layout");
         {
             let layout_stack = layout_stack.clone();
             let status_stack = status_stack.clone();
@@ -571,10 +482,6 @@ impl LayoutMenu {
                 clear_layout_btn.set_sensitive(true);
             });
         }
-        //let add_mapping_btn : Button = builder.get_object("add_mapping_btn").unwrap();
-        //let remove_mapping_btn : Button = builder.get_object("remove_mapping_btn").unwrap();
-        //let clear_layout_btn : Button = builder.get_object("clear_layout_btn").unwrap();
-
 
         {
             let layout_stack = layout_stack.clone();
@@ -631,10 +538,12 @@ impl LayoutMenu {
             let plot_view = plot_view.clone();
             let sidebar = sidebar.clone();
             let remove_mapping_btn = remove_mapping_btn.clone();
+            let tbl_nb = tbl_nb.clone();
             btn.connect_clicked(move |_btn| {
                 Self::add_mapping_from_type(
                     &m[..],
                     data_source.clone(),
+                    tbl_nb.clone(),
                     plot_view.clone(),
                     sidebar.clone(),
                     builder.clone()

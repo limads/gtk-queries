@@ -27,6 +27,7 @@ rust_decimal = { version = "1.3.0", features = ["postgres"] }
 csv = "1.1.1"
 sqlparser = "0.5.0"
 nalgebra = "0.19.0"
+num-traits="0.2.11"
 
 [[bin]]
 name="queries"

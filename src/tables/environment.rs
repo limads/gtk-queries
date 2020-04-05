@@ -5,37 +5,14 @@ use std::io::{Read, BufReader};
 use std::path::PathBuf;
 use nalgebra::*;
 use nalgebra::base::storage::Storage;
-//use rgsl::types::{VectorF64, VectorF32};
-//use utf8mat::csv;
-//pub mod sql;
-//pub mod button;
 use super::csv::*;
-//pub mod sql_integration;
-//pub mod table_notebook;
-//pub mod table_widget;
-//pub mod column;
-//use column::*;
-//use nlearn::column::*;
-//mod numeric_utils;
 use crate::tables::sql::*;
 use chrono;
-//use nlearn::table::*;
-//pub mod table;
-//use table::*;
-//pub mod environment_source;
 use super::source::*;
-//pub mod stdin;
 use super::stdin::*;
 use std::path::Path;
 use super::sql::*;
 use super::table::*;
-//pub mod decoding;
-//use decoding::*;
-//pub mod extension;
-//use extension::*;
-
-// env_source::new_from_path
-// env_source::new_from_sql_conn
 
 pub struct TableEnvironment {
     source : EnvironmentSource,
@@ -44,34 +21,7 @@ pub struct TableEnvironment {
     last_update : Option<String>
 }
 
-/*enum TableKind {
-    Named(HashMap<String, Column>),
-    Unnamed(DMatrix<f32>)
-}*/
-
-/*pub struct TableDataSource {
-    // Holds all data a plot can use at any given point.
-    content : HashMap<String, Vec<String>>,
-
-    // A subset of the keys in content actually used by the plot.
-    // Those columns should be able to be parsed to f64 so they can
-    // be displayed by the plot
-    used_cols : Vec<String>,
-
-    num_cols : HashMap<String, Vec<f64>>
-
-    //plot    : Rc<RefCell<PlotView>>
-}*/
-
 impl TableEnvironment {
-
-    /*pub fn new() -> TableDataSource {
-        TableDataSource{
-            content : HashMap::new(),
-            used_cols : Vec::new(),
-            num_cols : HashMap::new()
-        }
-    }*/
 
     pub fn new(src : EnvironmentSource) -> Self {
         Self{
@@ -307,263 +257,6 @@ impl TableEnvironment {
         }
     }
 
-    /*pub fn show_all_cols(&self) -> Vec<String> {
-        let mut keys = Vec::new();
-        for t in &self.tables {
-            let t_keys : Vec<String> = t.content.iter()
-                .map(|c| c.name.to_string())
-                .collect();
-            keys.extend(t_keys);
-        }
-        keys
-    }*/
-
-    /// This is the main entry point for updating the plot data.
-    /// Internally, this function updates the numeric representation
-    /// of the used columns, and call queue_draw on the maintained
-    /// reference to the plot.
-    /*pub fn update_used_cols(&mut self, cols : Vec<String>)
-    -> Result<(), &str> {
-        self.used_cols = cols;
-
-        for col in self.used_cols.iter() {
-            if let None = self.show_all_cols().iter()
-                .find(|c| { *c == col} ) {
-                return Err("Column not present");
-            }
-        }
-        Ok(())
-        // self.update_data()
-    }*/
-
-    /// If a valid path for a csv file is informed and the
-    /// content can be parsed, fill the inner content with
-    /// the CSV values.
-    /*pub fn update_content_from_csv(&mut self, path : PathBuf)
-    -> Result<(), &str> {
-        let mut content = HashMap::<String, Vec<String>>::new();
-        let f = File::open(path).unwrap();
-        let reader = BufReader::new(f);
-        let mut csv_reader =
-            csv::Reader::from_reader(reader);
-        let mut header = Vec::<String>::new();
-        let mut cols = Vec::<Vec<String>>::new();
-        let mut records_iter = csv_reader.records();
-        if let Some(h) = records_iter.next() {
-            for f_rec in h.iter() {
-                if let Ok(f) = f_rec.deserialize::<String>(None) {
-                    header.push(f.to_string());
-                    let col = Vec::<String>::new();
-                    cols.push(col);
-                }
-            }
-        } else {
-            return Err("No header in file");
-        }
-
-        for record in records_iter {
-            for (i, f_rec) in record.iter().enumerate() {
-                if let Ok(f) = f_rec.deserialize::<String>(None) {
-                    cols[i].push(f.to_string());
-                }
-            }
-        }
-
-        for (title, col) in header.iter().zip(cols.iter()) {
-            content.insert(title.to_string(), col.to_vec());
-        }
-        self.update_from_hash(content)
-    }*/
-
-    /*pub fn update_num_content_from_csv(&mut self, path : PathBuf)
-    -> Result<(), &str> {
-        self.tables.clear();
-        let mut new_tbl = Table::new_empty(Some("A".into()));
-        let mut content : HashMap<String, Vec<f64>> = HashMap::new();
-        if let Some(path) = path.to_str() {
-            if let Ok(txt) = csv::load_text_content(path) {
-                let numcols = csv::parse_csv_unpacked(txt);
-                for (name, col) in numcols {
-                    if let Some(col) = col {
-                        let col_dbl = col.data.as_vec().iter().map(
-                            |d| *d as f64).collect();
-                        new_tbl.content.insert(name, Column::Numeric(col_dbl));
-                    } else {
-                        println!("column {} cannot be cast to number", name);
-                    }
-                }
-            } else {
-                println!("could not load text content from path");
-            }
-        } else {
-            println!("path not convertible to string");
-        }
-        self.tables.push(new_tbl);
-        Ok(())
-    }*/
-
-    /// Used by both update_content_from_csv
-    /// and update_content_from_queries after
-    /// both those functions successfully retireve
-    /// their data as HashMaps
-    /*fn update_from_hash(
-        &mut self,
-        content : HashMap<String, Vec<String>>)
-        -> Result<(), &str> {
-
-        if content.keys().count() > 0 {
-            self.used_cols = Vec::new();
-            self.content = content;
-            Ok(())
-        } else {
-            Err("Could not update data from csv.")
-        }
-    }*/
-
-    /// Used to display results inside a table, for example.
-    //pub fn results_as_rows(&self) -> Vec<Vec<String>> {
-    //}
-
-    /// If all the informed column names can be parsed to
-    /// f64, return the parsed vectors in the same order.
-    /// Return Err otherwise.
-    /*pub fn cols_as_numbers(&self, cols : Vec<String>)
-    -> Result<Vec<Vec<f64>>,&str> {
-        let mut num_result = Vec::new();
-        //num_result.push(Vec::new());
-        if cols.len() == 0 {
-            return Err("No columns informed.");
-        }
-        for c in cols {
-            let mut num_col = Vec::new();
-            println!("Column of interest:|{}|", c);
-            if let Some(str_values) = self.content.get(&c) {
-                for str_v in str_values {
-                    match str_v.parse::<f64>() {
-                        Ok(v) => {
-                            num_col.push(v)
-                        }
-                        _ => {
-                            return Err("Not possible to parse column.");
-                        }
-                    }
-                }
-                num_result.push(num_col);
-                println!("Num result : {:?}", num_result);
-            } else {
-                return Err("Non-existent column");
-            }
-        }
-        Ok(num_result)
-    }*/
-
-    /*pub fn update_content_from_queries (
-        &mut self,
-        queries : Vec<&PostgreQuery>)
-    -> Result<(), &str> {
-        let mut content = HashMap::new();
-        for q in queries.iter() {
-            if q.err_msg.is_none() {
-                content.extend(q.results.clone());
-            }
-        }
-        self.update_from_hash(content)
-    }*/
-
-    /*pub fn search_column(&self, name : &str) -> Option<&Column> {
-        for t in self.tables.iter() {
-            for c in t.content.iter() {
-                if c.name == name {
-                    return Some(&c);
-                }
-            }
-        }
-        None
-    }*/
-
-    /*pub fn get_subset_cols(
-        &self,
-        cols : Vec<String>
-    ) -> Result<Vec<Vec<f64>>, &'static str> {
-        let mut selected = Vec::new();
-        if self.tables.len() == 0 {
-            return Err("No tables loaded into the environment");
-        }
-        for name in cols {
-            match self.search_column(&name) {
-                Some(c) => {
-                    if let Some(n) = c.get_if_numeric() {
-                        selected.push(n);
-                    } else {
-                        return Err("Could not convert column to numeric");
-                    }
-                },
-                None => {
-                    println!("No column {}", name);
-                    return Err("Column not found");
-                }
-            }
-        }
-        Ok(selected)
-    }*/
-
-    /*pub fn subset_cols_as_txt(&self, cols : Vec<String>) -> Result<Vec<Vec<String>>,&'static str> {
-        let mut selected = Vec::new();
-        if self.tables.len() == 0 {
-            return Err("No tables loaded into the environment");
-        }
-        for name in cols {
-            match self.search_column(&name) {
-                Some(c) => {
-                    selected.push(c.as_string_vec());
-                },
-                None => {
-                    println!("No column {}", name);
-                    return Err("Column not found");
-                }
-            }
-        }
-        Ok(selected)
-    }*/
-
-    /*pub fn col_names(&self) -> Vec<String> {
-        let mut names : Vec<String> = Vec::new();
-        for t in &self.tables {
-            let t_col_names : Vec<String> =
-                t.content.iter().map(|c| { c.name.clone() }).collect();
-            names.extend(t_col_names);
-        }
-        names
-    }*/
-
-    // Return the names of all the column in the environment
-    // that could be parsed as floating point values. This is
-    // useful so Plots can query information about mappings which
-    // are valid for a spatial dimension.
-    /*pub fn num_col_names(&self) -> Vec<String> {
-        let mut names : Vec<String> = Vec::new();
-        for t in &self.tables {
-            //println!("{:?}", t); println!("Numeric cols : ");
-            for c in &t.content {
-                if let Some(_) = c.get_if_numeric() {
-                    names.push(c.name.clone());
-                }
-            }
-        }
-        names
-    }*/
-
-    /*pub fn get_table_by_name(&self, name : &str) -> Result<&Table,&'static str> {
-        for t in self.tables.iter() {
-            if let Some(n) = &t.name {
-                if &n[..] == name {
-                    return Ok(t);
-                }
-            }
-        }
-        Err("No table with the informed name")
-    }*/
-
     pub fn last_inserted_table(&self) -> Option<Table> {
         self.tables.last().map(|t| t.clone())
     }
@@ -582,17 +275,6 @@ impl TableEnvironment {
             None
         }
     }
-
-    /*pub fn get_name_at_index(&self, idx : usize) -> String {
-        if let Ok(tbl) = self.get_table_by_index(idx) {
-            match &tbl.name {
-                Some(name) => name.clone(),
-                None => String::new()
-            }
-        } else {
-            String::new()
-        }
-    }*/
 
     /// Get informed columns, where indices are counted
     /// from the first column of the first table up to the

@@ -2,11 +2,14 @@ use postgres::{self, Row, types::FromSql, types::ToSql };
 use std::convert::{TryFrom, TryInto};
 use rust_decimal::Decimal;
 use super::column::*;
+use super::column::try_into::*;
+use super::column::from::*;
 use super::nullable_column::*;
 use rusqlite::{self, Rows};
 use super::csv;
 use std::fmt::{self, Display};
 use std::string::ToString;
+use num_traits::cast::ToPrimitive;
 
 /// Data-owning structure that encapsulate named columns.
 /// Implementation guarantees all columns are of the same size.
@@ -218,7 +221,7 @@ impl Display for Table {
 /// Referential structure that encapsulate iteration over named columns.
 /// Since columns might have different tables as their source,
 /// there is no guarantee columns will have the same size.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Columns<'a> {
     names : Vec<&'a str>,
     cols : Vec<&'a Column>
@@ -250,19 +253,72 @@ impl<'a> Columns<'a> {
         self.cols.get(ix).map(|c| *c)
     }
 
-    /*pub fn try_get<T>(&'a self, ix : usize) -> Option<&'a Vec<T>>
+    // TODO move this to the implementation of try_into(.)
+    /// Tries to retrieve a cloned copy from a column, performing any valid
+    /// upcasts required to retrieve a f64 numeric type.
+    pub fn try_numeric(&'a self, ix : usize) -> Option<Vec<f64>>
         where
-            Vec<T> : TryFrom<Column>
+            Column : TryInto<Vec<f64>,Error=&'static str>
     {
-        if let Some(ref c) = self.get(ix) {
-            c.try_into().ok()
+        if let Some(dbl) = self.try_access::<f64>(ix) {
+            return Some(dbl);
+        }
+        if let Some(float) = self.try_access::<f32>(ix) {
+            let cvt : Vec<f64> = float.iter().map(|f| *f as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(short) = self.try_access::<i16>(ix) {
+            let cvt : Vec<f64> = short.iter().map(|s| *s as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(int) = self.try_access::<i32>(ix) {
+            let cvt : Vec<f64> = int.iter().map(|i| *i as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(int) = self.try_access::<i32>(ix) {
+            let cvt : Vec<f64> = int.iter().map(|i| *i as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(uint) = self.try_access::<u32>(ix) {
+            let cvt : Vec<f64> = uint.iter().map(|u| *u as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(long) = self.try_access::<i64>(ix) {
+            let cvt : Vec<f64> = long.iter().map(|l| *l as f64).collect();
+            return Some(cvt);
+        }
+        if let Some(dec) = self.try_access::<Decimal>(ix) {
+            let mut cvt : Vec<f64> = Vec::new();
+            for d in dec.iter() {
+                if let Some(f) = d.to_f64() {
+                    cvt.push(f);
+                } else {
+                    println!("Invalid decimal conversion");
+                    return None;
+                }
+            }
+            return Some(cvt);
+        }
+        println!("Invalid column conversion");
+        None
+    }
+
+    pub fn try_access<T>(&'a self, ix : usize) -> Option<Vec<T>>
+        where
+            Column : TryInto<Vec<T>, Error=&'static str>
+    {
+        if let Some(c) = self.get(ix) {
+            let v : Result<Vec<T>,_> = c.clone().try_into();
+            match v {
+                Ok(c) => { Some(c) },
+                Err(_) => { /*println!("{}", e);*/ None }
+            }
         } else {
+            println!("Invalid column index");
             None
         }
-    }*/
+    }
 
 }
-
-
 
 

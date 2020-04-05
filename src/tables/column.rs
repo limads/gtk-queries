@@ -2,6 +2,8 @@ use postgres::types::ToSql;
 use std::marker::Sync;
 use rust_decimal::Decimal;
 use super::nullable_column::*;
+use std::convert::AsRef;
+use from::*;
 
 // TODO create Array<Column> for N-D Postgre arrays, that carries a vector of Columns
 // and a dimensionality metadata.
@@ -25,6 +27,27 @@ pub enum Column {
 }
 
 impl<'a> Column {
+
+    pub fn new_empty<T>() -> Self
+        where Column : From<Vec<T>>
+    {
+        let vec = Vec::<T>::new();
+        vec.into()
+    }
+
+    /*pub fn try_slice_bool(&'a self) -> Option<&'a [bool]> {
+        match self {
+            Column::Bool(b) => Some(&b[..]),
+            _ => None
+        }
+    }
+
+    pub fn try_slice_i8(&'a self) -> Option<&'a [i8]> {
+        match self {
+            Column::I8(i) => Some(&i[..]),
+            _ => None
+        }
+    }*/
 
     fn to_ref_dyn<'b, T>(v : &'b Vec<T>) -> Vec<&'b (dyn ToSql + Sync)>
         where T : ToSql + Sync

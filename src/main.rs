@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, /*button::TableChooser,*/ sql::SqlListener};
+use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
 use gtk_queries::conn_popover::*;
 use sourceview::*;
 use std::boxed;
@@ -77,6 +77,7 @@ impl QueriesApp {
     fn build_plots_widgets(
         builder : Builder,
         table_env : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
         pl_da : DrawingArea,
         //sidebar_stack : Stack,
         status_stack : StatusStack
@@ -85,7 +86,13 @@ impl QueriesApp {
         let pl_view = PlotView::new_with_draw_area(
             "assets/plot_layout/layout.xml", pl_da.clone());
         save_widgets::build_save_widgets(&builder, pl_view.clone());
-        let sidebar = PlotSidebar::new(builder.clone(), pl_view.clone(), table_env.clone(), status_stack);
+        let sidebar = PlotSidebar::new(
+            builder.clone(),
+            pl_view.clone(),
+            table_env.clone(),
+            tbl_nb.clone(),
+            status_stack
+        );
         //sidebar_stack.add_named(&sidebar.layout_stack, "layout");
         sidebar
     }
@@ -191,6 +198,7 @@ impl QueriesApp {
         let sidebar = Self::build_plots_widgets(
             builder.clone(),
             table_env.clone(),
+            tables_nb.clone(),
             pl_da.clone(),
             status_stack.clone()
         );
@@ -469,6 +477,7 @@ fn build_ui(app: &gtk::Application) {
         let view = queries_app.sql_popover.view.clone();
         let main_paned = queries_app.main_paned.clone();
         let table_toggle = queries_app.table_toggle.clone();
+        let plot_toggle = queries_app.plot_toggle.clone();
         let sql_stack : Stack = queries_app.sql_popover.sql_stack.clone();
         win.connect_key_release_event(move |win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
@@ -480,9 +489,10 @@ fn build_ui(app: &gtk::Application) {
                         table_toggle.set_active(true);
                     }
                     sql_stack.set_visible_child_name("source");
-                    if view.get_realized() {
-                        view.grab_focus();
+                    if !view.get_realized() {
+                        view.realize();
                     }
+                    view.grab_focus();
                     return glib::signal::Inhibit(true)
                 }
                 if ev_key.get_keyval() == key::c {
@@ -498,9 +508,14 @@ fn build_ui(app: &gtk::Application) {
                         }
                     }
                 }
+                if ev_key.get_keyval() == key::l {
+
+                }
                 if ev_key.get_keyval() == key::Escape {
                     fn_popover.hide();
                     conn_popover.popover.hide();
+                    table_toggle.set_active(false);
+                    plot_toggle.set_active(false);
                     tables_nb.unselect_at_table();
                 }
                 return glib::signal::Inhibit(false)

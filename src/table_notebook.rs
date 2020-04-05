@@ -102,7 +102,9 @@ impl TableNotebook {
         if let Ok(tbls) = self.tbls.try_borrow() {
             for tbl in tbls.iter() {
                 let mut selected = tbl.selected_cols();
+                println!("Selected at table: {:?}", selected);
                 selected.iter_mut().for_each(|ix| *ix += base_ix);
+                println!("Full selected: {:?}", selected);
                 cols.extend(selected);
                 base_ix += tbl.dimensions().1;
             }
@@ -128,16 +130,6 @@ impl TableNotebook {
             Vec::new()
         }
     }
-
-    /*pub fn selected_data(&self) -> Vec<Table> {
-        let mut tbl_data = Vec::new();
-        if let Ok(tbls) = self.tbls.try_borrow() {
-            for t in tbls.iter() {
-                tbl_data.push(t.get_selected_data());
-            }
-        }
-        tbl_data
-    }*/
 
     pub fn unselect_at_table(&self) {
         let ix = self.get_page_index();

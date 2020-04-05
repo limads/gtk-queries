@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
 use crate::table_notebook::*;
+use crate::tables::table::*;
 
 /// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
@@ -302,6 +303,48 @@ impl MappingMenu {
         }
         Ok(())
     }
+
+    pub fn update_data(
+        &self,
+        cols : Columns,
+        pl_view : &mut PlotView
+    ) -> Result<(), &'static str> {
+        let (pos0, pos1) = match (cols.try_numeric(0), cols.try_numeric(1)) {
+            (Some(c0), Some(c1)) => {
+                (c0, c1)
+            },
+            _ => {
+                return Err("Error retrieving two first columns to position");
+            }
+        };
+        let vec_pos = vec![pos0, pos1];
+        match &self.mapping_type[..] {
+            "text" => {
+                if let Some(c) = cols.try_access::<String>(2) {
+                    let vec_txt = Vec::from(c);
+                    pl_view.update(&mut UpdateContent::TextData(
+                        self.mapping_name.clone(),
+                        vec_pos,
+                        vec_txt
+                    ));
+                } else {
+                    return Err("Error setting third column to text");
+                }
+            },
+            "line" | "scatter" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    self.mapping_name.clone(),
+                    vec_pos
+                ));
+            },
+            mapping => {
+                println!("Informed mapping: {}", mapping);
+                return Err("Invalid mapping type");
+            }
+        }
+        Ok(())
+    }
+
 }
 
 /// Updates the data underlying a single mapping
