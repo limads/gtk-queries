@@ -34,11 +34,12 @@ pub struct SqlPopover {
     pub view : View,
     pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : ToolButton,
-    pub popover : Popover,
-    pub query_toggle : ToggleButton,
+    //pub popover : Popover,
+    //pub query_toggle : ToggleButton,
     //pub sql_toggle : ToggleToolButton,
     pub file_loaded : Rc<RefCell<bool>>,
     pub query_sent : Rc<RefCell<bool>>,
+    //pub sql_box : Box,
     //pub extra_toolbar : Toolbar,
     pub sql_stack : Stack,
     pub status_stack : StatusStack,
@@ -200,11 +201,12 @@ impl SqlPopover {
 
     }
 
-    pub fn new(query_toggle : ToggleButton, status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
-        let query_popover_path = utils::glade_path("query-popover.glade").expect("Failed to load glade file");
-        let builder = Builder::new_from_file(query_popover_path);
-        let popover : Popover =
-            builder.get_object("query_popover").unwrap();
+    pub fn new(builder : Builder, /*query_toggle : ToggleButton,*/ status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
+        //let query_popover_path = utils::glade_path("query-popover-3.glade").expect("Failed to load glade file");
+        //let builder = Builder::new_from_file(query_popover_path);
+        //let popover : Popover =
+        //    builder.get_object("query_popover").unwrap();
+        //let sql_box : Box = builder.get_object("sql_box").unwrap();
         let view : View =
             builder.get_object("query_source").unwrap();
         //view.realize();
@@ -289,7 +291,7 @@ impl SqlPopover {
         sql_toolbar.insert(&refresh_btn, 3);
         sql_toolbar.show_all();
 
-        {
+        /*{
             let popover = popover.clone();
             query_toggle.connect_toggled(move |toggle| {
                 if toggle.get_active() {
@@ -307,16 +309,18 @@ impl SqlPopover {
             });
         }
 
-        popover.set_relative_to(Some(&query_toggle));
+        popover.set_relative_to(Some(&query_toggle));*/
+
         Self::connect_sql_load(sql_load_dialog.clone(), t_env.clone());
 
         Self {
             view,
             //sql_load_dialog,
             refresh_btn,
-            popover,
-            query_toggle,
+            //popover,
+            //query_toggle,
             sql_load_dialog,
+            //sql_box,
             //extra_toolbar,
             // sql_toggle,
             file_loaded : Rc::new(RefCell::new(false)),

@@ -24,7 +24,8 @@ pub struct PlotSidebar {
     pub scale_menus : (ScaleMenu, ScaleMenu),
     pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
     pub notebook : Notebook,
-    pub layout_stack : Stack
+    pub layout_stack : Stack,
+    //pub sidebar_box : Box
 }
 
 impl PlotSidebar {
@@ -39,24 +40,27 @@ impl PlotSidebar {
     }
 
     pub fn new(
+        builder : Builder,
         pl_view : Rc<RefCell<PlotView>>,
         table_env : Rc<RefCell<TableEnvironment>>,
         status_stack : StatusStack
     ) -> Self {
-        let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
+        //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let mapping_menus : Vec<MappingMenu> = Vec::new();
         let mapping_menus = Rc::new(RefCell::new(mapping_menus));
         let design_menu = build_design_menu(&builder, pl_view.clone());
         let plot_notebook : Notebook =
         builder.get_object("plot_notebook").unwrap();
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
+        //let sidebar_box : Box = builder.get_object("sidebar_box").unwrap();
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
         let sidebar = PlotSidebar {
             design_menu,
             scale_menus,
             mapping_menus,
             notebook : plot_notebook.clone(),
-            layout_stack : layout_stack.clone()
+            layout_stack : layout_stack.clone(),
+        //    sidebar_box
         };
         let _layout_menu = LayoutMenu::new_from_builder(
             &builder,
@@ -110,9 +114,9 @@ impl PlotSidebar {
 pub struct LayoutMenu {
     load_layout_btn : Button,
     new_layout_btn : Button,
-    add_mapping_btn : Button,
+    add_mapping_btn : ToolButton,
     //manage_btn : Button,
-    remove_mapping_btn : Button,
+    remove_mapping_btn : ToolButton,
     layout_stack : Stack
     //manage_mapping_popover : Popover
 }
@@ -154,14 +158,14 @@ impl LayoutMenu {
         if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
             return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");
         }
-        let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
+        //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let box_name = mapping_type.clone() + "_box";
         let mapping_box : Box = builder.get_object(&box_name).unwrap();
-        let combos = MappingMenu::build_combo_columns_menu(
+        /*let combos = MappingMenu::build_combo_columns_menu(
             &builder,
             mapping_type.clone()
-        );
-        for combo in combos.iter() {
+        );*/
+        /*for combo in combos.iter() {
             let data_source = data_source.clone();
             let pl_view = pl_view.clone();
             let curr_name = Rc::new(RefCell::new(mapping_name.clone()));
@@ -214,15 +218,16 @@ impl LayoutMenu {
                     }
                 }
             });
-        }
+        }*/
 
         let design_widgets = HashMap::new();
         let mut m = MappingMenu{
             mapping_name,
             mapping_type,
             mapping_box,
-            combos,
-            design_widgets
+            //combos,
+            design_widgets,
+            //sidebar.notebook.clone()
         };
         m.build_mapping_design_widgets(
             &builder,
@@ -311,7 +316,8 @@ impl LayoutMenu {
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
         sidebar : PlotSidebar,
-        status_stack : StatusStack
+        status_stack : StatusStack,
+        layout_clear_btn : ToolButton
     ) -> Button {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
@@ -350,6 +356,7 @@ impl LayoutMenu {
                                 sidebar.clone(),
                                 plot_view.clone()
                             );
+                            layout_clear_btn.set_sensitive(true);
                             for m_info in new_info.iter() {
                                 let menu = Self::create_new_mapping_menu(
                                     builder.clone(),
@@ -527,27 +534,48 @@ impl LayoutMenu {
         status_stack : StatusStack,
         sidebar : PlotSidebar
     ) -> Self {
+
+        let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
+        let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
+        let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
+        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        let clear_layout_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
+        let add_mapping_btn : ToolButton = ToolButton::new(Some(&img_add), None);
+        let remove_mapping_btn : ToolButton = ToolButton::new(Some(&img_remove), None);
+        remove_mapping_btn.set_sensitive(false);
+        clear_layout_btn.set_sensitive(false);
+        layout_toolbar.insert(&clear_layout_btn, 0);
+        layout_toolbar.insert(&add_mapping_btn, 1);
+        layout_toolbar.insert(&remove_mapping_btn, 2);
+        layout_toolbar.show_all();
+
         let load_layout_btn = Self::build_layout_load_button(
             builder.clone(),
             plot_view.clone(),
             data_source.clone(),
             sidebar.clone(),
-            status_stack.clone()
+            status_stack.clone(),
+            clear_layout_btn.clone()
         );
+
         let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
         let layout_stack = sidebar.layout_stack.clone();
         //layout_stack.add_named(&sidebar.notebook, "layout");
         {
             let layout_stack = layout_stack.clone();
             let status_stack = status_stack.clone();
+            let clear_layout_btn = clear_layout_btn.clone();
             new_layout_btn.connect_clicked(move |btn| {
                 layout_stack.set_visible_child_name("layout");
                 status_stack.try_show_alt();
+                clear_layout_btn.set_sensitive(true);
             });
         }
-        let add_mapping_btn : Button = builder.get_object("add_mapping_btn").unwrap();
-        let remove_mapping_btn : Button = builder.get_object("remove_mapping_btn").unwrap();
-        let clear_layout_btn : Button = builder.get_object("clear_layout_btn").unwrap();
+        //let add_mapping_btn : Button = builder.get_object("add_mapping_btn").unwrap();
+        //let remove_mapping_btn : Button = builder.get_object("remove_mapping_btn").unwrap();
+        //let clear_layout_btn : Button = builder.get_object("clear_layout_btn").unwrap();
+
+
         {
             let layout_stack = layout_stack.clone();
             let plot_view = plot_view.clone();
@@ -572,23 +600,9 @@ impl LayoutMenu {
                         }
                     }
                 }
+                btn.set_sensitive(false);
             });
         }
-
-        /*let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
-        let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
-        let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
-        let img_open = Image::new_from_icon_name(Some("document-open-symbolic"), IconSize::SmallToolbar);
-        let open_btn : ToolButton = ToolButton::new::<Image>(None, None);
-        open_btn.set_icon_name(Some("document-open-symbolic"));
-        let add_btn_ : ToolButton = ToolButton::new(Some(&img_add), None);
-        let rem_btn : ToolButton = ToolButton::new(Some(&img_remove), None);
-        //let edit_btn : ToolButton = ToolButton::new(Some(&img_edit), None);
-        layout_toolbar.insert(&open_btn, 0);
-        layout_toolbar.insert(&add_btn_, 1);
-        layout_toolbar.insert(&rem_btn, 2);
-        //layout_toolbar.insert(&add_btn, 0);
-        layout_toolbar.show_all();*/
 
         let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
         add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
@@ -661,7 +675,6 @@ impl LayoutMenu {
                 plot_notebook.show_all();
             });
         }
-
 
         Self {
             load_layout_btn,

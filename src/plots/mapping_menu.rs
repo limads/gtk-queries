@@ -12,6 +12,7 @@ use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
 use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
+use crate::table_notebook::*;
 
 /// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
@@ -20,7 +21,7 @@ pub struct MappingMenu {
     pub mapping_name : String,
     pub mapping_type : String,
     pub mapping_box : Box,
-    pub combos : Vec<ComboBoxText>,
+    //pub combos : Vec<ComboBoxText>,
     pub design_widgets : HashMap<String, Widget>
 }
 
@@ -28,7 +29,7 @@ pub struct MappingMenu {
 // Return None otherwise.
 impl MappingMenu {
 
-    pub fn get_selected_cols(&self) -> Option<Vec<String>> {
+    /*pub fn get_selected_cols(&self) -> Option<Vec<String>> {
         let mut cols = Vec::new();
         //println!("{:?}", self.combos);
         for combo in self.combos.clone() {
@@ -44,9 +45,9 @@ impl MappingMenu {
             }
         }
         Some(cols)
-    }
+    }*/
 
-    pub fn update_available_cols(
+    /*pub fn update_available_cols(
         &mut self,
         cols : Vec<String>,
         pl_view : &PlotView
@@ -79,13 +80,13 @@ impl MappingMenu {
                 }
             }
         }
-    }
+    }*/
 
-    pub fn clear_cols(&mut self) {
+    /*pub fn clear_cols(&mut self) {
         for combo in self.combos.iter() {
             combo.remove_all();
         }
-    }
+    }*/
 
     pub fn get_parent(&self) -> Box {
         self.mapping_box.clone()
@@ -183,11 +184,11 @@ impl MappingMenu {
         }
     }
 
-    /// This, together with build_mapping_layout_menu(), completes the logic
-    /// of instantiating a mapping menu. This method deals with the mapping-specific
-    /// combo box text instantiation logic, following the convention of naming
-    /// all columns by starting with the prefix with the mapping name.
-    pub fn build_combo_columns_menu(
+    // This, together with build_mapping_layout_menu(), completes the logic
+    // of instantiating a mapping menu. This method deals with the mapping-specific
+    // combo box text instantiation logic, following the convention of naming
+    // all columns by starting with the prefix with the mapping name.
+    /*pub fn build_combo_columns_menu(
         builder : &Builder,
         prefix : String
     ) -> Vec<ComboBoxText> {
@@ -216,7 +217,7 @@ impl MappingMenu {
             combos.push(combo);
         }
         combos
-    }
+    }*/
 
     pub fn set_color_property(wid : &Widget, value : &str) {
         let c : ColorButton = wid.clone().downcast()
@@ -312,8 +313,11 @@ pub fn update_mapping_data(
     mapping_name : String,
     mapping_type : String,
     cols : Vec<String>,
-    plot : &mut PlotView
+    plot : &mut PlotView,
+    tbl_nb : TableNotebook
 ) -> Result<(), &'static str> {
+
+    println!("{:?}", tbl_nb.full_selected_cols());
     match &mapping_type[..] {
         "text" => {
             // TODO recover data here

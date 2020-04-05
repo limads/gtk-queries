@@ -18,10 +18,10 @@ impl SqliteColumn {
 
     fn new(decl_type : &str) -> Result<Self, &'static str> {
         match decl_type {
-            "INTEGER" => Ok(SqliteColumn::I64(Vec::new())),
-            "REAL" => Ok(SqliteColumn::F64(Vec::new())),
-            "TEXT" => Ok(SqliteColumn::Str(Vec::new())),
-            "BLOB" => Ok(SqliteColumn::Bytes(Vec::new())),
+            "integer" => Ok(SqliteColumn::I64(Vec::new())),
+            "real" => Ok(SqliteColumn::F64(Vec::new())),
+            "text" => Ok(SqliteColumn::Str(Vec::new())),
+            "blob" => Ok(SqliteColumn::Bytes(Vec::new())),
             _ => { println!(" Informed type: {} ", decl_type); Err("Invalid column type") }
         }
     }

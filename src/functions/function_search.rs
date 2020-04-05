@@ -19,6 +19,8 @@ use std::fmt::Display;
 use std::io::{Read, Write};
 use crate::functions::num_function::*;
 
+// TODO solve segfault when loading function to be applied (change signature)
+
 /*#[derive(Clone)]
 pub struct FunctionViewer<'a> {
     app_xml : &'a str,

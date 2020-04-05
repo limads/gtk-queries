@@ -74,9 +74,9 @@ pub struct StatusStack {
 
 impl StatusStack {
 
-    pub fn new(parent_stack : Stack, alt_wid : Widget) -> Self {
-        let path = utils::glade_path("status-stack.glade").expect("Failed to load glade file");
-        let builder = Builder::new_from_file(path);
+    pub fn new(builder : Builder, parent_stack : Stack, alt_wid : Widget) -> Self {
+        //let path = utils::glade_path("status-stack.glade").expect("Failed to load glade file");
+        //let builder = Builder::new_from_file(path);
         let status_stack : Stack = builder.get_object("status_stack").unwrap();
         parent_stack.add_named(&status_stack, "status");
         parent_stack.set_visible_child_name("status");
@@ -109,10 +109,11 @@ impl StatusStack {
         } else {
             return;
         };
-        match status {
-            Status::Ok => self.update(Status::Connected),
+        self.update(status); //,
+        //match status {
+        /*    Status::Ok =>
             status => self.update(status)
-        }
+        }*/
     }
 
     /// Show alt widget if status is a successful one (Ok|Connected);

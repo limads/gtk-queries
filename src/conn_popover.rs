@@ -62,10 +62,12 @@ impl ConnPopover {
     /* It is important to notice ConnPopover will take ownership
     of btn here */
     pub fn new_from_glade(
-        btn : gtk::Button, path : &str)
+        builder : Builder,
+        btn : gtk::Button, path : &str
+    )
         //conn : &'a mut Option<Connection>,
         /*conn_switch : &'a mut gtk::Switch)*/ -> ConnPopover {
-        let builder = Builder::new_from_file(path);
+        //let builder = Builder::new_from_file(path);
         let popover : gtk::Popover =
             builder.get_object("conn_popover").unwrap();
         popover.set_relative_to(Some(&btn));
