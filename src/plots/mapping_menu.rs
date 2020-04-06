@@ -112,7 +112,8 @@ impl MappingMenu {
             &color_btn,
             view.clone(),
             self.mapping_name.clone(),
-            "color".into()
+            "color".into(),
+            "mapping"
         );
         self.design_widgets.insert(color_id, color_btn.upcast());
         match &self.mapping_type[..] {
@@ -123,7 +124,8 @@ impl MappingMenu {
                     &width_scale,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "width".into()
+                    "width".into(),
+                    "mapping"
                 );
                 self.design_widgets.insert("line_width_scale".into(), width_scale.upcast());
                 let dash_scale : Scale =
@@ -132,7 +134,8 @@ impl MappingMenu {
                     &dash_scale,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "dash".into()
+                    "dash".into(),
+                    "mapping"
                 );
                 self.design_widgets.insert("line_dash_scale".into(), dash_scale.upcast());
             },
@@ -143,7 +146,8 @@ impl MappingMenu {
                     &radius_scale,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "radius".into()
+                    "radius".into(),
+                    "mapping"
                 );
                 self.design_widgets.insert("scatter_radius_scale".into(), radius_scale.upcast());
             },
@@ -154,7 +158,8 @@ impl MappingMenu {
                     &anchor_switch,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "center_anchor".into()
+                    "center_anchor".into(),
+                    "mapping"
                 );
                 self.design_widgets.insert("bar_anchor_switch".into(), anchor_switch.upcast());
             },
@@ -168,7 +173,8 @@ impl MappingMenu {
                     &opacity_scale,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "opacity".into()
+                    "opacity".into(),
+                    "mapping"
                 );
             },
             "surface" => {
@@ -178,7 +184,8 @@ impl MappingMenu {
                     &opacity_scale,
                     view.clone(),
                     self.mapping_name.clone(),
-                    "opacity".into()
+                    "opacity".into(),
+                    "mapping"
                 );
             },
             _ => { }

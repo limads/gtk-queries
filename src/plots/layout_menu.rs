@@ -26,6 +26,7 @@ pub struct PlotSidebar {
     pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
     pub notebook : Notebook,
     pub layout_stack : Stack,
+    pub pl_view : Rc<RefCell<PlotView>>
     //pub sidebar_box : Box
 }
 
@@ -62,6 +63,7 @@ impl PlotSidebar {
             mapping_menus,
             notebook : plot_notebook.clone(),
             layout_stack : layout_stack.clone(),
+            pl_view : pl_view.clone()
         //    sidebar_box
         };
         let _layout_menu = LayoutMenu::new_from_builder(

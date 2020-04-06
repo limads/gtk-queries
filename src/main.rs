@@ -91,7 +91,7 @@ impl QueriesApp {
             pl_view.clone(),
             table_env.clone(),
             tbl_nb.clone(),
-            status_stack
+            status_stack,
         );
         //sidebar_stack.add_named(&sidebar.layout_stack, "layout");
         sidebar
@@ -364,14 +364,31 @@ impl QueriesApp {
             });
         }*/
 
+        /*let xml_save_dialog : FileChooserDialog =
+                builder.get_object("xml_save_dialog").unwrap();
         {
+
+            xml_save_dialog.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+
+                        }
+                    },
+                    _ => { }
+                }
+            });
+        }*/
+
+        {
+            let pl_view = sidebar.pl_view.clone();
             let tables_nb = tables_nb.clone();
             let tbl_env = table_env.clone();
             let csv_btn : Button =
                 builder.get_object("save_text_btn").unwrap();
             let save_dialog : FileChooserDialog =
                 builder.get_object("save_dialog").unwrap();
-            save_dialog.connect_response(move |dialog, resp|{
+            save_dialog.connect_response(move |dialog, resp| {
                 match resp {
                     ResponseType::Other(1) => {
                         if let Some(path) = dialog.get_filename() {
@@ -382,7 +399,16 @@ impl QueriesApp {
                                             t.try_backup(path);
                                         },
                                         "xml" => {
-                                            // save plot layout
+                                            if let Ok(pl) = pl_view.try_borrow() {
+                                                if let Ok(mut f) = File::create(path) {
+                                                    let content = pl.plot_area.get_layout_as_text();
+                                                    let _ = f.write_all(&content.into_bytes());
+                                                } else {
+                                                    println!("Unable to create file");
+                                                }
+                                            } else {
+                                                println!("Unable to retrieve reference to plot");
+                                            }
                                         },
                                         _ => {
                                             if let Ok(mut f) = File::create(path) {
