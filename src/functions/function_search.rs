@@ -18,6 +18,7 @@ use crate::tables::table::Table;
 use std::fmt::Display;
 use std::io::{Read, Write};
 use crate::functions::num_function::*;
+use crate::plots::layout_menu::PlotSidebar;
 
 // TODO solve segfault when loading function to be applied (change signature)
 
@@ -330,6 +331,7 @@ impl FunctionSearch {
         reg : Rc<NumRegistry>,
         tbl_nb : TableNotebook,
         fn_popover : Popover,
+        pl_sidebar : PlotSidebar,
         t_env : Rc<RefCell<TableEnvironment>>
     ) -> Self {
         let search_entry : Entry =
@@ -431,6 +433,7 @@ impl FunctionSearch {
                                                     &t_env,
                                                     &mut tbl_nb.clone(),
                                                     fn_search.clone(),
+                                                    pl_sidebar.clone(),
                                                     fn_popover.clone()
                                                 );
                                             },

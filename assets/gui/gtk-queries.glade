@@ -2648,7 +2648,7 @@
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
   </object>
-  <object class="GtkBox">
+  <object class="GtkBox" id="line_box">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
     <property name="orientation">vertical</property>
@@ -2729,7 +2729,7 @@
       </packing>
     </child>
     <child>
-      <object class="GtkBox" id="line_box">
+      <object class="GtkBox">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <child>
@@ -2739,7 +2739,7 @@
             <property name="label" translatable="yes">Color</property>
           </object>
           <packing>
-            <property name="expand">True</property>
+            <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="position">0</property>
           </packing>

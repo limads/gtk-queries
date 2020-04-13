@@ -44,21 +44,41 @@ pub fn build_design_menu(builder : &Builder, pl_view : Rc<RefCell<PlotView>>) ->
     let grid_thickness_scale : Scale =
     builder.get_object("grid_thickness_scale").unwrap();
     let ref_view = pl_view.clone();
-    connect_update_scale_property(&grid_thickness_scale,
-        ref_view.clone(), "".to_string(), "grid_width".to_string(), "design");
+    connect_update_scale_property(
+        &grid_thickness_scale,
+        ref_view.clone(),
+        Rc::new(RefCell::new("".to_string())),
+        "grid_width".to_string(),
+        "design"
+    );
     let bg_color_btn : ColorButton =
         builder.get_object("bg_color").unwrap();
     let grid_color_btn : ColorButton =
         builder.get_object("grid_color").unwrap();
     let ref_view = pl_view.clone();
-    connect_update_color_property(&bg_color_btn,
-        ref_view.clone(), "".to_string(), "bg_color".to_string(), "design");
-    connect_update_color_property(&grid_color_btn,
-        ref_view.clone(), "".to_string(), "grid_color".to_string(), "design");
+    connect_update_color_property(
+        &bg_color_btn,
+        ref_view.clone(),
+        Rc::new(RefCell::new("".to_string())),
+        "bg_color".to_string(),
+        "design"
+    );
+    connect_update_color_property(
+        &grid_color_btn,
+        ref_view.clone(),
+        Rc::new(RefCell::new("".to_string())),
+        "grid_color".to_string(),
+        "design"
+    );
     let font_btn : FontButton =
         builder.get_object("font_btn").unwrap();
-    connect_update_font_property(&font_btn,
-        ref_view.clone(), "".to_string(), "font".to_string(), "design");
+    connect_update_font_property(
+        &font_btn,
+        ref_view.clone(),
+        Rc::new(RefCell::new("".to_string())),
+        "font".to_string(),
+        "design"
+    );
     DesignMenu {
         grid_thickness_scale,
         bg_color_btn,

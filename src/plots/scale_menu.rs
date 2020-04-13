@@ -41,32 +41,65 @@ pub fn prepare_scale_menu(
 ) -> ScaleMenu {
     let label_entry : Entry = builder.get_object(
         &("label_entry_".to_string() + suffix)).unwrap();
-    connect_update_entry_property(&label_entry, view.clone(),
-        suffix.to_string(), "label".to_string(), "grid_segment");
+    connect_update_entry_property(
+        &label_entry,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "label".to_string(),
+        "grid_segment"
+    );
     let entry_min : Entry = builder.get_object(
         &("entry_min_".to_string() + suffix)).unwrap();
     let entry_max : Entry = builder.get_object(
         &("entry_max_".to_string() + suffix)).unwrap();
-    connect_update_entry_property(&entry_min, view.clone(),
-        suffix.to_string(), "from".to_string(), "grid_segment");
+    connect_update_entry_property(
+        &entry_min,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "from".to_string(),
+        "grid_segment"
+    );
     connect_update_entry_property(&entry_max, view.clone(),
-        suffix.to_string(), "to".to_string(), "grid_segment");
+       Rc::new(RefCell::new(suffix.to_string())),
+        "to".to_string(),
+        "grid_segment"
+    );
     let log_switch : Switch = builder.get_object(
         &("log_switch_".to_string() + suffix)).unwrap();
     let invert_switch : Switch = builder.get_object(
         &("invert_switch_".to_string() + suffix)).unwrap();
-    connect_update_switch_property(&log_switch, view.clone(),
-        suffix.to_string(), "log_scaling".to_string(), "grid_segment");
-    connect_update_switch_property(&invert_switch, view.clone(),
-        suffix.to_string(), "invert".to_string(), "grid_segment");
+    connect_update_switch_property(
+        &log_switch,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "log_scaling".to_string(),
+        "grid_segment"
+    );
+    connect_update_switch_property(
+        &invert_switch,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "invert".to_string(),
+        "grid_segment"
+    );
     let offset_scale : Scale = builder.get_object(
         &("grid_offset_".to_string() + suffix)).unwrap();
     let density_scale : Scale = builder.get_object(
         &("grid_density_".to_string() + suffix)).unwrap();
-    connect_update_scale_property(&offset_scale, view.clone(),
-        suffix.to_string(), "grid_offset".to_string(), "grid_segment");
-    connect_update_scale_property(&density_scale, view.clone(),
-        suffix.to_string(), "n_intervals".to_string(), "grid_segment");
+    connect_update_scale_property(
+        &offset_scale,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "grid_offset".to_string(),
+        "grid_segment"
+    );
+    connect_update_scale_property(
+        &density_scale,
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
+        "n_intervals".to_string(),
+        "grid_segment"
+    );
     ScaleMenu {
         entry_min,
         entry_max,

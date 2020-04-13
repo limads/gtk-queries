@@ -18,6 +18,7 @@ use crate::table_widget::*;
 use gtk::prelude::*;
 use crate::tables::table::*;
 use crate::functions::function_search::*;
+use crate::plots::layout_menu::*;
 
 #[derive(Clone)]
 pub struct TableNotebook {
@@ -56,6 +57,7 @@ impl TableNotebook {
         err_msg : Option<&str>,
         data : Option<Vec<Vec<String>>>,
         fn_search : FunctionSearch,
+        sidebar : PlotSidebar,
         fn_popover : Popover
     ) {
         let img = Image::new_from_icon_name(

@@ -19,7 +19,7 @@ use crate::tables::table::*;
 /// used to manipulate the mappings directly (line, trace, scatter).
 #[derive(Clone, Debug)]
 pub struct MappingMenu {
-    pub mapping_name : String,
+    pub mapping_name : Rc<RefCell<String>>,
     pub mapping_type : String,
     pub mapping_box : Box,
     //pub combos : Vec<ComboBoxText>,
@@ -93,8 +93,18 @@ impl MappingMenu {
         self.mapping_box.clone()
     }
 
-    pub fn get_mapping_name(&self) -> String {
-        self.mapping_name.clone()
+    pub fn get_mapping_name(&self) -> Option<String> {
+        match self.mapping_name.try_borrow() {
+            Ok(n) => Some(n.clone()),
+            Err(_) => { println!("Failed to retrieve mutable reference to mapping index"); None }
+        }
+    }
+
+    pub fn set_mapping_name(&self, new_name : String) {
+        match self.mapping_name.try_borrow_mut() {
+            Ok(mut name) => *name = new_name,
+            Err(_) => println!("Unable to retrieve mutable reference to mapping name")
+        }
     }
 
     /// The "design_menu" is the group of widgets that compose a mapping menu
@@ -316,6 +326,8 @@ impl MappingMenu {
         cols : Columns,
         pl_view : &mut PlotView
     ) -> Result<(), &'static str> {
+        let name = self.get_mapping_name().map(|n| n.clone())
+            .ok_or("Unable to get mapping name")?;
         let (pos0, pos1) = match (cols.try_numeric(0), cols.try_numeric(1)) {
             (Some(c0), Some(c1)) => {
                 (c0, c1)
@@ -330,7 +342,7 @@ impl MappingMenu {
                 if let Some(c) = cols.try_access::<String>(2) {
                     let vec_txt = Vec::from(c);
                     pl_view.update(&mut UpdateContent::TextData(
-                        self.mapping_name.clone(),
+                        name.clone(),
                         vec_pos,
                         vec_txt
                     ));
@@ -340,7 +352,7 @@ impl MappingMenu {
             },
             "line" | "scatter" => {
                 pl_view.update(&mut UpdateContent::Data(
-                    self.mapping_name.clone(),
+                    name.clone(),
                     vec_pos
                 ));
             },

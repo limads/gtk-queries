@@ -138,7 +138,7 @@ impl Table {
     }
 
     pub fn sql_table_creation(&self, name : &str) -> Option<String> {
-        let mut query = format!("create table if not exists {} (", name);
+        let mut query = format!("create table {} (", name);
         for (i, (name, col)) in self.names.iter().zip(self.cols.iter()).enumerate() {
             let name = match name.chars().find(|c| *c == ' ') {
                 Some(_) => String::from("\"") + &name[..] + "\"",

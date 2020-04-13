@@ -115,6 +115,7 @@ impl QueriesApp {
             let plot_toggle = plot_toggle.clone();
             //let sidebar_stack = sidebar_stack.clone();
             let content_stack = content_stack.clone();
+            let plot_sidebar = plot_sidebar.clone();
             table_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -146,6 +147,7 @@ impl QueriesApp {
         {
             let main_paned = main_paned.clone();
             let table_toggle = table_toggle.clone();
+
             plot_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -159,6 +161,12 @@ impl QueriesApp {
                     true => {
                         main_paned.set_position(360);
                         content_stack.set_visible_child_name("plot");
+                        if let Ok(pl_view) = plot_sidebar.pl_view.try_borrow() {
+                            pl_view.redraw();
+                        } else {
+                            println!("Failed to acquire lock over plot")
+                        }
+
                         //if !plot_sidebar.layout_loaded() {
                         //    status_stack.show_curr_status();
                         //} //else {
@@ -253,6 +261,7 @@ impl QueriesApp {
             reg.clone(),
             tables_nb.clone(),
             fn_popover.clone(),
+            sidebar.clone(),
             table_env.clone()
         );
         let func_names : Vec<String> = funcs.iter().map(|f| f.name.to_string()).collect();
@@ -266,9 +275,16 @@ impl QueriesApp {
             let tables_nb = tables_nb.clone();
             let fn_search = fn_search.clone();
             let fn_popover = fn_popover.clone();
+            let sidebar = sidebar.clone();
             let f = move |t_env : &TableEnvironment| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
-                utils::set_tables(&t_env, &mut tables_nb.clone(), fn_search.clone(), fn_popover.clone());
+                utils::set_tables(
+                    &t_env,
+                    &mut tables_nb.clone(),
+                    fn_search.clone(),
+                    sidebar.clone(),
+                    fn_popover.clone()
+                );
                 tables_nb.nb.set_sensitive(true);
                 Ok(())
                 //} else {
