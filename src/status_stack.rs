@@ -74,6 +74,15 @@ pub struct StatusStack {
 
 impl StatusStack {
 
+    pub fn get_status(&self) -> Option<Status> {
+        if let Ok(status) = self.status.try_borrow() {
+            Some(status.clone())
+        } else {
+            println!("Unable to retrieve current status");
+            None
+        }
+    }
+
     pub fn new(builder : Builder, parent_stack : Stack, alt_wid : Widget) -> Self {
         //let path = utils::glade_path("status-stack.glade").expect("Failed to load glade file");
         //let builder = Builder::new_from_file(path);

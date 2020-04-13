@@ -57,7 +57,7 @@ pub struct QueriesApp {
     // old_source_content : Rc<RefCell<String>>
 }
 
-fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
+/*fn adjust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
     if let Some(win) = window.get_window() {
         let w = win.get_width();
         match btn.get_active() {
@@ -70,7 +70,7 @@ fn ajust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned)
             }
         }
     }
-}
+}*/
 
 impl QueriesApp {
 
@@ -80,7 +80,8 @@ impl QueriesApp {
         tbl_nb : TableNotebook,
         pl_da : DrawingArea,
         //sidebar_stack : Stack,
-        status_stack : StatusStack
+        status_stack : StatusStack,
+        plot_toggle : ToggleButton
     ) -> PlotSidebar {
         //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let pl_view = PlotView::new_with_draw_area(
@@ -92,12 +93,15 @@ impl QueriesApp {
             table_env.clone(),
             tbl_nb.clone(),
             status_stack,
+            plot_toggle.clone()
         );
         //sidebar_stack.add_named(&sidebar.layout_stack, "layout");
         sidebar
     }
 
-    fn build_toggles(
+    fn connect_toggles(
+        table_toggle : ToggleButton,
+        plot_toggle : ToggleButton,
         builder : Builder,
         main_paned : Paned,
         //sidebar_stack : Stack,
@@ -108,14 +112,14 @@ impl QueriesApp {
         //main_paned.add1(&plot_sidebar.sidebar_box);
         //main_paned.show_all();
         //plot_sidebar.sidebar_box.show_all();
-        let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
-        let plot_toggle : ToggleButton = builder.get_object("plot_toggle").unwrap();
+
         {
             let main_paned = main_paned.clone();
             let plot_toggle = plot_toggle.clone();
             //let sidebar_stack = sidebar_stack.clone();
             let content_stack = content_stack.clone();
             let plot_sidebar = plot_sidebar.clone();
+            let status_stack = status_stack.clone();
             table_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -176,6 +180,12 @@ impl QueriesApp {
                             table_toggle.set_active(false);
                             //table_toggle.toggled();
                         }
+                        if plot_sidebar.layout_loaded() {
+                            status_stack.try_show_alt();
+                        } else {
+                            status_stack.show_curr_status();
+                        }
+
                     }
                 }
             });
@@ -196,6 +206,9 @@ impl QueriesApp {
         let content_stack : Stack = builder.get_object("content_stack").unwrap();
         let status_stack = StatusStack::new(builder.clone(), main_stack, content_stack.clone().upcast::<Widget>());
 
+        let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
+        let plot_toggle : ToggleButton = builder.get_object("plot_toggle").unwrap();
+
         let env_source = EnvironmentSource::File("".into(),"".into());
         let table_env = Rc::new(RefCell::new(TableEnvironment::new(env_source)));
         let conn_btn : Button = builder.get_object("conn_btn").unwrap();
@@ -208,7 +221,8 @@ impl QueriesApp {
             table_env.clone(),
             tables_nb.clone(),
             pl_da.clone(),
-            status_stack.clone()
+            status_stack.clone(),
+            plot_toggle.clone()
         );
 
         let upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
@@ -219,15 +233,21 @@ impl QueriesApp {
         //let table_popover : Popover =
         //    builder.get_object("table_popover").unwrap();
 
-        conn_popover.hook_signals(table_env.clone(), status_stack.clone());
-
-        //let query_toggle : ToggleButton =
-        //    builder.get_object("query_toggle").unwrap();
         let sql_popover = SqlPopover::new(
             builder.clone(),
             status_stack.clone(),
             table_env.clone()
         );
+        conn_popover.hook_signals(
+            table_env.clone(),
+            status_stack.clone(),
+            sql_popover.clone(),
+            sidebar.clone()
+        );
+
+        //let query_toggle : ToggleButton =
+        //    builder.get_object("query_toggle").unwrap();
+
         //sql_popover.connect_sql_load(tables_nb.clone(), table_env.clone());
         //sql_popover.connect_source_key_press(table_env.clone(), tables_nb.clone());
         //sql_popover.connect_refresh(table_env.clone(), tables_nb.clone());
@@ -245,7 +265,9 @@ impl QueriesApp {
         let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
         fn_toggle.set_icon_widget(Some(&fn_img));
         //sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
-        let (table_toggle, plot_toggle) = Self::build_toggles(
+        Self::connect_toggles(
+            table_toggle.clone(),
+            plot_toggle.clone(),
             builder.clone(),
             main_paned.clone(),
             //sidebar_stack.clone(),
@@ -536,6 +558,11 @@ fn build_ui(app: &gtk::Application) {
                     }
                     view.grab_focus();
                     return glib::signal::Inhibit(true)
+                }
+                if ev_key.get_keyval() == key::w {
+                    if plot_toggle.get_active() == false {
+                        plot_toggle.set_active(true);
+                    }
                 }
                 if ev_key.get_keyval() == key::c {
                     conn_popover.popover.show();

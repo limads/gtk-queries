@@ -14,6 +14,8 @@ use std::fs::File;
 use std::io::Read;
 use crate::tables::table::*;
 use crate::status_stack::*;
+use crate::sql_popover::SqlPopover;
+use crate::plots::layout_menu::PlotSidebar;
 
 #[derive(Clone)]
 pub struct ConnPopover {
@@ -233,7 +235,13 @@ impl ConnPopover {
         }
     }
 
-    pub fn hook_signals(&self, table_env : Rc<RefCell<TableEnvironment>>, status : StatusStack) {
+    pub fn hook_signals(
+        &self,
+        table_env : Rc<RefCell<TableEnvironment>>,
+        status : StatusStack,
+        sql_popover : SqlPopover,
+        plot_sidebar : PlotSidebar
+    ) {
         let conn_popover = self.clone();
         self.conn_switch.connect_state_set(move |_switch, state| {
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
@@ -306,6 +314,18 @@ impl ConnPopover {
                 }
             } else {
                 println!("Could not acquire lock over table environment");
+            }
+            if let Some(status) = status.get_status() {
+                match status {
+                    Status::Connected => {
+                        sql_popover.set_active(true);
+                        plot_sidebar.set_active(true);
+                    },
+                    _ => {
+                        sql_popover.set_active(false);
+                        plot_sidebar.set_active(false);
+                    }
+                }
             }
             Inhibit(false)
         });

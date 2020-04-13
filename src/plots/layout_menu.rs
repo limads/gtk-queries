@@ -33,10 +33,23 @@ pub struct PlotSidebar {
     remove_mapping_btn : ToolButton,
     new_layout_btn : Button,
     load_layout_btn : Button,
-    glade_def : Rc<String>
+    glade_def : Rc<String>,
+    xml_load_dialog : FileChooserDialog
 }
 
 impl PlotSidebar {
+
+    pub fn set_active(&self, state : bool) {
+        // self.new_layout_btn.set_sensitive(state);
+        // self.load_layout_btn.set_sensitive(state);
+        if let Err(e) = self.set_add_mapping_sensitive(0) {
+            println!("{}", e);
+        }
+        if state == false {
+            self.xml_load_dialog.unselect_all();
+        }
+        self.layout_stack.set_visible_child_name("empty");
+    }
 
     pub fn set_add_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
         let visible = self.layout_stack.get_visible_child_name()
@@ -112,7 +125,8 @@ impl PlotSidebar {
         pl_view : Rc<RefCell<PlotView>>,
         table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
-        status_stack : StatusStack
+        status_stack : StatusStack,
+        plot_toggle : ToggleButton
     ) -> Self {
         let mapping_menus = Rc::new(RefCell::new(Vec::new()));
         let design_menu = build_design_menu(&builder, pl_view.clone());
@@ -138,7 +152,8 @@ impl PlotSidebar {
             tbl_nb.clone(),
             glade_def.clone(),
             mapping_menus.clone(),
-            plot_notebook.clone()
+            plot_notebook.clone(),
+            plot_toggle
         );
         let new_layout_btn = Self::build_layout_new_btn(
             builder.clone(),
@@ -146,7 +161,7 @@ impl PlotSidebar {
             status_stack.clone(),
             clear_layout_btn.clone()
         );
-        let load_layout_btn = Self::build_layout_load_button(
+        let (load_layout_btn, xml_load_dialog) = Self::build_layout_load_button(
             glade_def.clone(),
             builder.clone(),
             pl_view.clone(),
@@ -162,7 +177,7 @@ impl PlotSidebar {
         );
         {
             let remove_mapping_btn = remove_mapping_btn.clone();
-            plot_notebook.connect_switch_page(move |_nb, wid, page| {
+            plot_notebook.connect_switch_page(move |_nb, _wid, page| {
                 //let page = plot_notebook.get_property_page();
                 //println!("{}", page);
                 if page > 2 {
@@ -185,7 +200,8 @@ impl PlotSidebar {
             remove_mapping_btn,
             glade_def,
             new_layout_btn,
-            load_layout_btn
+            load_layout_btn,
+            xml_load_dialog
         }
     }
 
@@ -265,7 +281,8 @@ impl PlotSidebar {
         tbl_nb : TableNotebook,
         glade_def : Rc<String>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook
+        plot_notebook : Notebook,
+        plot_toggle : ToggleButton
     ) -> HashMap<String, ToolButton> {
         let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
         add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
@@ -299,6 +316,7 @@ impl PlotSidebar {
             let glade_def = glade_def.clone();
             let mapping_menus = mapping_menus.clone();
             let plot_notebook = plot_notebook.clone();
+            let plot_toggle = plot_toggle.clone();
             btn.connect_clicked(move |_btn| {
                 Self::add_mapping_from_type(
                     glade_def.clone(),
@@ -312,7 +330,7 @@ impl PlotSidebar {
                 );
                 add_mapping_popover.hide();
                 remove_mapping_btn.set_sensitive(true);
-                println!("remove mapping set sensitive to true");
+                plot_toggle.set_active(true);
             });
         }
         toolbars.iter().for_each(|t| t.show_all() );
@@ -412,7 +430,7 @@ impl PlotSidebar {
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu)
-    ) -> Button {
+    ) -> (Button, FileChooserDialog) {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
         let load_btn : Button=
@@ -495,7 +513,7 @@ impl PlotSidebar {
                 }
             });
         }
-        load_btn
+        (load_btn, xml_load_dialog)
     }
 
     /// The creation of a mapping menu is based on an id naming convention

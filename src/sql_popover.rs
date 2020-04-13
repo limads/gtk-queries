@@ -34,6 +34,8 @@ pub struct SqlPopover {
     pub view : View,
     pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : ToolButton,
+    clear_btn : ToolButton,
+    update_btn : ToggleToolButton,
     //pub popover : Popover,
     //pub query_toggle : ToggleButton,
     //pub sql_toggle : ToggleToolButton,
@@ -43,10 +45,42 @@ pub struct SqlPopover {
     //pub extra_toolbar : Toolbar,
     pub sql_stack : Stack,
     pub status_stack : StatusStack,
-    t_env : Rc<RefCell<TableEnvironment>>
+    t_env : Rc<RefCell<TableEnvironment>>,
+    sql_new_btn : Button,
+    sql_load_btn : Button,
+
+    // Keeps status if clock was started at first position,
+    // the update interval at second position (constant) and
+    // time that ran since the last update (updated at each glib::timeout)
+    // at third position.
+    update_clock : Rc<RefCell<(bool, usize, usize)>>
 }
 
 impl SqlPopover {
+
+    pub fn set_active(&self, state : bool) {
+        // self.sql_new_btn.set_sensitive(state);
+        // self.sql_load_btn.set_sensitive(state);
+        self.clear_btn.set_sensitive(state);
+        self.update_btn.set_sensitive(state);
+        self.refresh_btn.set_sensitive(state);
+        if state == false {
+            self.sql_load_dialog.unselect_all();
+            if let Some(buffer) = self.view.get_buffer() {
+                buffer.set_text("");
+            } else {
+                println!("Unable to retrieve text buffer");
+            }
+            self.update_btn.set_active(false);
+            if let Ok(mut clock) = self.update_clock.try_borrow_mut() {
+                clock.0 = false;
+                clock.1 = 0;
+                clock.2 = 0;
+            } else {
+                println!("Unable to retrieve mutable reference to update clock");
+            }
+        }
+    }
 
     pub fn update_queries(
         file_loaded : Rc<RefCell<bool>>,
@@ -236,16 +270,75 @@ impl SqlPopover {
         }
         //let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
         let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
-        let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
-        let update_btn = ToggleToolButton::new();
-        update_btn.set_icon_widget(Some(&img_clock));
-
-        let img_append = Image::new_from_file(utils::glade_path("../icons/append.svg").unwrap());
-        let append_btn = ToggleToolButton::new();
-        append_btn.set_icon_widget(Some(&img_append));
-
         let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_btn = ToolButton::new(Some(&img_clear), None);
+        let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
+        let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
+        let update_btn = ToggleToolButton::new();
+        let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
+        update_btn.set_icon_widget(Some(&img_clock));
+        clear_btn.set_sensitive(false);
+        update_btn.set_sensitive(false);
+        refresh_btn.set_sensitive(false);
+        sql_toolbar.insert(&refresh_btn, 2);
+        sql_toolbar.insert(&clear_btn, 0);
+        sql_toolbar.insert(&update_btn, 1);
+        sql_toolbar.show_all();
+
+        let update_clock = Rc::new(RefCell::new((false, 0, 0)));
+        {
+            let update_clock = update_clock.clone();
+            update_btn.connect_toggled(move |btn| {
+                if let Ok(mut update) = update_clock.try_borrow_mut() {
+                    update.0 = false;
+                    if btn.get_active() {
+                        update.1 = 2000;
+                    } else {
+                        update.1 = 0;
+                    }
+                } else {
+                    println!("Failed to retrieve mutable reference to refresh state");
+                }
+            });
+        }
+
+        {
+            let update_clock = update_clock.clone();
+            let refresh_btn = refresh_btn.clone();
+            gtk::timeout_add(500, move || {
+               if let Ok(mut update) = update_clock.try_borrow_mut() {
+                    match *update {
+                        (false, _, _) => {
+
+                        },
+                        (true, 0, _) => {
+
+                        },
+                        (true, interval, passed) => {
+                            if passed >= interval {
+                                update.2 = 0;
+                                if refresh_btn.is_sensitive() {
+                                    println!("Updating query at {:?}", update);
+                                    refresh_btn.emit_clicked();
+                                }
+                            } else {
+                                update.2 += 500;
+                                //println!("Waiting next update: {:?}", update);
+                            }
+                        }
+                    }
+                } else {
+                    println!("Unable to retreive mutable reference to update clock");
+                }
+                glib::source::Continue(true)
+            });
+        }
+
+        //let img_append = Image::new_from_file(utils::glade_path("../icons/append.svg").unwrap());
+        //let append_btn = ToggleToolButton::new();
+        //append_btn.set_icon_widget(Some(&img_append));
+
+
         {
             let t_env = t_env.clone();
             let sql_stack = sql_stack.clone();
@@ -259,12 +352,10 @@ impl SqlPopover {
 
             });
         }
-        sql_toolbar.insert(&clear_btn, 0);
-        sql_toolbar.insert(&update_btn, 1);
-        sql_toolbar.insert(&append_btn, 2);
+        //sql_toolbar.insert(&append_btn, 2);
         // update_toolbar.insert(&item_b, 1);
         // extra_toolbar.show_all();
-        update_btn.connect_toggled(move|btn|{
+        //update_btn.connect_toggled(move|btn|{
             /*let curr_label = btn.get_label().unwrap();
             let new_label = match curr_label.as_str() {
                 "Off" => "0.5 s",
@@ -274,7 +365,7 @@ impl SqlPopover {
                 _ => "Off"
             };
             btn.set_label(Some(new_label));*/
-        });
+        //});
 
         /*{
             let view = view.clone();
@@ -286,10 +377,7 @@ impl SqlPopover {
         }*/
 
         //let exec_toolbar : Toolbar = builder.get_object("exec_toolbar").unwrap();
-        let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
-        let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
-        sql_toolbar.insert(&refresh_btn, 3);
-        sql_toolbar.show_all();
+
 
         /*{
             let popover = popover.clone();
@@ -327,7 +415,12 @@ impl SqlPopover {
             query_sent : Rc::new(RefCell::new(false)),
             sql_stack,
             status_stack,
-            t_env
+            t_env,
+            update_clock,
+            clear_btn,
+            update_btn,
+            sql_new_btn,
+            sql_load_btn
         }
     }
 
@@ -405,6 +498,7 @@ impl SqlPopover {
             let file_loaded = self.file_loaded.clone();
             let query_sent = self.query_sent.clone();
             let table_env = self.t_env.clone();
+            let update_clock = self.update_clock.clone();
             let f = f.clone();
             self.refresh_btn.connect_clicked(move |btn|{
                 match table_env.try_borrow_mut() {
@@ -421,7 +515,15 @@ impl SqlPopover {
                             }
                         }
                     },
-                    _ => { println!("Error recovering references"); }
+                    _ => { println!("Error recovering mutable reference to table environment"); }
+                }
+                if let Ok(mut update) = update_clock.try_borrow_mut() {
+                    if update.1 > 0 {
+                        update.0 = true;
+                        update.2 = 0;
+                    }
+                } else {
+                    println!("Unabe to recover mutable reference to update clock");
                 }
             });
         }
@@ -460,24 +562,28 @@ impl SqlPopover {
         let file_loaded = self.file_loaded.clone();
         let query_sent = self.query_sent.clone();
         let table_env = self.t_env.clone();
+        let refresh_btn = self.refresh_btn.clone();
         // TODO verify that view is realized before accepting key press
         self.view.connect_key_press_event(move |view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
-                match table_env.try_borrow_mut() {
-                    Ok(mut env) => {
-                        let update_res = Self::update_queries(
-                            file_loaded.clone(),
-                            query_sent.clone(),
-                            &mut env,
-                            &view.clone(),
-                        );
-                        if let Ok(_) = update_res {
-                            if let Err(e) = f() {
-                                println!("{}", e);
+                if refresh_btn.is_sensitive() {
+                    refresh_btn.emit_clicked();
+                    /*match table_env.try_borrow_mut() {
+                        Ok(mut env) => {
+                            let update_res = Self::update_queries(
+                                file_loaded.clone(),
+                                query_sent.clone(),
+                                &mut env,
+                                &view.clone(),
+                            );
+                            if let Ok(_) = update_res {
+                                if let Err(e) = f() {
+                                    println!("{}", e);
+                                }
                             }
-                        }
-                    },
-                    _ => { println!("Error recovering references"); }
+                        },
+                        _ => { println!("Error recovering references"); }
+                    }*/
                 }
                 glib::signal::Inhibit(true)
             } else {
