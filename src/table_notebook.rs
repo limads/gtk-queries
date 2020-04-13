@@ -77,10 +77,11 @@ impl TableNotebook {
         if let Some(rows) = data {
             table_w.update_data(rows);
             table_w.show_data();
-            table_w.set_selected_action(move |ev_bx, ev, selected| {
+            table_w.set_selected_action(move |ev_bx, _ev, selected| {
                 println!("Selected: {:?}", selected);
                 fn_search.update_fn_info("", &selected[..]);
                 fn_popover.set_relative_to(Some(ev_bx));
+                sidebar.set_add_mapping_sensitive(selected.len());
                 glib::signal::Inhibit(false)
             });
         }

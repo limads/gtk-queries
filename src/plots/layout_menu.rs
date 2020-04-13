@@ -30,10 +30,38 @@ pub struct PlotSidebar {
     mapping_btns : HashMap<String, ToolButton>,
     add_mapping_btn : ToolButton,
     clear_layout_btn : ToolButton,
-    remove_mapping_btn : ToolButton
+    remove_mapping_btn : ToolButton,
+    new_layout_btn : Button,
+    load_layout_btn : Button,
+    glade_def : Rc<String>
 }
 
 impl PlotSidebar {
+
+    pub fn set_add_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
+        let visible = self.layout_stack.get_visible_child_name()
+            .ok_or("Unable to determine layout stack status" )?;
+        if &visible[..] == "layout" {
+            if ncols >= 2 {
+                self.add_mapping_btn.set_sensitive(true);
+            } else {
+                self.add_mapping_btn.set_sensitive(false);
+            }
+            let sensitive : Vec<&str> = match ncols {
+                2 => vec!["line", "scatter", "bar"],
+                3 => vec!["area", "text", "surface"],
+                _ => vec![]
+            };
+            for (mapping, btn) in self.mapping_btns.iter() {
+                if sensitive.iter().find(|n| *n == mapping).is_some() {
+                    btn.set_sensitive(true);
+                } else {
+                    btn.set_sensitive(false);
+                }
+            }
+        }
+        Ok(())
+    }
 
     pub fn layout_loaded(&self) -> bool {
         let sel_name = self.layout_stack.get_visible_child_name()
@@ -44,6 +72,41 @@ impl PlotSidebar {
         }
     }
 
+    fn build_layout_new_btn(
+        builder : Builder,
+        layout_stack : Stack,
+        status_stack : StatusStack,
+        clear_layout_btn :
+        ToolButton
+    ) -> Button {
+        let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
+        let layout_stack = layout_stack.clone();
+        {
+            let layout_stack = layout_stack.clone();
+            let status_stack = status_stack.clone();
+            let clear_layout_btn = clear_layout_btn.clone();
+            new_layout_btn.connect_clicked(move |btn| {
+                layout_stack.set_visible_child_name("layout");
+                status_stack.try_show_alt();
+                clear_layout_btn.set_sensitive(true);
+            });
+        }
+        new_layout_btn
+    }
+
+    pub fn build_glade_def() -> Rc<String> {
+        let mut def_content = String::new();
+        let fpath = utils::glade_path("gtk-queries.glade").unwrap();
+        if let Ok(mut f) = File::open(fpath) {
+            if let Err(e) = f.read_to_string(&mut def_content) {
+                panic!("{}", e);
+            }
+        } else {
+            panic!("Error opening glade definition");
+        }
+        Rc::new(def_content)
+    }
+
     pub fn new(
         builder : Builder,
         pl_view : Rc<RefCell<PlotView>>,
@@ -51,20 +114,65 @@ impl PlotSidebar {
         tbl_nb : TableNotebook,
         status_stack : StatusStack
     ) -> Self {
-        //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
-        let mapping_menus : Vec<MappingMenu> = Vec::new();
-        let mapping_menus = Rc::new(RefCell::new(mapping_menus));
+        let mapping_menus = Rc::new(RefCell::new(Vec::new()));
         let design_menu = build_design_menu(&builder, pl_view.clone());
         let plot_notebook : Notebook =
             builder.get_object("plot_notebook").unwrap();
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
-        //let sidebar_box : Box = builder.get_object("sidebar_box").unwrap();
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
-        let mapping_btns = Self::build_add_mapping_popover(builder.clone());
-        let (add_mapping_btn, clear_layout_btn, remove_mapping_btn) =
-            Self::build_layout_toolbar(builder.clone());
-
-        let sidebar = PlotSidebar {
+        let glade_def = Self::build_glade_def();
+        let (add_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
+            builder.clone(),
+            status_stack.clone(),
+            layout_stack.clone(),
+            pl_view.clone(),
+            mapping_menus.clone(),
+            plot_notebook.clone()
+        );
+        let mapping_btns = Self::build_add_mapping_popover(
+            builder.clone(),
+            add_mapping_btn.clone(),
+            remove_mapping_btn.clone(),
+            table_env.clone(),
+            pl_view.clone(),
+            tbl_nb.clone(),
+            glade_def.clone(),
+            mapping_menus.clone(),
+            plot_notebook.clone()
+        );
+        let new_layout_btn = Self::build_layout_new_btn(
+            builder.clone(),
+            layout_stack.clone(),
+            status_stack.clone(),
+            clear_layout_btn.clone()
+        );
+        let load_layout_btn = Self::build_layout_load_button(
+            glade_def.clone(),
+            builder.clone(),
+            pl_view.clone(),
+            table_env.clone(),
+            //sidebar.clone(),
+            tbl_nb.clone(),
+            status_stack.clone(),
+            clear_layout_btn.clone(),
+            plot_notebook.clone(),
+            mapping_menus.clone(),
+            design_menu.clone(),
+            (scale_menus.0.clone(), scale_menus.1.clone())
+        );
+        {
+            let remove_mapping_btn = remove_mapping_btn.clone();
+            plot_notebook.connect_switch_page(move |_nb, wid, page| {
+                //let page = plot_notebook.get_property_page();
+                //println!("{}", page);
+                if page > 2 {
+                    remove_mapping_btn.set_sensitive(true);
+                } else {
+                    remove_mapping_btn.set_sensitive(false);
+                }
+            });
+        }
+        Self {
             design_menu,
             scale_menus,
             mapping_menus,
@@ -75,21 +183,20 @@ impl PlotSidebar {
             add_mapping_btn,
             clear_layout_btn,
             remove_mapping_btn,
-            //    sidebar_box
-        };
-
-        let _layout_menu = LayoutMenu::new_from_builder(
-            &builder,
-            pl_view.clone(),
-            table_env.clone(),
-            tbl_nb.clone(),
-            status_stack,
-            sidebar.clone()
-        );
-        sidebar
+            glade_def,
+            new_layout_btn,
+            load_layout_btn
+        }
     }
 
-    fn build_layout_toolbar(builder : Builder) -> (ToolButton, ToolButton, ToolButton) {
+    fn build_layout_toolbar(
+        builder : Builder,
+        status_stack : StatusStack,
+        layout_stack : Stack,
+        plot_view : Rc<RefCell<PlotView>>,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        plot_notebook : Notebook
+    ) -> (ToolButton, ToolButton, ToolButton) {
         let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
         let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
         let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
@@ -104,10 +211,62 @@ impl PlotSidebar {
         layout_toolbar.insert(&add_mapping_btn, 1);
         layout_toolbar.insert(&remove_mapping_btn, 2);
         layout_toolbar.show_all();
+        {
+            let layout_stack = layout_stack.clone();
+            let plot_view = plot_view.clone();
+            let mapping_menus = mapping_menus.clone();
+            let notebook = plot_notebook.clone();
+            clear_layout_btn.connect_clicked(move |btn| {
+                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
+                    layout_stack.set_visible_child_name("empty");
+                    status_stack.show_curr_status();
+                    if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
+                        mappings.clear();
+                    } else {
+                        println!("Error retrieving mapping menus");
+                    }
+                    let children = notebook.get_children();
+                    for i in 3..children.len() {
+                        if let Some(c) = children.get(i) {
+                            notebook.remove(c);
+                        } else {
+                            println!("Unable to clear notebook");
+                        }
+                    }
+                }
+                btn.set_sensitive(false);
+            });
+        }
+
+        {
+            let mapping_menus = mapping_menus.clone();
+            let plot_view = plot_view.clone();
+            let plot_notebook = plot_notebook.clone();
+            remove_mapping_btn.connect_clicked(move |_| {
+                    Self::remove_selected_mapping_page(
+                        &plot_notebook,
+                        mapping_menus.clone(),
+                        plot_view.clone()
+                    );
+                plot_notebook.show_all();
+            });
+        }
+
         (add_mapping_btn, clear_layout_btn, remove_mapping_btn)
     }
 
-    fn build_add_mapping_popover(builder : Builder) -> HashMap<String, ToolButton> {
+    fn build_add_mapping_popover(
+        builder : Builder,
+        add_mapping_btn : ToolButton,
+        remove_mapping_btn : ToolButton,
+        tbl_env : Rc<RefCell<TableEnvironment>>,
+        plot_view : Rc<RefCell<PlotView>>,
+        tbl_nb : TableNotebook,
+        glade_def : Rc<String>,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        plot_notebook : Notebook
+    ) -> HashMap<String, ToolButton> {
         let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
         add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
         let upper_mapping_toolbar : Toolbar = builder.get_object("upper_mapping_toolbar").unwrap();
@@ -132,22 +291,24 @@ impl PlotSidebar {
             toolbars[i / 3].insert(&btn, (i % 3) as i32);
             let m = mapping.clone();
             let add_mapping_popover = add_mapping_popover.clone();
-            let builder = builder.clone();
-            let data_source = data_source.clone();
+            //let builder = builder.clone();
+            let tbl_env = tbl_env.clone();
             let plot_view = plot_view.clone();
-            let sidebar = sidebar.clone();
             let remove_mapping_btn = remove_mapping_btn.clone();
             let tbl_nb = tbl_nb.clone();
             let glade_def = glade_def.clone();
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             btn.connect_clicked(move |_btn| {
                 Self::add_mapping_from_type(
                     glade_def.clone(),
                     &m[..],
-                    data_source.clone(),
+                    tbl_env.clone(),
                     tbl_nb.clone(),
                     plot_view.clone(),
-                    sidebar.clone(),
-                    builder.clone()
+                    mapping_menus.clone(),
+                    //builder.clone(),
+                    plot_notebook.clone()
                 );
                 add_mapping_popover.hide();
                 remove_mapping_btn.set_sensitive(true);
@@ -203,30 +364,30 @@ impl PlotSidebar {
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         plot_view : Rc<RefCell<PlotView>>,
-        sidebar : PlotSidebar,
-        builder_clone : Builder
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // builder_clone : Builder,
+        plot_notebook : Notebook
     ) {
-        let name = if let Ok(menus) = sidebar.mapping_menus.try_borrow() {
+        let name = if let Ok(menus) = mapping_menus.try_borrow() {
             format!("{}", menus.len())
         } else {
             return;
         };
-        let menu = LayoutMenu::create_new_mapping_menu(
+        let menu = Self::create_new_mapping_menu(
             glade_def.clone(),
-            //builder_clone.clone(),
             Rc::new(RefCell::new(name)),
             mapping_type.to_string(),
             data_source.clone(),
             plot_view.clone(),
             None,
-            sidebar.clone()
+            //mapping_menus.clone()
         );
         match menu {
             Ok(m) => {
                 Self::append_mapping_menu(
                     m,
-                    sidebar.mapping_menus.clone(),
-                    sidebar.notebook.clone(),
+                    mapping_menus.clone(),
+                    plot_notebook.clone(),
                     plot_view.clone(),
                     data_source.clone(),
                     tbl_nb.clone(),
@@ -238,39 +399,104 @@ impl PlotSidebar {
         }
     }
 
-}
-
-/// LayoutMenu encapsulate the logic of the buttons at the bottom-left
-/// that allows changing the plot layout and mappings.
-#[derive(Clone)]
-pub struct LayoutMenu {
-    load_layout_btn : Button,
-    new_layout_btn : Button,
-    // add_mapping_btn : ToolButton,
-    // manage_btn : Button,
-    // remove_mapping_btn : ToolButton,
-    layout_stack : Stack,
-    glade_def : Rc<String>,
-
-    //manage_mapping_popover : Popover
-}
-
-/*fn load_text_content(path : PathBuf)
--> Option<String> {
-    if let Ok(mut f) = File::open(path) {
-        let mut content = String::new();
-        let has_read = f.read_to_string(&mut content);
-        if has_read.is_ok() {
-            return Some(content);
-        } else {
-            None
+    fn build_layout_load_button(
+        glade_def : Rc<String>,
+        builder : Builder,
+        plot_view : Rc<RefCell<PlotView>>,
+        data_source : Rc<RefCell<TableEnvironment>>,
+        //sidebar : PlotSidebar,
+        tbl_nb : TableNotebook,
+        status_stack : StatusStack,
+        layout_clear_btn : ToolButton,
+        plot_notebook : Notebook,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        design_menu : DesignMenu,
+        scale_menus : (ScaleMenu, ScaleMenu)
+    ) -> Button {
+        let xml_load_dialog : FileChooserDialog =
+            builder.get_object("xml_load_dialog").unwrap();
+        let load_btn : Button=
+            builder.get_object("load_layout_btn").unwrap();
+        {
+            let load_btn = load_btn.clone();
+            let xml_load_dialog = xml_load_dialog.clone();
+            load_btn.connect_clicked(move |_| {
+                xml_load_dialog.run();
+                xml_load_dialog.hide();
+            });
         }
-    } else {
-        None
-    }
-}*/
 
-impl LayoutMenu {
+        {
+            xml_load_dialog.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename() {
+                            //let path = f.get_path().unwrap_or(PathBuf::new());
+                            //println!("{:?}", path);
+                            //if let Some(path) = f {
+                            let new_mapping_info = match plot_view.try_borrow_mut() {
+                                Ok(mut pl) => {
+                                    match pl.plot_area.load_layout(path.to_str().unwrap_or("").into()) {
+                                        Ok(_) => Some(pl.plot_area.mapping_info()),
+                                        Err(e) => { println!("{}", e); None }
+                                    }
+                                },
+                                Err(_) => { println!("Could not get reference to Plot widget"); None }
+                            };
+                            if let Some(new_info) = new_mapping_info {
+                                Self::clear_mappings(
+                                    mapping_menus.clone(),
+                                    plot_notebook.clone()
+                                ).expect("Error clearing mappings");
+                                Self::update_layout_widgets(
+                                    design_menu.clone(),
+                                    scale_menus.clone(),
+                                    plot_view.clone()
+                                );
+                                layout_clear_btn.set_sensitive(true);
+                                for m_info in new_info.iter() {
+                                    let menu = Self::create_new_mapping_menu(
+                                        glade_def.clone(),
+                                        //builder.clone(),
+                                        Rc::new(RefCell::new(m_info.0.clone())),
+                                        m_info.1.clone(),
+                                        data_source.clone(),
+                                        plot_view.clone(),
+                                        Some(m_info.2.clone()),
+                                        //sidebar.clone()
+                                    );
+                                    match menu {
+                                        Ok(m) => {
+                                            Self::append_mapping_menu(
+                                                m,
+                                                mapping_menus.clone(),
+                                                plot_notebook.clone(),
+                                                plot_view.clone(),
+                                                data_source.clone(),
+                                                tbl_nb.clone(),
+                                                None
+                                            );
+                                        },
+                                        Err(e) => { println!("{}", e); return; }
+                                    }
+                                }
+                                plot_notebook.show_all();
+                                status_stack.try_show_alt();
+                                // sidebar.layout_stack.set_visible_child_name("layout");
+                                // println!("{:?}", mappings);
+                            } else {
+                                println!("No info to update");
+                            }
+                        } else {
+                            println!("Could not get filename from dialog");
+                        }
+                    },
+                    _ => { }
+                }
+            });
+        }
+        load_btn
+    }
 
     /// The creation of a mapping menu is based on an id naming convention
     /// of passing a prefix identifying the mappping (line, scatter, box, etc)
@@ -286,7 +512,7 @@ impl LayoutMenu {
         tbl_env : Rc<RefCell<TableEnvironment>>,
         pl_view : Rc<RefCell<PlotView>>,
         properties : Option<HashMap<String, String>>,
-        sidebar : PlotSidebar
+        //sidebar : PlotSidebar
     ) -> Result<MappingMenu, &'static str> {
         //println!("{}", *glade_def);
         //let builder = Builder::new_from_string(&glade_def[..]);
@@ -384,14 +610,15 @@ impl LayoutMenu {
     }
 
     fn update_layout_widgets(
-        sidebar : PlotSidebar,
+        design_menu : DesignMenu,
+        scale_menus : (ScaleMenu, ScaleMenu),
         plot_view : Rc<RefCell<PlotView>>
     ) {
         match plot_view.try_borrow_mut() {
             Ok(pl) => {
-                sidebar.design_menu.update(pl.plot_area.design_info());
-                sidebar.scale_menus.0.update(pl.plot_area.scale_info("x"));
-                sidebar.scale_menus.1.update(pl.plot_area.scale_info("y"));
+                design_menu.update(pl.plot_area.design_info());
+                scale_menus.0.update(pl.plot_area.scale_info("x"));
+                scale_menus.1.update(pl.plot_area.scale_info("y"));
             },
             _ => {
                 panic!("Could not fetch plotview reference to update layout");
@@ -399,7 +626,43 @@ impl LayoutMenu {
         }
     }
 
-    fn build_layout_load_button(
+
+}
+
+/*
+/*// LayoutMenu encapsulate the logic of the buttons at the bottom-left
+// that allows changing the plot layout and mappings.
+#[derive(Clone)]
+pub struct LayoutMenu {
+
+    new_layout_btn : Button,
+    // add_mapping_btn : ToolButton,
+    // manage_btn : Button,
+    // remove_mapping_btn : ToolButton,
+    layout_stack : Stack,
+    glade_def : Rc<String>,
+
+    //manage_mapping_popover : Popover
+}*/
+
+/*fn load_text_content(path : PathBuf)
+-> Option<String> {
+    if let Ok(mut f) = File::open(path) {
+        let mut content = String::new();
+        let has_read = f.read_to_string(&mut content);
+        if has_read.is_ok() {
+            return Some(content);
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}*/
+
+//impl LayoutMenu {
+
+    /*fn build_layout_load_button(
         glade_def : Rc<String>,
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
@@ -491,9 +754,9 @@ impl LayoutMenu {
             });
         }
         load_btn
-    }
+    }*/
 
-    fn selected_mapping_radio(scatter_radio : &RadioButton) -> Option<String> {
+    /*fn selected_mapping_radio(scatter_radio : &RadioButton) -> Option<String> {
         for radio in scatter_radio.get_group() {
             if radio.get_active() {
                 if let Some(name) = WidgetExt::get_widget_name(&radio) {
@@ -514,9 +777,9 @@ impl LayoutMenu {
             }
         }
         println!("Radio not found for informed type");
-    }
+    }*/
 
-    pub fn new_from_builder(
+    /*pub fn new_from_builder(
         builder : &Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
@@ -525,96 +788,9 @@ impl LayoutMenu {
         sidebar : PlotSidebar
     ) -> Self {
 
-        let mut def_content = String::new();
-        let fpath = utils::glade_path("gtk-queries.glade").unwrap();
-        if let Ok(mut f) = File::open(fpath) {
-            if let Err(e) = f.read_to_string(&mut def_content) {
-                println!("{}", e);
-            }
-        } else {
-            println!("Error opening glade definition");
-        }
-        let glade_def = Rc::new(def_content);
-        let load_layout_btn = Self::build_layout_load_button(
-            glade_def.clone(),
-            builder.clone(),
-            plot_view.clone(),
-            data_source.clone(),
-            sidebar.clone(),
-            tbl_nb.clone(),
-            status_stack.clone(),
-            clear_layout_btn.clone()
-        );
-
-        let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
-        let layout_stack = sidebar.layout_stack.clone();
-        {
-            let layout_stack = layout_stack.clone();
-            let status_stack = status_stack.clone();
-            let clear_layout_btn = clear_layout_btn.clone();
-            new_layout_btn.connect_clicked(move |btn| {
-                layout_stack.set_visible_child_name("layout");
-                status_stack.try_show_alt();
-                clear_layout_btn.set_sensitive(true);
-            });
-        }
-
-        {
-            let layout_stack = layout_stack.clone();
-            let plot_view = plot_view.clone();
-            let mapping_menus = sidebar.mapping_menus.clone();
-            let notebook = sidebar.notebook.clone();
-            clear_layout_btn.connect_clicked(move |btn| {
-                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
-                    layout_stack.set_visible_child_name("empty");
-                    status_stack.show_curr_status();
-                    if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
-                        mappings.clear();
-                    } else {
-                        println!("Error retrieving mapping menus");
-                    }
-                    let children = notebook.get_children();
-                    for i in 3..children.len() {
-                        if let Some(c) = children.get(i) {
-                            notebook.remove(c);
-                        } else {
-                            println!("Unable to clear notebook");
-                        }
-                    }
-                }
-                btn.set_sensitive(false);
-            });
-        }
 
 
-        {
-            let plot_notebook = sidebar.notebook.clone();
-            let remove_mapping_btn = remove_mapping_btn.clone();
-            plot_notebook.clone().connect_switch_page(move |_nb, wid, page| {
-                //let page = plot_notebook.get_property_page();
-                println!("{}", page);
-                if page > 2 {
-                    remove_mapping_btn.set_sensitive(true);
-                } else {
-                    remove_mapping_btn.set_sensitive(false);
-                }
-            });
-        }
 
-        {
-            let sidebar = sidebar.clone();
-            let plot_view = plot_view.clone();
-            let plot_notebook = sidebar.notebook.clone();
-            remove_mapping_btn.connect_clicked(move |_| {
-                    Self::remove_selected_mapping_page(
-                        &plot_notebook,
-                        sidebar.mapping_menus.clone(),
-                        plot_view.clone()
-                    );
-                plot_notebook.show_all();
-            });
-        }
 
         Self {
             load_layout_btn,
@@ -628,6 +804,6 @@ impl LayoutMenu {
         }
     }
 
-}
+}*/
 
-
+*/
