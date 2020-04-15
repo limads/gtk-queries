@@ -23,7 +23,8 @@ pub struct MappingMenu {
     pub mapping_type : String,
     pub mapping_box : Box,
     //pub combos : Vec<ComboBoxText>,
-    pub design_widgets : HashMap<String, Widget>
+    pub design_widgets : HashMap<String, Widget>,
+    pub ixs : Rc<RefCell<Vec<usize>>>
 }
 
 // If all combo boxes have valid textual entries, return Some<Vec>.
@@ -323,6 +324,7 @@ impl MappingMenu {
 
     pub fn update_data(
         &self,
+        ixs : Vec<usize>,
         cols : Columns,
         pl_view : &mut PlotView
     ) -> Result<(), &'static str> {

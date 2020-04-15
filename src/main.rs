@@ -254,8 +254,16 @@ impl QueriesApp {
 
         {
             let tables_nb = tables_nb.clone();
-            sql_popover.connect_send_query(move ||{
-                tables_nb.nb.set_sensitive(false);
+            let status_stack = status_stack.clone();
+            sql_popover.connect_send_query(move |res| {
+                match res {
+                    Ok(_) => {
+                        tables_nb.nb.set_sensitive(false);
+                    },
+                    Err(e) => {
+                        status_stack.update(Status::SqlErr(e));
+                    }
+                }
                 Ok(())
             });
         }

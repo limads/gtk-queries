@@ -1510,7 +1510,6 @@
                                       <object class="GtkButton" id="sql_load_btn">
                                         <property name="label" translatable="yes">Load</property>
                                         <property name="visible">True</property>
-                                        <property name="sensitive">False</property>
                                         <property name="can_focus">True</property>
                                         <property name="receives_default">True</property>
                                         <property name="image">image10</property>
@@ -1526,7 +1525,6 @@
                                       <object class="GtkButton" id="sql_new_btn">
                                         <property name="label" translatable="yes">New</property>
                                         <property name="visible">True</property>
-                                        <property name="sensitive">False</property>
                                         <property name="can_focus">True</property>
                                         <property name="receives_default">True</property>
                                         <property name="image">image11</property>

@@ -48,6 +48,7 @@ pub struct SqlPopover {
     t_env : Rc<RefCell<TableEnvironment>>,
     sql_new_btn : Button,
     sql_load_btn : Button,
+    query_file_label : Label,
 
     // Keeps status if clock was started at first position,
     // the update interval at second position (constant) and
@@ -82,16 +83,21 @@ impl SqlPopover {
         }
     }
 
+    /// Update the query. If there was a SQL parsing error,
+    /// return it. If there was no error, set the SQL sourceview
+    /// to insensitive (until no result arrived) and return Ok(()).
     pub fn update_queries(
         file_loaded : Rc<RefCell<bool>>,
         query_sent : Rc<RefCell<bool>>,
         tbl_env : &mut TableEnvironment,
         view : &sourceview::View,
-        //nb : &TableNotebook
-    ) -> Result<(), &'static str> {
+        // status_stack : StatusStack
+        // nb : &TableNotebook
+    ) -> Result<(), String> {
         if let Ok(loaded) = file_loaded.try_borrow() {
             if *loaded {
-                tbl_env.send_current_query();
+                tbl_env.send_current_query()?;
+                view.set_sensitive(false);
                 //nb.nb.set_sensitive(false);
             } else {
                 if let Some(buffer) = view.get_buffer() {
@@ -108,30 +114,27 @@ impl SqlPopover {
                         }
                     };
                     if let Some(txt) = text {
-                        //println!("{}", txt);
-                        tbl_env.prepare_and_send_query(txt);
+                        // println!("{}", txt);
+                        tbl_env.prepare_and_send_query(txt)?;
                         view.set_sensitive(false);
-                        //nb.nb.set_sensitive(false);
+                        // nb.nb.set_sensitive(false);
                     } else {
                         println!("No text available to send");
                     }
                 } else {
-                    println!("Could not retrieve text buffer");
-                    return Err("Error");
+                    return Err(format!("Could not retrieve text buffer"));
                 }
             }
         } else {
-            println!("Could not retrieve reference to file status");
-            return Err("Error");
+            return Err(format!("Could not retrieve reference to file status"));
         }
         if let Ok(mut sent) = query_sent.try_borrow_mut() {
             *sent = true;
             //println!("Query sent");
-            Ok(())
         } else {
-            println!("Unable to acquire lock over query sent status");
-            Err("Error")
+            return Err(format!("Unable to acquire lock over query sent status"))
         }
+        Ok(())
         //println!("at update: {}", query_sent.borrow());
     }
 
@@ -253,6 +256,7 @@ impl SqlPopover {
         sql_stack.set_visible_child_name("empty");
         let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
         let sql_load_btn : Button = builder.get_object("sql_load_btn").unwrap();
+        let query_file_label : Label = builder.get_object("query_file_label").unwrap();
         {
             let sql_stack = sql_stack.clone();
             sql_new_btn.connect_clicked(move |btn| {
@@ -288,6 +292,7 @@ impl SqlPopover {
         let update_clock = Rc::new(RefCell::new((false, 0, 0)));
         {
             let update_clock = update_clock.clone();
+            let refresh_btn = refresh_btn.clone();
             update_btn.connect_toggled(move |btn| {
                 if let Ok(mut update) = update_clock.try_borrow_mut() {
                     update.0 = false;
@@ -295,6 +300,9 @@ impl SqlPopover {
                         update.1 = 2000;
                     } else {
                         update.1 = 0;
+                        //if !refresh_btn.is_sensitive() {
+                            //refresh_btn.set_sensitive(true);
+                        //}
                     }
                 } else {
                     println!("Failed to retrieve mutable reference to refresh state");
@@ -338,18 +346,18 @@ impl SqlPopover {
         //let append_btn = ToggleToolButton::new();
         //append_btn.set_icon_widget(Some(&img_append));
 
-
         {
             let t_env = t_env.clone();
             let sql_stack = sql_stack.clone();
-            clear_btn.connect_clicked(move |btn| {
+            let query_file_label = query_file_label.clone();
+            clear_btn.connect_clicked(move |_btn| {
                 if let Ok(mut t_env) = t_env.try_borrow_mut() {
                     t_env.prepare_query(String::new());
                 } else {
                     println!("Error fetching mutable reference to table environment");
                 }
                 sql_stack.set_visible_child_name("empty");
-
+                query_file_label.set_text("Empty query sequence");
             });
         }
         //sql_toolbar.insert(&append_btn, 2);
@@ -399,7 +407,8 @@ impl SqlPopover {
 
         popover.set_relative_to(Some(&query_toggle));*/
 
-        Self::connect_sql_load(sql_load_dialog.clone(), t_env.clone());
+        let file_loaded = Rc::new(RefCell::new(false));
+        Self::connect_sql_load(sql_load_dialog.clone(), t_env.clone(), file_loaded.clone(), query_file_label.clone());
 
         Self {
             view,
@@ -411,7 +420,7 @@ impl SqlPopover {
             //sql_box,
             //extra_toolbar,
             // sql_toggle,
-            file_loaded : Rc::new(RefCell::new(false)),
+            file_loaded,
             query_sent : Rc::new(RefCell::new(false)),
             sql_stack,
             status_stack,
@@ -420,7 +429,8 @@ impl SqlPopover {
             clear_btn,
             update_btn,
             sql_new_btn,
-            sql_load_btn
+            sql_load_btn,
+            query_file_label
         }
     }
 
@@ -452,45 +462,67 @@ impl SqlPopover {
         }*/
     }
 
-    pub fn connect_sql_load(sql_load_dialog : FileChooserDialog, table_env : Rc<RefCell<TableEnvironment>>) {
+    pub fn connect_sql_load(
+        sql_load_dialog : FileChooserDialog,
+        table_env : Rc<RefCell<TableEnvironment>>,
+        file_loaded : Rc<RefCell<bool>>,
+        query_file_label : Label
+    ) {
         //let sql_popover = self.clone();
         sql_load_dialog.connect_response(move |dialog, resp|{
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
-                match resp {
-                    ResponseType::Other(1) => {
-                        if let Some(path) = dialog.get_filename() {
-                            let p = path.as_path();
-                            let mut sql_content = String::new();
-                            if let Ok(mut f) = File::open(path.clone()) {
-                                if let Err(e) = f.read_to_string(&mut sql_content) {
-                                    println!("{}", e);
+                if let Ok(mut loaded) = file_loaded.try_borrow_mut() {
+                    match resp {
+                        ResponseType::Other(1) => {
+                            if let Some(path) = dialog.get_filename() {
+                                if let Some(name) = path.file_name().and_then(|n| n.to_str() ) {
+                                    query_file_label.set_text(name);
+                                } else {
+                                    query_file_label.set_text("(Unknown path)");
                                 }
-                                t_env.prepare_query(sql_content);
+                                let mut sql_content = String::new();
+                                if let Ok(mut f) = File::open(path.clone()) {
+                                    if let Err(e) = f.read_to_string(&mut sql_content) {
+                                        println!("{}", e);
+                                    }
+                                    t_env.prepare_query(sql_content);
+                                    *loaded = true;
+                                } else {
+                                    println!("Unable to access informed path");
+                                    *loaded = false;
+                                    query_file_label.set_text("Empty query sequence");
+                                }
                             } else {
-                                println!("Unable to access informed path");
+                                t_env.clear_queries();
+                                *loaded = false;
+                                query_file_label.set_text("Empty query sequence");
                             }
-                            // sql_popover.set_file_mode(p.to_str().unwrap_or(""));
-                        } else {
+                        },
+                        _ => {
                             //sql_popover.set_view_mode();
                             t_env.clear_queries();
+                            *loaded = false;
+                            query_file_label.set_text("Empty query sequence");
                         }
-                    },
-                    _ => {
-                        //sql_popover.set_view_mode();
-                        t_env.clear_queries();
                     }
+                } else {
+                    println!("Unable to acquire lock over file loaded status");
+                    query_file_label.set_text("Empty query sequence");
                 }
             } else {
                 println!("Unable to retrieve mutable reference to table environment");
+                query_file_label.set_text("Empty query sequence");
             }
         });
     }
 
-    // Action to be executed if there is text on the buffer and the user either pressed
-    // the refresh button or pressed CTRL+Enter
+    /// Action to be executed if there is text on the buffer or a loaded SQL file and the user
+    /// either pressed the refresh button or pressed CTRL+Enter.
+    /// The callback informed by the user receive a Result<(), String> which carries the
+    /// SQL parsing status with an error message if the SQL could not be parsed.
     pub fn connect_send_query<F>(&self, f : F)
         where
-            F : Fn() -> Result<(), String> + 'static,
+            F : Fn(Result<(), String>) -> Result<(), String> + 'static,
             F : Clone
     {
         {
@@ -500,19 +532,17 @@ impl SqlPopover {
             let table_env = self.t_env.clone();
             let update_clock = self.update_clock.clone();
             let f = f.clone();
-            self.refresh_btn.connect_clicked(move |btn|{
+            self.refresh_btn.connect_clicked(move |_btn|{
                 match table_env.try_borrow_mut() {
                     Ok(mut env) => {
                         let update_res = Self::update_queries(
                             file_loaded.clone(),
                             query_sent.clone(),
                             &mut env,
-                            &view.clone(),
+                            &view.clone()
                         );
-                        if let Ok(_) = update_res {
-                            if let Err(e) = f() {
-                                println!("{}", e);
-                            }
+                        if let Err(e) = f(update_res) {
+                            println!("{}", e);
                         }
                     },
                     _ => { println!("Error recovering mutable reference to table environment"); }
@@ -521,13 +551,14 @@ impl SqlPopover {
                     if update.1 > 0 {
                         update.0 = true;
                         update.2 = 0;
+                        //btn.set_sensitive(false);
                     }
                 } else {
                     println!("Unabe to recover mutable reference to update clock");
                 }
             });
         }
-        self.connect_source_key_press(f);
+        self.connect_source_key_press( /*f*/ );
     }
 
     /*pub fn connect_refresh(&self, /*table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook*/ ) {
@@ -553,15 +584,15 @@ impl SqlPopover {
         });
     }*/
 
-    fn connect_source_key_press<F>(&self, f : F)
-        where
-            F : Fn() -> Result<(), String> + 'static,
-            F : Clone
+    fn connect_source_key_press /*<F>*/ (&self, /*f : F*/)
+        //where
+        //    F : Fn(Result<(), String>) -> Result<(), String> + 'static,
+        //    F : Clone
     {
-        //let sql_popover = self.clone();
-        let file_loaded = self.file_loaded.clone();
-        let query_sent = self.query_sent.clone();
-        let table_env = self.t_env.clone();
+        // let sql_popover = self.clone();
+        // let file_loaded = self.file_loaded.clone();
+        // let query_sent = self.query_sent.clone();
+        // let table_env = self.t_env.clone();
         let refresh_btn = self.refresh_btn.clone();
         // TODO verify that view is realized before accepting key press
         self.view.connect_key_press_event(move |view, ev_key| {

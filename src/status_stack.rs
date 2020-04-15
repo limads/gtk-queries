@@ -118,7 +118,9 @@ impl StatusStack {
         } else {
             return;
         };
-        self.update(status); //,
+        self.update(status);
+        self.parent_stack.set_visible_child(&self.status_stack);
+         //,
         //match status {
         /*    Status::Ok =>
             status => self.update(status)
@@ -131,13 +133,16 @@ impl StatusStack {
         if let Ok(status) = self.status.try_borrow() {
             match *status {
                 Status::Ok | Status::Connected => self.parent_stack.set_visible_child(&self.alt_wid),
-                _ => ()
+                _ => { }, /*self.parent_stack.set_visible_child(&self.status_stack)*/
             }
         } else {
             println!("Could not borrow status");
         }
     }
 
+    /// Updates the status. If the status is of type Ok, show the alternative
+    /// widget. If status is not ok, show the child widget with the corresponding
+    /// error.
     pub fn update(&self, status : Status) {
         if let Ok(mut old_status) = self.status.try_borrow_mut() {
             *old_status = status.clone();

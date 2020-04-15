@@ -103,7 +103,7 @@ impl TableEnvironment {
         }
     }
 
-    pub fn send_current_query(&mut self) {
+    pub fn send_current_query(&mut self) -> Result<(), String> {
         //println!("{:?}", self.source);
         let query = match self.source {
             EnvironmentSource::PostgreSQL(ref db_pair) =>{
@@ -115,9 +115,9 @@ impl TableEnvironment {
             _ => None
         };
         if let Some(q) = query {
-            self.listener.send_command(q);
+            self.listener.send_command(q)
         } else {
-            println!("No query available to send.");
+            Err(format!("No query available to send."))
         }
     }
 
@@ -138,10 +138,10 @@ impl TableEnvironment {
         }
     }
 
-    pub fn prepare_and_send_query(&mut self, sql : String) {
+    pub fn prepare_and_send_query(&mut self, sql : String) -> Result<(), String> {
         //self.listener.send_command(sql.clone());
         self.prepare_query(sql);
-        self.send_current_query();
+        self.send_current_query()
     }
 
     /// Try to update the tables, potentially returning the first error
@@ -185,7 +185,9 @@ impl TableEnvironment {
     /// Try to update the table from a source such as a SQL connection string
     /// or a file path.
     pub fn update_source(
-        &mut self, src : EnvironmentSource, clear : bool
+        &mut self,
+        src : EnvironmentSource,
+        clear : bool
     ) -> Result<(),String> {
         if clear {
             self.tables.clear();
@@ -209,14 +211,18 @@ impl TableEnvironment {
                 self.set_new_postgre_engine(conn)
                     .map_err(|e| { format!("{}", e) })?;
                 if !q.is_empty() {
-                    self.prepare_and_send_query(q);
+                    if let Err(e) = self.prepare_and_send_query(q) {
+                        println!("{}", e);
+                    }
                 }
             },
             EnvironmentSource::SQLite3((conn, q)) => {
                 self.set_new_sqlite3_engine(conn)
                     .map_err(|e|{ format!("{}", e) })?;
                 if !q.is_empty() {
-                    self.prepare_and_send_query(q);
+                    if let Err(e) = self.prepare_and_send_query(q) {
+                        println!("{}", e);
+                    }
                 }
             },
             _ => { println!("Invalid_source"); }

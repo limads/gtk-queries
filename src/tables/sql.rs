@@ -729,8 +729,17 @@ impl SqlListener {
                     (Ok(cmd), Ok(mut eng)) => {
                         let result = eng.try_run(cmd);
                         match result {
-                            Ok(ans) => { ans_tx.send(ans); },
-                            Err(e) => { println!("{}", e.to_string()); }
+                            Ok(ans) => {
+                                if let Err(e) = ans_tx.send(ans) {
+                                    println!("{}", e);
+                                }
+                            },
+                            Err(e) => {
+                                let inv_res = vec![QueryResult::Invalid( e.to_string() )];
+                                if let Err(e) = ans_tx.send(inv_res) {
+                                    println!("{}", e);
+                                }
+                            }
                         }
                     },
                     _ => {
@@ -749,7 +758,11 @@ impl SqlListener {
         }
     }
 
-    pub fn send_command(&self, sql : String) {
+    /// Tries to parse SQL at client side. If series of statements at string
+    /// are correctly parsed, send the SQL to the server. If sequence is not
+    /// correctly parsed, do not send anything to the server, and return the
+    /// error to the user.
+    pub fn send_command(&self, sql : String) -> Result<(), String> {
         if let Ok(mut last_cmd) = self.last_cmd.lock() {
             last_cmd.clear();
             match parse_sql(&sql[..]) {
@@ -762,14 +775,16 @@ impl SqlListener {
                         last_cmd.push(stmt_txt);
                     }
                 },
-                Err(e) => println!("{}", e)
+                Err(e) => {
+                    return Err(e.to_string());
+                }
             }
         } else {
-            println!("Unable to acquire lock over last commands");
-            return;
+            return Err(format!("Unable to acquire lock over last commands"));
         }
         self.cmd_sender.send(sql.clone())
             .expect("Error sending SQL command over channel");
+        Ok(())
     }
 
     pub fn maybe_get_result(&self) -> Option<Vec<QueryResult>> {

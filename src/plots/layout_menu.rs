@@ -89,8 +89,8 @@ impl PlotSidebar {
         builder : Builder,
         layout_stack : Stack,
         status_stack : StatusStack,
-        clear_layout_btn :
-        ToolButton
+        clear_layout_btn :ToolButton,
+        plot_toggle : ToggleButton
     ) -> Button {
         let new_layout_btn : Button = builder.get_object("layout_new_btn").unwrap();
         let layout_stack = layout_stack.clone();
@@ -102,6 +102,7 @@ impl PlotSidebar {
                 layout_stack.set_visible_child_name("layout");
                 status_stack.try_show_alt();
                 clear_layout_btn.set_sensitive(true);
+                plot_toggle.set_active(true);
             });
         }
         new_layout_btn
@@ -153,13 +154,14 @@ impl PlotSidebar {
             glade_def.clone(),
             mapping_menus.clone(),
             plot_notebook.clone(),
-            plot_toggle
+            plot_toggle.clone()
         );
         let new_layout_btn = Self::build_layout_new_btn(
             builder.clone(),
             layout_stack.clone(),
             status_stack.clone(),
-            clear_layout_btn.clone()
+            clear_layout_btn.clone(),
+            plot_toggle.clone()
         );
         let (load_layout_btn, xml_load_dialog) = Self::build_layout_load_button(
             glade_def.clone(),
@@ -173,7 +175,8 @@ impl PlotSidebar {
             plot_notebook.clone(),
             mapping_menus.clone(),
             design_menu.clone(),
-            (scale_menus.0.clone(), scale_menus.1.clone())
+            (scale_menus.0.clone(), scale_menus.1.clone()),
+            plot_toggle
         );
         {
             let remove_mapping_btn = remove_mapping_btn.clone();
@@ -252,6 +255,7 @@ impl PlotSidebar {
                     }
                 }
                 btn.set_sensitive(false);
+
             });
         }
 
@@ -429,7 +433,8 @@ impl PlotSidebar {
         plot_notebook : Notebook,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
-        scale_menus : (ScaleMenu, ScaleMenu)
+        scale_menus : (ScaleMenu, ScaleMenu),
+        plot_toggle : ToggleButton
     ) -> (Button, FileChooserDialog) {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
@@ -500,6 +505,7 @@ impl PlotSidebar {
                                 }
                                 plot_notebook.show_all();
                                 status_stack.try_show_alt();
+                                plot_toggle.set_active(true);
                                 // sidebar.layout_stack.set_visible_child_name("layout");
                                 // println!("{:?}", mappings);
                             } else {
@@ -543,11 +549,13 @@ impl PlotSidebar {
         let box_name = mapping_type.clone() + "_box";
         let mapping_box : Box = builder.get_object(&box_name).unwrap();
         let design_widgets = HashMap::new();
+        let ixs = Rc::new(RefCell::new(Vec::new()));
         let mut m = MappingMenu {
             mapping_name,
             mapping_type,
             mapping_box,
             design_widgets,
+            ixs
         };
         m.build_mapping_design_widgets(
             &builder,
@@ -597,7 +605,7 @@ impl PlotSidebar {
                     let selected = tbl_nb.full_selected_cols();
                     let cols = t_env.get_columns(&selected[..]);
                     println!("{:?}", cols);
-                    if let Err(e) = m.update_data(cols, &mut pl) {
+                    if let Err(e) = m.update_data(selected, cols, &mut pl) {
                         println!("{}", e);
                         return;
                     }
