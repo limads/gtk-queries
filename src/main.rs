@@ -136,7 +136,7 @@ impl QueriesApp {
                     },
                     true => {
                         content_stack.set_visible_child_name("tables");
-                        status_stack.show_curr_status();
+                        status_stack.try_show_alt();
                         main_paned.set_position(460);
                         content_stack.set_visible_child_name("tables");
                         if plot_toggle.get_active() {
@@ -240,6 +240,7 @@ impl QueriesApp {
         );
         conn_popover.hook_signals(
             table_env.clone(),
+            tables_nb.clone(),
             status_stack.clone(),
             sql_popover.clone(),
             sidebar.clone()

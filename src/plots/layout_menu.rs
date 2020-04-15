@@ -223,6 +223,8 @@ impl PlotSidebar {
         let clear_layout_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
         let add_mapping_btn : ToolButton = ToolButton::new(Some(&img_add), None);
         let remove_mapping_btn : ToolButton = ToolButton::new(Some(&img_remove), None);
+        // TODO verify if there isn't already at least two columns selected. If there is, do not set
+        // add sensititve to false.
         remove_mapping_btn.set_sensitive(false);
         add_mapping_btn.set_sensitive(false);
         clear_layout_btn.set_sensitive(false);
@@ -617,6 +619,17 @@ impl PlotSidebar {
             _ => {
                 println!("Unable to retrieve mutable reference to plot view|data source");
             }
+        }
+    }
+
+    pub fn clear(&self) {
+        if let Err(e) = Self::clear_mappings(self.mapping_menus.clone(), self.notebook.clone()) {
+            println!("{}", e);
+        }
+        if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
+            pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
+        } else {
+            println!("Failed to borrow mutable reference to plotview.");
         }
     }
 

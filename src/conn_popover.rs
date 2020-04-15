@@ -16,6 +16,7 @@ use crate::tables::table::*;
 use crate::status_stack::*;
 use crate::sql_popover::SqlPopover;
 use crate::plots::layout_menu::PlotSidebar;
+use crate::table_notebook::*;
 
 #[derive(Clone)]
 pub struct ConnPopover {
@@ -235,15 +236,44 @@ impl ConnPopover {
         }
     }
 
+    fn disconnect_with_delay(
+        switch : Switch
+    ) {
+        let switch = switch.clone();
+        gtk::timeout_add(160, move || {
+            //&switch.set_state(false);
+            glib::Continue(false)
+        });
+    }
+
+    fn clear_session(
+        sql_popover : SqlPopover,
+        plot_sidebar : PlotSidebar,
+        table_notebook : TableNotebook,
+        t_env : &mut TableEnvironment
+    ) {
+        sql_popover.set_active(false);
+        plot_sidebar.set_active(false);
+        table_notebook.clear();
+        plot_sidebar.clear();
+        //if let Ok(mut t_env) = table_env.try_borrow_mut() {
+        t_env.clear();
+        t_env.clear_queries();
+        //} else {
+        //    println!("Unable to retrieve lock ove table environment");
+        //}
+    }
+
     pub fn hook_signals(
         &self,
         table_env : Rc<RefCell<TableEnvironment>>,
+        table_notebook : TableNotebook,
         status : StatusStack,
         sql_popover : SqlPopover,
         plot_sidebar : PlotSidebar
     ) {
         let conn_popover = self.clone();
-        self.conn_switch.connect_state_set(move |_switch, state| {
+        self.conn_switch.connect_state_set(move |switch, state| {
             if let Ok(mut t_env) = table_env.try_borrow_mut() {
                 if state {
                     if let Ok(db_path) = conn_popover.db_path.try_borrow() {
@@ -251,13 +281,19 @@ impl ConnPopover {
                             (0, true) => {
                                  match Self::try_local_connection(&conn_popover, None, &mut t_env) {
                                     Ok(_) => status.update(Status::Connected),
-                                    Err(e) => status.update(Status::ConnectionErr(e))
+                                    Err(e) => {
+                                        status.update(Status::ConnectionErr(e));
+                                        Self::disconnect_with_delay(switch.clone());
+                                    }
                                  }
                             },
                             (0, false) => {
                                 match Self::try_remote_connection(&conn_popover, &mut t_env) {
                                     Ok(_) => status.update(Status::Connected),
-                                    Err(e) => status.update(Status::ConnectionErr(e))
+                                    Err(e) => {
+                                        status.update(Status::ConnectionErr(e));
+                                        Self::disconnect_with_delay(switch.clone());
+                                    }
                                 }
                             },
                             (1, true) => {
@@ -267,32 +303,44 @@ impl ConnPopover {
                                         Some("csv") | Some("txt") => {
                                             match Self::try_local_connection(&conn_popover, None, &mut t_env) {
                                                 Ok(_) => status.update(Status::Connected),
-                                                Err(e) => status.update(Status::ConnectionErr(e))
+                                                Err(e) => {
+                                                    status.update(Status::ConnectionErr(e));
+                                                    Self::disconnect_with_delay(switch.clone());
+                                                }
                                             }
-                                            Self::upload_csv(db_path[0].clone(), &mut t_env);
+                                            Self::upload_csv(db_path[0].clone(), &mut t_env, status.clone(), switch.clone());
                                             Self::select_all_tables(&mut t_env);
                                         },
                                         _ => {
                                             match Self::try_local_connection(&conn_popover, Some(db_path[0].clone()), &mut t_env) {
                                                 Ok(_) => status.update(Status::Connected),
-                                                Err(e) => status.update(Status::ConnectionErr(e))
+                                                Err(e) => {
+                                                    status.update(Status::ConnectionErr(e));
+                                                    Self::disconnect_with_delay(switch.clone());
+                                                }
                                             }
                                         }
                                     }
                                 } else {
                                     match Self::try_local_connection(&conn_popover, None, &mut t_env) {
                                         Ok(_) => status.update(Status::Connected),
-                                        Err(e) => status.update(Status::ConnectionErr(e))
+                                        Err(e) => {
+                                            status.update(Status::ConnectionErr(e));
+                                            Self::disconnect_with_delay(switch.clone());
+                                        }
                                     }
                                 }
                             },
                             (_, true) => {
                                 match Self::try_local_connection(&conn_popover, None, &mut t_env) {
                                     Ok(_) => status.update(Status::Connected),
-                                    Err(e) => status.update(Status::ConnectionErr(e))
+                                    Err(e) => {
+                                        status.update(Status::ConnectionErr(e));
+                                        Self::disconnect_with_delay(switch.clone());
+                                    }
                                 }
                                 for p in db_path.iter() {
-                                    Self::upload_csv(p.clone(), &mut t_env);
+                                    Self::upload_csv(p.clone(), &mut t_env, status.clone(), switch.clone());
                                 }
                                 Self::select_all_tables(&mut t_env);
                             },
@@ -311,6 +359,12 @@ impl ConnPopover {
                     conn_popover.set_non_db_mode();
                     conn_popover.clear_entries();
                     status.update(Status::Disconnected);
+                    Self::clear_session(
+                        sql_popover.clone(),
+                        plot_sidebar.clone(),
+                        table_notebook.clone(),
+                        &mut t_env
+                    );
                 }
             } else {
                 println!("Could not acquire lock over table environment");
@@ -322,8 +376,16 @@ impl ConnPopover {
                         plot_sidebar.set_active(true);
                     },
                     _ => {
-                        sql_popover.set_active(false);
-                        plot_sidebar.set_active(false);
+                        if let Ok(mut t_env) = table_env.try_borrow_mut() {
+                            Self::clear_session(
+                                sql_popover.clone(),
+                                plot_sidebar.clone(),
+                                table_notebook.clone(),
+                                &mut t_env
+                            );
+                        } else {
+                            println!("Failed to acquire lock over table environment");
+                        }
                     }
                 }
             }
@@ -406,7 +468,7 @@ impl ConnPopover {
         }*/
     }
 
-    fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment) {
+    fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment, status_stack : StatusStack, switch : Switch) {
         if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {
             if let Some(name) = name.map(|n| n.split('.').next()) {
                 if let Some(name) = name {
@@ -418,24 +480,43 @@ impl ConnPopover {
                                 Ok(t) => {
                                     if let Some(sql) = t.sql_string(name) {
                                         println!("{}", sql);
-                                        t_env.prepare_and_send_query(sql);
+                                        if let Err(e) = t_env.prepare_and_send_query(sql) {
+                                            status_stack.update(Status::SqlErr(e));
+                                        }
                                     } else {
-                                        println!("Could not generate SQL string for table");
+                                        status_stack.update(Status::SqlErr(
+                                            format!("Could not generate SQL string for table"))
+                                        );
+                                        Self::disconnect_with_delay(switch.clone());
                                     }
                                 },
-                                Err(e) => println!("{}", e)
+                                Err(e) => {
+                                    status_stack.update(Status::SqlErr(
+                                        format!("Could not generate SQL: {}", e))
+                                    );
+                                    Self::disconnect_with_delay(switch.clone());
+                                }
                             }
                         } else {
-                            println!("Could not read CSV content to string");
+                            status_stack.update(Status::SqlErr(
+                                format!("Could not read CSV content to string"))
+                            );
+                            Self::disconnect_with_delay(switch.clone());
                         }
                     } else {
-                        println!("Could not open file");
+                        status_stack.update(Status::SqlErr(
+                            format!("Could not open file"))
+                        );
+                        Self::disconnect_with_delay(switch.clone());
                     }
                 } else {
                     println!("Could not get mutable reference to tenv or recover file name");
                 }
             } else {
-                println!("File should have .csv extension");
+                status_stack.update(Status::SqlErr(
+                    format!("File should have any of the extensions: .csv|.db|.sqlite"))
+                );
+                Self::disconnect_with_delay(switch.clone());
             }
         } else {
             println!("Could not recover file name as string");
