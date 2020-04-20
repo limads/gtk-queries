@@ -55,13 +55,14 @@ impl PlotSidebar {
         let visible = self.layout_stack.get_visible_child_name()
             .ok_or("Unable to determine layout stack status" )?;
         if &visible[..] == "layout" {
-            if ncols >= 2 {
+            if ncols >= 1 {
                 self.add_mapping_btn.set_sensitive(true);
             } else {
                 self.add_mapping_btn.set_sensitive(false);
             }
             let sensitive : Vec<&str> = match ncols {
-                2 => vec!["line", "scatter", "bar"],
+                1 => vec!["bar"],
+                2 => vec!["line", "scatter"],
                 3 => vec!["area", "text", "surface"],
                 _ => vec![]
             };
@@ -296,9 +297,9 @@ impl PlotSidebar {
         let lower_mapping_toolbar : Toolbar = builder.get_object("lower_mapping_toolbar").unwrap();
         let toolbars = [upper_mapping_toolbar, lower_mapping_toolbar];
         let mapping_names = vec![
+            String::from("bar"),
             String::from("line"),
             String::from("scatter"),
-            String::from("bar"),
             String::from("text"),
             String::from("area"),
             String::from("surface")

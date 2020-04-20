@@ -173,6 +173,46 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_anchor_switch".into(), anchor_switch.upcast());
+                let width_scale : Scale =
+                    builder.get_object("bar_width_scale").unwrap();
+                connect_update_scale_property(
+                    &width_scale,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "bar_width".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("bar_width_scale".into(), width_scale.upcast());
+                let origin_x_entry : Entry =
+                    builder.get_object("bar_origin_x_entry").unwrap();
+                connect_update_entry_property(
+                    &origin_x_entry,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "origin_x".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("bar_origin_x_entry".into(), origin_x_entry.upcast());
+                let origin_y_entry : Entry =
+                    builder.get_object("bar_origin_y_entry").unwrap();
+                connect_update_entry_property(
+                    &origin_y_entry,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "origin_y".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("bar_origin_y_entry".into(), origin_y_entry.upcast());
+                let spacing_entry : Entry =
+                    builder.get_object("bar_spacing_entry").unwrap();
+                connect_update_entry_property(
+                    &spacing_entry,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "bar_spacing".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("bar_spacing_entry".into(), spacing_entry.upcast());
             },
             "text" => {
 
@@ -187,6 +227,7 @@ impl MappingMenu {
                     "opacity".into(),
                     "mapping"
                 );
+                self.design_widgets.insert("area_opacity_scale".into(), opacity_scale.upcast());
             },
             "surface" => {
                 let opacity_scale : Scale =
@@ -198,6 +239,7 @@ impl MappingMenu {
                     "opacity".into(),
                     "mapping"
                 );
+                self.design_widgets.insert("surface_opacity_scale".into(), opacity_scale.upcast());
             },
             _ => { }
         }
@@ -258,6 +300,12 @@ impl MappingMenu {
         e.set_text(value);
     }
 
+    pub fn set_switch_property(wid : &Widget, value : &str) {
+        let s : Switch = wid.clone().downcast()
+            .expect("Could not downcast to entry");
+        s.set_active(value.parse().unwrap());
+    }
+
     pub fn update_widget_values(
         &self,
         properties : HashMap<String, String>
@@ -289,7 +337,26 @@ impl MappingMenu {
 
             },
             "bar" => {
-
+                let wid_center = self.design_widgets.get("bar_anchor_switch")
+                    .ok_or(no_wid)?;
+                Self::set_switch_property(wid_center, properties.get("center_anchor")
+                    .ok_or(no_val)?);
+                let wid_width = self.design_widgets.get("bar_width_scale")
+                    .ok_or(no_wid)?;
+                Self::set_scale_property(wid_width, properties.get("bar_width")
+                    .ok_or(no_val)?);
+                let wid_orig_x = self.design_widgets.get("bar_origin_x_entry")
+                    .ok_or(no_wid)?;
+                Self::set_entry_property(wid_orig_x, properties.get("origin_x")
+                    .ok_or(no_val)?);
+                let wid_orig_y = self.design_widgets.get("bar_origin_y_entry")
+                    .ok_or(no_wid)?;
+                Self::set_entry_property(wid_orig_y, properties.get("origin_y")
+                    .ok_or(no_val)?);
+                let wid_spacing = self.design_widgets.get("bar_spacing_entry")
+                    .ok_or(no_wid)?;
+                Self::set_entry_property(wid_spacing, properties.get("bar_spacing")
+                    .ok_or(no_val)?);
             },
             "area" => {
                 let opacity_wid = self.design_widgets.get("area_opacity_scale")
@@ -330,22 +397,15 @@ impl MappingMenu {
     ) -> Result<(), &'static str> {
         let name = self.get_mapping_name().map(|n| n.clone())
             .ok_or("Unable to get mapping name")?;
-        let (pos0, pos1) = match (cols.try_numeric(0), cols.try_numeric(1)) {
-            (Some(c0), Some(c1)) => {
-                (c0, c1)
-            },
-            _ => {
-                return Err("Error retrieving two first columns to position");
-            }
-        };
-        let vec_pos = vec![pos0, pos1];
+        let pos0 = cols.try_numeric(0).ok_or("Error retrieving first column to position")?;
         match &self.mapping_type[..] {
             "text" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error retrieving second column to position")?;
                 if let Some(c) = cols.try_access::<String>(2) {
                     let vec_txt = Vec::from(c);
                     pl_view.update(&mut UpdateContent::TextData(
                         name.clone(),
-                        vec_pos,
+                        vec![pos0, pos1],
                         vec_txt
                     ));
                 } else {
@@ -353,9 +413,16 @@ impl MappingMenu {
                 }
             },
             "line" | "scatter" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error retrieving second column to position")?;
                 pl_view.update(&mut UpdateContent::Data(
                     name.clone(),
-                    vec_pos
+                    vec![pos0, pos1]
+                ));
+            },
+            "bar" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![pos0]
                 ));
             },
             mapping => {
