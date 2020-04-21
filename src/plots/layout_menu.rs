@@ -15,8 +15,8 @@ use super::design_menu::*;
 use super::scale_menu::*;
 use std::collections::HashMap;
 use crate::utils;
-use crate::status_stack::StatusStack;
 use crate::table_notebook::TableNotebook;
+use crate::status_stack::*;
 
 /// PlotsSidebar holds the information of the used mappings
 #[derive(Clone)]
@@ -143,7 +143,8 @@ impl PlotSidebar {
             layout_stack.clone(),
             pl_view.clone(),
             mapping_menus.clone(),
-            plot_notebook.clone()
+            plot_notebook.clone(),
+            table_env.clone()
         );
         let mapping_btns = Self::build_add_mapping_popover(
             builder.clone(),
@@ -155,7 +156,8 @@ impl PlotSidebar {
             glade_def.clone(),
             mapping_menus.clone(),
             plot_notebook.clone(),
-            plot_toggle.clone()
+            plot_toggle.clone(),
+            status_stack.clone()
         );
         let new_layout_btn = Self::build_layout_new_btn(
             builder.clone(),
@@ -215,7 +217,8 @@ impl PlotSidebar {
         layout_stack : Stack,
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook
+        plot_notebook : Notebook,
+        table_env : Rc<RefCell<TableEnvironment>>
     ) -> (ToolButton, ToolButton, ToolButton) {
         let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
         let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
@@ -238,6 +241,7 @@ impl PlotSidebar {
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let notebook = plot_notebook.clone();
+            let status_stack = status_stack.clone();
             clear_layout_btn.connect_clicked(move |btn| {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                     pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
@@ -266,12 +270,33 @@ impl PlotSidebar {
             let mapping_menus = mapping_menus.clone();
             let plot_view = plot_view.clone();
             let plot_notebook = plot_notebook.clone();
+            let status_stack = status_stack.clone();
+            let table_env = table_env.clone();
             remove_mapping_btn.connect_clicked(move |_| {
-                    Self::remove_selected_mapping_page(
-                        &plot_notebook,
-                        mapping_menus.clone(),
-                        plot_view.clone()
-                    );
+                Self::remove_selected_mapping_page(
+                    &plot_notebook,
+                    mapping_menus.clone(),
+                    plot_view.clone()
+                );
+                if let Ok(mut pl) = plot_view.try_borrow_mut() {
+                    if let Ok(t_env) = table_env.try_borrow() {
+                        if let Ok(menus) = mapping_menus.try_borrow() {
+                            for m in menus.iter() {
+                                if let Err(e) = m.update_data(&t_env, &mut pl) {
+                                    status_stack.update(Status::SqlErr(format!("{}", e)));
+                                    return;
+                                }
+                            }
+                            status_stack.update(Status::Ok);
+                        } else {
+                            println!("Unable to retrieve mutable reference to mapping menus");
+                        }
+                    } else {
+                        println!("Unable to retrieve reference to table environment");
+                    }
+                } else {
+                    println!("Unable retrieve mutable reference to plot view");
+                }
                 plot_notebook.show_all();
             });
         }
@@ -289,7 +314,8 @@ impl PlotSidebar {
         glade_def : Rc<String>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
-        plot_toggle : ToggleButton
+        plot_toggle : ToggleButton,
+        status_stack : StatusStack
     ) -> HashMap<String, ToolButton> {
         let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
         add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
@@ -324,6 +350,7 @@ impl PlotSidebar {
             let mapping_menus = mapping_menus.clone();
             let plot_notebook = plot_notebook.clone();
             let plot_toggle = plot_toggle.clone();
+            let status_stack = status_stack.clone();
             btn.connect_clicked(move |_btn| {
                 Self::add_mapping_from_type(
                     glade_def.clone(),
@@ -333,7 +360,8 @@ impl PlotSidebar {
                     plot_view.clone(),
                     mapping_menus.clone(),
                     //builder.clone(),
-                    plot_notebook.clone()
+                    plot_notebook.clone(),
+                    status_stack.clone()
                 );
                 add_mapping_popover.hide();
                 remove_mapping_btn.set_sensitive(true);
@@ -391,7 +419,8 @@ impl PlotSidebar {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         // builder_clone : Builder,
-        plot_notebook : Notebook
+        plot_notebook : Notebook,
+        status_stack : StatusStack
     ) {
         let name = if let Ok(menus) = mapping_menus.try_borrow() {
             format!("{}", menus.len())
@@ -416,6 +445,7 @@ impl PlotSidebar {
                     plot_view.clone(),
                     data_source.clone(),
                     tbl_nb.clone(),
+                    status_stack.clone(),
                     None
                 );
                 println!("Mapping appended");
@@ -500,6 +530,7 @@ impl PlotSidebar {
                                                 plot_view.clone(),
                                                 data_source.clone(),
                                                 tbl_nb.clone(),
+                                                status_stack.clone(),
                                                 None
                                             );
                                         },
@@ -578,6 +609,25 @@ impl PlotSidebar {
         Image::new_from_file(&tab_img_path[..])
     }
 
+    pub fn update_all_mappings(
+        &self,
+        t_env : &TableEnvironment,
+        status_stack : StatusStack
+    ) -> Result<(), &'static str> {
+        let mut pl = self.pl_view.try_borrow_mut()
+            .map_err(|_| "Could not get mutable reference to plot view")?;
+        let menus = self.mapping_menus.try_borrow()
+            .map_err(|_| "Could not get reference to mapping menus" )?;
+        for m in menus.iter() {
+            if let Err(e) = m.update_data(t_env, &mut pl) {
+                status_stack.update(Status::SqlErr(format!("{}", e)));
+                return Err("Error updating mappings");
+            }
+        }
+        status_stack.update(Status::Ok);
+        Ok(())
+    }
+
     fn append_mapping_menu(
         mut m : MappingMenu,
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
@@ -585,6 +635,7 @@ impl PlotSidebar {
         plot_view : Rc<RefCell<PlotView>>,
         tbl_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
+        status_stack : StatusStack,
         pos : Option<usize>
     ) {
         match (plot_view.try_borrow_mut(), tbl_env.try_borrow(), mappings.try_borrow_mut()) {
@@ -605,11 +656,9 @@ impl PlotSidebar {
                         name.clone(),
                         m.mapping_type.to_string())
                     );
-                    let selected = tbl_nb.full_selected_cols();
-                    let cols = t_env.get_columns(&selected[..]);
-                    println!("{:?}", cols);
-                    if let Err(e) = m.update_data(selected, cols, &mut pl) {
-                        println!("{}", e);
+                    m.update_source_columns(tbl_nb.full_selected_cols());
+                    if let Err(e) = m.update_data(&t_env, &mut pl) {
+                        status_stack.update(Status::SqlErr(format!("{}", e)));
                         return;
                     }
                 } else {

@@ -14,6 +14,7 @@ use gdk::RGBA;
 use gtk::prelude::*;
 use crate::table_notebook::*;
 use crate::tables::table::*;
+use crate::status_stack::*;
 
 /// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
@@ -389,12 +390,22 @@ impl MappingMenu {
         Ok(())
     }
 
+    pub fn update_source_columns(&self, new_ixs : Vec<usize>) {
+        if let Ok(mut ixs) = self.ixs.try_borrow_mut() {
+            *ixs = new_ixs
+        } else {
+            println!("Failed to get mutable reference to table environment");
+        }
+    }
+
     pub fn update_data(
         &self,
-        ixs : Vec<usize>,
-        cols : Columns,
+        t_env : &TableEnvironment,
         pl_view : &mut PlotView
     ) -> Result<(), &'static str> {
+        let selected = self.ixs.try_borrow()
+            .map_err(|_| "Unable to retrieve reference to used indices")?;
+        let cols = t_env.get_columns(&selected[..]);
         let name = self.get_mapping_name().map(|n| n.clone())
             .ok_or("Unable to get mapping name")?;
         let pos0 = cols.try_numeric(0).ok_or("Error retrieving first column to position")?;

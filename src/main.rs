@@ -307,6 +307,7 @@ impl QueriesApp {
             let fn_search = fn_search.clone();
             let fn_popover = fn_popover.clone();
             let sidebar = sidebar.clone();
+            let status_stack = status_stack.clone();
             let f = move |t_env : &TableEnvironment| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
                 utils::set_tables(
@@ -315,6 +316,12 @@ impl QueriesApp {
                     fn_search.clone(),
                     sidebar.clone(),
                     fn_popover.clone()
+                );
+                // TODO update all mappings to NULL data and set mappings as insensitive
+                // if new table output is different than old table output.
+                sidebar.update_all_mappings(
+                    &t_env,
+                    status_stack.clone()
                 );
                 tables_nb.nb.set_sensitive(true);
                 Ok(())
