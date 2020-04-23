@@ -132,7 +132,7 @@ impl StatusStack {
     pub fn try_show_alt(&self) {
         if let Ok(status) = self.status.try_borrow() {
             match *status {
-                Status::Ok => self.parent_stack.set_visible_child(&self.alt_wid),
+                Status::Connected | Status::Ok => self.parent_stack.set_visible_child(&self.alt_wid),
                 _ => self.parent_stack.set_visible_child_name("status"),
             }
         } else {

@@ -223,7 +223,8 @@ impl PlotSidebar {
             mapping_menus.clone(),
             design_menu.clone(),
             (scale_menus.0.clone(), scale_menus.1.clone()),
-            plot_toggle
+            plot_toggle,
+            layout_stack.clone()
         );
         {
             let remove_mapping_btn = remove_mapping_btn.clone();
@@ -562,7 +563,8 @@ impl PlotSidebar {
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
-        plot_toggle : ToggleButton
+        plot_toggle : ToggleButton,
+        layout_stack : Stack
     ) -> (Button, FileChooserDialog) {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
@@ -636,6 +638,7 @@ impl PlotSidebar {
                                 plot_notebook.show_all();
                                 status_stack.try_show_alt();
                                 plot_toggle.set_active(true);
+                                layout_stack.set_visible_child_name("layout");
                                 // sidebar.layout_stack.set_visible_child_name("layout");
                                 // println!("{:?}", mappings);
                             } else {
