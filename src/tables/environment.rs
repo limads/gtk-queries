@@ -13,12 +13,34 @@ use super::stdin::*;
 use std::path::Path;
 use super::sql::*;
 use super::table::*;
+use crate::functions::num_function::*;
+use crate::functions::function_search::*;
+use std::rc::Rc;
+
+#[derive(Clone, Debug)]
+pub enum EnvironmentUpdate {
+
+    Clear,
+
+    /// One outer vector per table; Inner vectors hold column names.
+    NewTables(Vec<Vec<String>>),
+
+    /// Preserve last column sequence and/or function call sequence;
+    /// Just update the data.
+    Refresh,
+
+    /// Push a new, single table from the given function call
+    /// signature, generating the informed column names.
+    Function(FunctionCall, Vec<String>)
+
+}
 
 pub struct TableEnvironment {
     source : EnvironmentSource,
     listener : SqlListener,
     tables : Vec<Table>,
-    last_update : Option<String>
+    last_update : Option<String>,
+    history : Vec<EnvironmentUpdate>
 }
 
 impl TableEnvironment {
@@ -28,7 +50,8 @@ impl TableEnvironment {
             source : src,
             listener : SqlListener::launch(),
             tables : Vec::new(),
-            last_update : None
+            last_update : None,
+            history : vec![EnvironmentUpdate::Clear]
         }
     }
 
@@ -103,6 +126,61 @@ impl TableEnvironment {
         }
     }
 
+    /// Execute a single function, appending the table to the end and returning a reference to it in case of
+    /// success. Returns an error message from the user function otherwise.
+    pub fn execute_func<'a>(&'a mut self, reg : Rc<NumRegistry>, call : FunctionCall) -> Result<&'a Table, String> {
+        if reg.has_func_name(&call.name[..]) {
+            if let Some(f) = reg.retrieve_func(&call.name[..]) {
+                let columns = self.get_columns(&call.source[..]);
+                let ref_args : Vec<&str> = call.args.iter().map(|a| &a[..] ).collect();
+                let ans = unsafe { f(columns, &ref_args[..]) };
+                match ans {
+                    Ok(res_tbl) => {
+                        println!("{:?}", res_tbl);
+                        let names = res_tbl.names();
+                        self.tables.push(res_tbl);
+                        self.history.push(EnvironmentUpdate::Function(call, names));
+                        Ok(self.tables.last().unwrap())
+                        /*let name = format!("({} x {})", nrows - 1, ncols);
+                        tables_nb.add_page(
+                            "network-server-symbolic",
+                            Some(&name[..]),
+                            None,
+                            Some(t_rows),
+                            fn_search.clone(),
+                            pl_sidebar.clone(),
+                            fn_popover.clone()
+                        );*/
+                        /*utils::set_tables(
+                            &t_env,
+                            &mut tbl_nb.clone(),
+                            fn_search.clone(),
+                            pl_sidebar.clone(),
+                            fn_popover.clone()
+                        );*/
+                        //self.tables.last().to
+                    },
+                    Err(e) => {
+                        println!("{}", e);
+                        Err(e.to_string())
+                    }
+                }
+            } else {
+                Err("Error retrieving function".to_string())
+            }
+        } else {
+            Err(format!("Function {} not in registry", call.name))
+        }
+        //Ok(())
+    }
+
+    /// Re-execute all function calls since the last NewTables history
+    /// update, appending the resulting tables to the current environment.
+    /// Returns a slice with the new generated tables.
+    pub fn execute_saved_funcs<'a>(&'a mut self, reg : Rc<NumRegistry>) -> Result<&'a [Table], String> {
+        unimplemented!()
+    }
+
     pub fn send_current_query(&mut self) -> Result<(), String> {
         //println!("{:?}", self.source);
         let query = match self.source {
@@ -144,28 +222,75 @@ impl TableEnvironment {
         self.send_current_query()
     }
 
+    /// Searches update history retroactively, returning the last
+    /// original table update column names, if any exist, and
+    /// no clear events are present between this last table set
+    /// and the end of the history.
+    fn last_table_columns(&self) -> Option<Vec<Vec<String>>> {
+        for update in self.history.iter().rev() {
+            match update {
+                EnvironmentUpdate::NewTables(ref tbls) => {
+                    return Some(tbls.clone());
+                },
+                EnvironmentUpdate::Clear => {
+                    return None;
+                }
+                _ => { }
+            }
+        }
+        None
+    }
+
     /// Try to update the tables, potentially returning the first error
     /// message encountered by the database. Returns None if there
     /// is no update; Returns the Ok(result) if there is update, potentially
-    /// carrying the first error the database encountered.
-    pub fn maybe_update_from_query_results(
-        &mut self
-    ) -> Option<Result<(),String>> {
+    /// carrying the first error the database encountered. If the update is valid,
+    /// return the update event that happened (Refresh or NewTables).
+    pub fn maybe_update_from_query_results(&mut self) -> Option<Result<EnvironmentUpdate,String>> {
         let results = self.listener.maybe_get_result()?;
         self.tables.clear();
+        if results.len() == 0 {
+            self.history.push(EnvironmentUpdate::Clear);
+            return Some(Ok(EnvironmentUpdate::Clear));
+        }
+        let mut new_cols : Vec<Vec<String>> = Vec::new();
         for r in results {
             match r {
-                QueryResult::Valid(tbl) => self.tables.push(tbl),
+                QueryResult::Valid(tbl) => {
+                    new_cols.push(tbl.names());
+                    self.tables.push(tbl);
+                },
                 QueryResult::Invalid(msg) => {
+                    self.tables.clear();
+                    self.history.push(EnvironmentUpdate::Clear);
                     return Some(Err(msg));
                 },
                 QueryResult::Statement(_) => {
-                    //return Some(Err(String::from("Last")))
+                    self.tables.clear();
+                    self.history.push(EnvironmentUpdate::Clear);
+                    return Some(Ok(EnvironmentUpdate::Clear));
                 }
             }
         }
-        self.last_update = Some(format!("{}", chrono::offset::Local::now()));
-        Some(Ok(()))
+        let last_update = if let Some(last_cols) = self.last_table_columns() {
+            if last_cols.len() == new_cols.len() {
+                let all_equal = last_cols.iter().flatten()
+                    .zip(new_cols.iter().flatten())
+                    .all(|(last, new)| last == new );
+                if all_equal {
+                    EnvironmentUpdate::Refresh
+                } else {
+                    EnvironmentUpdate::NewTables(new_cols)
+                }
+            } else {
+                EnvironmentUpdate::NewTables(new_cols)
+            }
+        } else {
+            EnvironmentUpdate::NewTables(new_cols)
+        };
+        self.history.push(last_update.clone());
+        println!("History: {:?}", self.history);
+        Some(Ok(last_update))
     }
 
     pub fn result_last_statement(&self) -> Option<Result<String,String>> {
@@ -191,6 +316,7 @@ impl TableEnvironment {
     ) -> Result<(),String> {
         if clear {
             self.tables.clear();
+            self.history.push(EnvironmentUpdate::Clear);
         }
         //println!("{:?}", src );
         match src.clone() {
@@ -299,6 +425,14 @@ impl TableEnvironment {
         cols
     }
 
+    pub fn get_column_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        for t in self.tables.iter() {
+            names.extend(t.names());
+        }
+        names
+    }
+
     pub fn set_table_at_index(
         &mut self,
         content : String,
@@ -329,7 +463,7 @@ impl TableEnvironment {
         }*/
     }
 
-    pub fn all_tables(&self) -> Vec<&Table> {
+    pub fn all_tables<'a>(&'a self) -> Vec<&'a Table> {
         self.tables.iter().map(|t| t).collect()
     }
 
@@ -351,6 +485,8 @@ impl TableEnvironment {
         Ok(())
     }
 
+    // TODO receive function name and arguments
+    // to save it to history.
     pub fn append_external_table(
         &mut self,
         tbl : Table

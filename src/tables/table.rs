@@ -198,6 +198,10 @@ impl Table {
         cols
     }
 
+    pub fn names(&self) -> Vec<String> {
+        self.names.clone()
+    }
+
 }
 
 impl Display for Table {

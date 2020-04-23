@@ -29,6 +29,26 @@ pub struct FunctionViewer<'a> {
     fns : Rc<RefCell<Vec<FunctionBox>>>
 }*/
 
+#[derive(Clone, Debug)]
+pub struct FunctionCall {
+    pub name : String,
+    pub args : Vec<String>,
+    pub source : Vec<usize>,
+    //dst : Vec<String>
+}
+
+impl FunctionCall {
+
+    pub fn new(call : (String, Vec<String>), selected : Vec<usize>) -> Self {
+        Self{
+            name : call.0,
+            args : call.1,
+            source : selected,
+        }
+    }
+
+}
+
 #[derive(Clone)]
 pub struct FunctionBox {
     /*func : NumFunction*/
@@ -106,7 +126,7 @@ pub struct FunctionSearch {
     reg : Rc<NumRegistry>,
     // update_btn : ToolButton,
     // clear_btn : ToolButton,
-    curr_fn : Rc<RefCell<Option<(String, HashMap<String, String>)>>>,
+    curr_fn : Rc<RefCell<Option<(String, Vec<String>)>>>,
     fn_doc_label : Label,
     doc_stack : Stack,
     cols_label : Label
@@ -273,7 +293,28 @@ impl FunctionSearch {
         }
     }
 
-    pub fn split_args(call : &str) -> Option<(String, HashMap<String, String>)> {
+    pub fn split_call(call : &str) -> Option<(String, Vec<String>)> {
+        let mut pref_iter = call.split("(");
+        let name = pref_iter.next()?.to_string();
+        let args_end = pref_iter.next()?;
+        let mut end_iter = args_end.split(")");
+        let mut joined_args = end_iter.next()?.to_string();
+        let call = if joined_args.is_empty() {
+            (name, Vec::new())
+        } else {
+            let args : Vec<String> = joined_args.split(",")
+                .filter(|arg| !arg.is_empty()).map(|s| s.to_string()).collect();
+            (name, args)
+        };
+        if let Some(extra) = end_iter.next() {
+            println!("Err: Unrecognized token: {}", extra);
+            return None;
+        }
+        println!("Call successfully parsed: {:?}", call);
+        Some(call)
+    }
+
+    /*pub fn split_args(call : &str) -> Option<(String, HashMap<String, String>)> {
         let mut txts = call.split_whitespace();
         let name = txts.next()?.to_string();
         let mut args = HashMap::new();
@@ -289,7 +330,7 @@ impl FunctionSearch {
             }
         }
         Some((name, args))
-    }
+    }*/
 
     pub fn update_fn_info(&self, call : &str, selected : &[usize]) {
         if selected.len() > 0 {
@@ -298,7 +339,7 @@ impl FunctionSearch {
                 self.doc_stack.set_visible_child_name("cols_selected");
                 self.cols_label.set_text(&format!("{} column(s) selected", selected.len())[..]);
             } else {
-                if let Some((name, args)) = Self::split_args(call) {
+                if let Some((name, args)) = Self::split_call(call) {
                     if self.reg.has_func_name(&name[..]) {
                         if let Some(doc) = self.reg.get_doc(&name[..]) {
                             self.doc_stack.set_visible_child_name("fn_doc");
@@ -418,46 +459,20 @@ impl FunctionSearch {
                             fn_search.update_fn_info(&filt_text[..], &selected[..]);
                         } else {
                             doc_stack.hide();
-                            //if let Ok(reg) = reg.try_borrow() {
-                            if reg.has_func_name(&text[..]) {
-                                if let Some(f) = reg.retrieve_func(&text[..]) {
-                                    if let Ok(mut t_env) = t_env.try_borrow_mut() {
-                                        let full_sel = tbl_nb.full_selected_cols();
-                                        let columns = t_env.get_columns(&full_sel[..]);
-                                        let ans = unsafe { f(columns) };
-                                        match ans {
-                                            Ok(res_tbl) => {
-                                                println!("{:?}", res_tbl);
-                                                t_env.append_external_table(res_tbl);
-                                                utils::set_tables(
-                                                    &t_env,
-                                                    &mut tbl_nb.clone(),
-                                                    fn_search.clone(),
-                                                    pl_sidebar.clone(),
-                                                    fn_popover.clone()
-                                                );
-                                            },
-                                            Err(e) => {
-                                                println!("{}", e);
-                                            }
-                                        }
-                                    } else {
-                                        println!("Unable to retrieve mutable reference to table environment");
-                                    }
+                            if let Some(call) = Self::split_call(&text[..]) {
+                                if let Ok(mut t_env) = t_env.try_borrow_mut() {
+                                    let full_sel = tbl_nb.full_selected_cols();
+                                    let fn_call = FunctionCall::new(call, full_sel);
+                                    t_env.execute_func(reg.clone(), fn_call);
                                 } else {
-                                    println!("Error retrieving function");
+                                    println!("Unable to retrieve mutable reference to table environment");
                                 }
-                             //   } else {
-                             //       println!("Function {} not in registry", text);
-                             //   }
                             } else {
-                                println!("Could not retrieve reference to function registry");
+                                println!("Failed to parse function call");
                             }
                         }
-                        //if key_ev.get_state() == gdk::ModifierType::MOD2_MASK {
-                        //}
                         glib::signal::Inhibit(true)
-                    }
+                    },
                     _ => {
                         glib::signal::Inhibit(false)
                     }

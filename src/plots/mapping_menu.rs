@@ -390,28 +390,90 @@ impl MappingMenu {
         Ok(())
     }
 
-    pub fn update_source_columns(&self, new_ixs : Vec<usize>) {
-        if let Ok(mut ixs) = self.ixs.try_borrow_mut() {
-            *ixs = new_ixs
-        } else {
-            println!("Failed to get mutable reference to table environment");
+    /// Clear saved column indices and full data.
+    pub fn clear_data(&self, pl_view : &mut PlotView) -> Result<(), &'static str> {
+        let name = self.get_mapping_name().map(|n| n.clone())
+            .ok_or("Unable to get mapping name")?;
+        match &self.mapping_type[..] {
+            "text" => {
+                pl_view.update(&mut UpdateContent::TextData(
+                    name.clone(),
+                    vec![Vec::new(), Vec::new()],
+                    Vec::new()
+                ));
+            },
+            "line" | "scatter" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![Vec::new(), Vec::new()]
+                ));
+            },
+            "bar" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![Vec::new()]
+                ));
+            },
+            "area" | "surface" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![Vec::new(), Vec::new(), Vec::new()]
+                ));
+            },
+            mapping => {
+                println!("Informed mapping: {}", mapping);
+                return Err("Invalid mapping type");
+            }
         }
+        if let Ok(mut selected) = self.ixs.try_borrow_mut() {
+            *selected = Vec::new();
+        } else {
+            println!("Could not get mutable reference to data indices at mapping");
+        }
+        for (_, w) in self.design_widgets.iter() {
+            if w.is_sensitive() {
+                w.set_sensitive(false);
+            }
+        }
+        Ok(())
     }
 
-    pub fn update_data(
+    /// Updates the source columns then updates the data from the table environment.
+    pub fn reassign_data(
         &self,
+        cols : Vec<usize>,
         t_env : &TableEnvironment,
         pl_view : &mut PlotView
     ) -> Result<(), &'static str> {
+        self.update_source_columns(cols)?;
+        self.update_data(&t_env, pl_view)
+    }
+
+    /// Update source columns, without changing the data.
+    pub fn update_source_columns(&self, new_ixs : Vec<usize>) -> Result<(), &'static str> {
+        if let Ok(mut ixs) = self.ixs.try_borrow_mut() {
+            *ixs = new_ixs;
+            Ok(())
+        } else {
+            Err("Failed to get mutable reference to table environment")
+        }
+    }
+
+    /// Updates data from a table enviroment and the saved column indices.
+    pub fn update_data(&self, t_env : &TableEnvironment,pl_view : &mut PlotView) -> Result<(), &'static str> {
         let selected = self.ixs.try_borrow()
             .map_err(|_| "Unable to retrieve reference to used indices")?;
+        if selected.len() == 0 {
+            println!("No data for current mapping");
+            return Ok(())
+        }
         let cols = t_env.get_columns(&selected[..]);
         let name = self.get_mapping_name().map(|n| n.clone())
             .ok_or("Unable to get mapping name")?;
-        let pos0 = cols.try_numeric(0).ok_or("Error retrieving first column to position")?;
+        let pos0 = cols.try_numeric(0).ok_or("Error mapping column 1 to position")?;
         match &self.mapping_type[..] {
             "text" => {
-                let pos1 = cols.try_numeric(1).ok_or("Error retrieving second column to position")?;
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to position")?;
                 if let Some(c) = cols.try_access::<String>(2) {
                     let vec_txt = Vec::from(c);
                     pl_view.update(&mut UpdateContent::TextData(
@@ -436,9 +498,30 @@ impl MappingMenu {
                     vec![pos0]
                 ));
             },
+            "area" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
+                let pos2 = cols.try_numeric(2).ok_or("Error mapping column 3 to y superior limit")?;
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![pos0, pos1, pos2]
+                ));
+            },
+            "surface" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
+                let density = cols.try_numeric(2).ok_or("Error mapping column 3 to density")?;
+                pl_view.update(&mut UpdateContent::Data(
+                    name.clone(),
+                    vec![pos0, pos1, density]
+                ));
+            },
             mapping => {
                 println!("Informed mapping: {}", mapping);
                 return Err("Invalid mapping type");
+            }
+        }
+        for (_, w) in self.design_widgets.iter() {
+            if !w.is_sensitive() {
+                w.set_sensitive(true);
             }
         }
         Ok(())
@@ -446,7 +529,7 @@ impl MappingMenu {
 
 }
 
-/// Updates the data underlying a single mapping
+/*/// Updates the data underlying a single mapping
 /// from the plot and queues a redraw. Assumes
 /// both the plot and source were unwrapped from
 /// Rc<RefCell<.>>
@@ -489,7 +572,7 @@ pub fn update_mapping_data(
         }
     }
     Ok(())
-}
+}*/
 
 // fn build_query_item(label : &str) {
 // let bx = Box::new(Orientation::Horizontal, 0);

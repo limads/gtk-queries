@@ -10,7 +10,7 @@ use std::cell::RefCell;
 // (1) Examine sources and update database with library/function names
 // (2) Call libloading to load all functions that were parsed.
 
-pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns)->Result<Table,String>>;
+pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns, &[&str])->Result<Table,String>>;
 
 #[derive(Debug)]
 pub struct NumRegistry {

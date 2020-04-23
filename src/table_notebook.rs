@@ -82,6 +82,7 @@ impl TableNotebook {
                 fn_search.update_fn_info("", &selected[..]);
                 fn_popover.set_relative_to(Some(ev_bx));
                 sidebar.set_add_mapping_sensitive(selected.len());
+                sidebar.set_edit_mapping_sensitive(selected.len());
                 glib::signal::Inhibit(false)
             });
         }

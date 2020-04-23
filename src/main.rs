@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
+use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, sql::SqlListener};
 use gtk_queries::conn_popover::*;
 use sourceview::*;
 use std::boxed;
@@ -308,7 +308,7 @@ impl QueriesApp {
             let fn_popover = fn_popover.clone();
             let sidebar = sidebar.clone();
             let status_stack = status_stack.clone();
-            let f = move |t_env : &TableEnvironment| {
+            let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
                 utils::set_tables(
                     &t_env,
@@ -319,10 +319,17 @@ impl QueriesApp {
                 );
                 // TODO update all mappings to NULL data and set mappings as insensitive
                 // if new table output is different than old table output.
-                sidebar.update_all_mappings(
-                    &t_env,
-                    status_stack.clone()
-                );
+                match update {
+                    EnvironmentUpdate::Refresh => {
+                        sidebar.update_all_mappings(
+                            &t_env,
+                            status_stack.clone()
+                        );
+                    },
+                    _ => {
+                        sidebar.clear_all_mappings();
+                    }
+                }
                 tables_nb.nb.set_sensitive(true);
                 Ok(())
                 //} else {

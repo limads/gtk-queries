@@ -29,6 +29,7 @@ pub struct PlotSidebar {
     pub pl_view : Rc<RefCell<PlotView>>,
     mapping_btns : HashMap<String, ToolButton>,
     add_mapping_btn : ToolButton,
+    edit_mapping_btn : ToolButton,
     clear_layout_btn : ToolButton,
     remove_mapping_btn : ToolButton,
     new_layout_btn : Button,
@@ -45,10 +46,52 @@ impl PlotSidebar {
         if let Err(e) = self.set_add_mapping_sensitive(0) {
             println!("{}", e);
         }
+        if let Err(e) = self.set_edit_mapping_sensitive(0) {
+            println!("{}" ,e);
+        }
         if state == false {
             self.xml_load_dialog.unselect_all();
         }
         self.layout_stack.set_visible_child_name("empty");
+    }
+
+    pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
+        let visible = self.layout_stack.get_visible_child_name()
+            .ok_or("Unable to determine layout stack status" )?;
+        if &visible[..] == "layout" {
+            let page = self.notebook.get_property_page() as usize;
+            if page <= 2 {
+                self.edit_mapping_btn.set_sensitive(false);
+                return Ok(());
+            }
+            let menus = self.mapping_menus.try_borrow()
+                .map_err(|_| "Unable to retrieve reference to mapping menus")?;
+            if let Some(m_type) = menus.get(page - 3).map(|m| m.mapping_type.clone() ) {
+                match &m_type[..] {
+                    "line" | "scatter" => {
+                        if ncols == 2 {
+                            self.edit_mapping_btn.set_sensitive(true);
+                            return Ok(());
+                        }
+                    },
+                    "bar" => {
+                        if ncols == 1 {
+                            self.edit_mapping_btn.set_sensitive(true);
+                            return Ok(());
+                        }
+                    },
+                    "text" | "scatter" | "surface" => {
+                        if ncols == 3 {
+                            self.edit_mapping_btn.set_sensitive(true);
+                            return Ok(());
+                        }
+                    },
+                    mapping => return Err("Unrecognized mapping")
+                }
+            }
+        }
+        self.edit_mapping_btn.set_sensitive(false);
+        Ok(())
     }
 
     pub fn set_add_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
@@ -137,14 +180,15 @@ impl PlotSidebar {
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
         let glade_def = Self::build_glade_def();
-        let (add_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
+        let (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
             builder.clone(),
             status_stack.clone(),
             layout_stack.clone(),
             pl_view.clone(),
             mapping_menus.clone(),
             plot_notebook.clone(),
-            table_env.clone()
+            table_env.clone(),
+            tbl_nb.clone()
         );
         let mapping_btns = Self::build_add_mapping_popover(
             builder.clone(),
@@ -202,6 +246,7 @@ impl PlotSidebar {
             pl_view : pl_view.clone(),
             mapping_btns,
             add_mapping_btn,
+            edit_mapping_btn,
             clear_layout_btn,
             remove_mapping_btn,
             glade_def,
@@ -218,23 +263,28 @@ impl PlotSidebar {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
-        table_env : Rc<RefCell<TableEnvironment>>
-    ) -> (ToolButton, ToolButton, ToolButton) {
+        table_env : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook
+    ) -> (ToolButton, ToolButton, ToolButton, ToolButton) {
         let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
         let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
+        let img_edit = Image::new_from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
         let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
         let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_layout_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
         let add_mapping_btn : ToolButton = ToolButton::new(Some(&img_add), None);
+        let edit_mapping_btn : ToolButton = ToolButton::new(Some(&img_edit), None);
         let remove_mapping_btn : ToolButton = ToolButton::new(Some(&img_remove), None);
         // TODO verify if there isn't already at least two columns selected. If there is, do not set
         // add sensititve to false.
         remove_mapping_btn.set_sensitive(false);
         add_mapping_btn.set_sensitive(false);
+        edit_mapping_btn.set_sensitive(false);
         clear_layout_btn.set_sensitive(false);
         layout_toolbar.insert(&clear_layout_btn, 0);
         layout_toolbar.insert(&add_mapping_btn, 1);
-        layout_toolbar.insert(&remove_mapping_btn, 2);
+        layout_toolbar.insert(&edit_mapping_btn, 2);
+        layout_toolbar.insert(&remove_mapping_btn, 3);
         layout_toolbar.show_all();
         {
             let layout_stack = layout_stack.clone();
@@ -263,6 +313,35 @@ impl PlotSidebar {
                 }
                 btn.set_sensitive(false);
 
+            });
+        }
+
+        {
+            let mapping_menus = mapping_menus.clone();
+            let plot_view = plot_view.clone();
+            let notebook = plot_notebook.clone();
+            let table_env = table_env.clone();
+            let status_stack = status_stack.clone();
+            edit_mapping_btn.connect_clicked(move |_| {
+                let selected_cols = tbl_nb.full_selected_cols();
+                let page = notebook.get_property_page() as usize;
+                if page <= 2 || selected_cols.len() == 0 {
+                    return;
+                }
+                match (plot_view.try_borrow_mut(), mapping_menus.try_borrow(), table_env.try_borrow()) {
+                    (Ok(mut pl_view), Ok(menus), Ok(t_env)) => {
+                        if let Some(m) = menus.get(page - 3) {
+                            if let Err(e) = m.reassign_data(selected_cols, &t_env, &mut pl_view) {
+                                status_stack.update(Status::SqlErr(e.to_string()));
+                            }
+                        } else {
+                            println!("No mapping at index {}", page - 3);
+                        }
+                    },
+                    _ => {
+                        println!("Unable to retrieve reference to menus or plotview");
+                    }
+                }
             });
         }
 
@@ -301,7 +380,7 @@ impl PlotSidebar {
             });
         }
 
-        (add_mapping_btn, clear_layout_btn, remove_mapping_btn)
+        (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn)
     }
 
     fn build_add_mapping_popover(
@@ -410,7 +489,8 @@ impl PlotSidebar {
     }
 
     /// Add mapping from a type string description, attributing to its
-    /// name the number of mappings currently used.
+    /// name the number of mappings currently used. Used when the user
+    /// already selected some columns and want to create a new mapping.
     pub fn add_mapping_from_type(
         glade_def : Rc<String>,
         mapping_type : &str,
@@ -446,11 +526,26 @@ impl PlotSidebar {
                     data_source.clone(),
                     tbl_nb.clone(),
                     status_stack.clone(),
-                    None
+                    None,
+                    true
                 );
                 println!("Mapping appended");
             },
             Err(e) => { println!("{}", e); return; }
+        }
+    }
+
+    pub fn clear_all_mappings(&self) -> Result<(), &'static str> {
+        match (self.pl_view.try_borrow_mut(), self.mapping_menus.try_borrow()) {
+            (Ok(mut pl_view), Ok(mappings)) => {
+                for m in mappings.iter() {
+                    m.clear_data(&mut pl_view);
+                }
+                Ok(())
+            },
+            _ => {
+                Err("Unable to retrieve mutable reference to pl view/reference to mappings")
+            }
         }
     }
 
@@ -531,7 +626,8 @@ impl PlotSidebar {
                                                 data_source.clone(),
                                                 tbl_nb.clone(),
                                                 status_stack.clone(),
-                                                None
+                                                None,
+                                                false
                                             );
                                         },
                                         Err(e) => { println!("{}", e); return; }
@@ -636,7 +732,8 @@ impl PlotSidebar {
         tbl_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
-        pos : Option<usize>
+        pos : Option<usize>,
+        with_data : bool
     ) {
         match (plot_view.try_borrow_mut(), tbl_env.try_borrow(), mappings.try_borrow_mut()) {
             (Ok(mut pl), Ok(t_env), Ok(mut mappings)) => {
@@ -656,10 +753,13 @@ impl PlotSidebar {
                         name.clone(),
                         m.mapping_type.to_string())
                     );
-                    m.update_source_columns(tbl_nb.full_selected_cols());
-                    if let Err(e) = m.update_data(&t_env, &mut pl) {
-                        status_stack.update(Status::SqlErr(format!("{}", e)));
-                        return;
+                    if with_data {
+                        if let Err(e) = m.reassign_data(tbl_nb.full_selected_cols(), &t_env, &mut pl) {
+                            status_stack.update(Status::SqlErr(format!("{}", e)));
+                            return;
+                        }
+                    } else {
+                        m.clear_data(&mut pl);
                     }
                 } else {
                     println!("Unable to retrive reference to mapping name");

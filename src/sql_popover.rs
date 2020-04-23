@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
+use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, sql::SqlListener};
 use sourceview::*;
 use std::boxed;
 use std::process::Command;
@@ -161,7 +161,7 @@ impl SqlPopover {
         mut f : F
     )
         where
-            F : FnMut(&TableEnvironment) -> Result<(), String> + 'static
+            F : FnMut(&TableEnvironment, &EnvironmentUpdate) -> Result<(), String> + 'static
     {
         let tbl_env_c = self.t_env.clone();
         let status_stack = self.status_stack.clone();
@@ -180,8 +180,15 @@ impl SqlPopover {
                                 match t_env.maybe_update_from_query_results() {
                                     Some(ans) => {
                                         match ans {
-                                            Ok(_) => {
-                                                if let Err(e) = f(&t_env) {
+                                            Ok(ref update) => {
+                                                match update {
+                                                    EnvironmentUpdate::Refresh => {
+                                                        // Re-call user functions here
+                                                        // t_env.execute_saved_funcs(reg);
+                                                    },
+                                                    _ => { }
+                                                }
+                                                if let Err(e) = f(&t_env, update) {
                                                     println!("{}", e);
                                                     status_stack.update(Status::SqlErr(e));
                                                 } else {
