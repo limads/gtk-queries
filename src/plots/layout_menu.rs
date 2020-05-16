@@ -6,6 +6,7 @@ use super::mapping_menu::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
+use gtkplotview::GroupSplit;
 use gtkplotview::plot_view::{PlotView, UpdateContent};
 use std::path::PathBuf;
 use std::fs::File;
@@ -35,7 +36,178 @@ pub struct PlotSidebar {
     new_layout_btn : Button,
     load_layout_btn : Button,
     glade_def : Rc<String>,
-    xml_load_dialog : FileChooserDialog
+    xml_load_dialog : FileChooserDialog,
+    group_toolbar : GroupToolbar
+}
+
+#[derive(Clone)]
+pub struct GroupToolbar {
+    active_combo : ComboBoxText,
+    toggle_unique : ToggleButton,
+    toggle_horiz : ToggleButton,
+    toggle_vert : ToggleButton,
+    toggle_four : ToggleButton
+}
+
+impl GroupToolbar {
+
+    fn new(
+        builder : Builder,
+        plot_view : Rc<RefCell<PlotView>>,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        plot_notebook : Notebook,
+        glade_def : Rc<String>,
+        tbl_nb : TableNotebook,
+        data_source : Rc<RefCell<TableEnvironment>>,
+        status_stack : StatusStack
+    ) -> GroupToolbar {
+        let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
+        {
+            let plot_view = plot_view.clone();
+            active_combo.connect_changed(move |combo| {
+                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                    match combo.get_active_text().as_ref().map(|s| s.as_str() ) {
+                        Some("Top") => { pl_view.change_active_area(0) },
+                        Some("Bottom") => { pl_view.change_active_area(1) },
+                        Some("Left") => { pl_view.change_active_area(0) },
+                        Some("Right") => { pl_view.change_active_area(1) },
+                        Some("Top Left") => { pl_view.change_active_area(0) },
+                        Some("Top Right") => { pl_view.change_active_area(1) },
+                        Some("Bottom Left") => { pl_view.change_active_area(2) },
+                        Some("Bottom Right") => { pl_view.change_active_area(3) },
+                        _ => { }
+                    }
+                } else {
+                    println!("Unable to retrieve mutable reference to plotview");
+                }
+                PlotSidebar::update_mapping_widgets(
+                    plot_view.clone(),
+                    mapping_menus.clone(),
+                    plot_notebook.clone(),
+                    glade_def.clone(),
+                    data_source.clone(),
+                    tbl_nb.clone(),
+                    status_stack.clone()
+                );
+            });
+        }
+        let toggle_unique : ToggleButton = builder.get_object("toggle_group_unique").unwrap();
+        let toggle_horiz : ToggleButton = builder.get_object("toggle_group_horizontal").unwrap();
+        let toggle_vert : ToggleButton = builder.get_object("toggle_group_vertical").unwrap();
+        let toggle_four : ToggleButton = builder.get_object("toggle_group_four").unwrap();
+
+        {
+            let (toggle_horiz, toggle_vert, toggle_four) = (toggle_horiz.clone(), toggle_vert.clone(), toggle_four.clone());
+            let active_combo = active_combo.clone();
+            let plot_view = plot_view.clone();
+            toggle_unique.connect_toggled(move |toggle_unique| {
+                if toggle_unique.get_active() {
+                    toggle_horiz.set_active(false);
+                    toggle_vert.set_active(false);
+                    toggle_four.set_active(false);
+                    active_combo.remove_all();
+                    active_combo.set_sensitive(false);
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.change_active_area(0);
+                        pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
+                    } else {
+                        println!("Unable to get mutable reference to plotview");
+                    }
+                }
+            });
+        }
+
+        {
+            let (toggle_unique, toggle_vert, toggle_four) = (toggle_unique.clone(), toggle_vert.clone(), toggle_four.clone());
+            let active_combo = active_combo.clone();
+            let plot_view = plot_view.clone();
+            toggle_horiz.connect_toggled(move |toggle_horiz| {
+                if toggle_horiz.get_active() {
+                    toggle_unique.set_active(false);
+                    toggle_vert.set_active(false);
+                    toggle_four.set_active(false);
+                    active_combo.remove_all();
+                    active_combo.append(Some("Top"), "Top");
+                    active_combo.append(Some("Bottom"), "Bottom");
+                    active_combo.set_sensitive(true);
+                    active_combo.set_active_id(Some("Top"));
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.change_active_area(0);
+                        pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-horiz.xml")));
+                    } else {
+                        println!("Unable to get mutable reference to plotview");
+                    }
+                }
+            });
+        }
+
+        {
+            let (toggle_unique, toggle_horiz, toggle_four) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_four.clone());
+            let active_combo = active_combo.clone();
+            let plot_view = plot_view.clone();
+            toggle_vert.connect_toggled(move |toggle_vert| {
+                if toggle_vert.get_active() {
+                    toggle_unique.set_active(false);
+                    toggle_horiz.set_active(false);
+                    toggle_four.set_active(false);
+                    active_combo.remove_all();
+                    active_combo.append(Some("Left"), "Left");
+                    active_combo.append(Some("Right"), "Right");
+                    active_combo.set_sensitive(true);
+                    active_combo.set_active_id(Some("Left"));
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.change_active_area(0);
+                        pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-vert.xml")));
+                    } else {
+                        println!("Unable to get mutable reference to plotview");
+                    }
+                }
+            });
+        }
+
+        {
+            let (toggle_unique, toggle_horiz, toggle_vert) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_vert.clone());
+            let active_combo = active_combo.clone();
+            let plot_view = plot_view.clone();
+            toggle_four.connect_toggled(move |toggle_four| {
+                if toggle_four.get_active() {
+                    toggle_unique.set_active(false);
+                    toggle_horiz.set_active(false);
+                    toggle_vert.set_active(false);
+                    active_combo.remove_all();
+                    active_combo.append(Some("Top Left"), "Top Left");
+                    active_combo.append(Some("Top Right"), "Top Right");
+                    active_combo.append(Some("Bottom Left"), "Bottom Left");
+                    active_combo.append(Some("Bottom Right"), "Bottom Right");
+                    active_combo.set_sensitive(true);
+                    active_combo.set_active_id(Some("Top Left"));
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.change_active_area(0);
+                        pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-four.xml")));
+                    } else {
+                        println!("Unable to get mutable reference to plotview");
+                    }
+                }
+            });
+        }
+        GroupToolbar {
+            active_combo,
+            toggle_unique,
+            toggle_horiz,
+            toggle_vert,
+            toggle_four
+        }
+    }
+
+    pub fn reset(&self, split : GroupSplit) {
+        match split {
+            GroupSplit::None => { self.toggle_unique.toggled(); }
+            GroupSplit::Horizontal => { self.toggle_horiz.toggled(); }
+            GroupSplit::Vertical => { self.toggle_vert.toggled(); }
+            GroupSplit::Both => { self.toggle_four.toggled(); }
+            _ => { }
+        }
+    }
 }
 
 impl PlotSidebar {
@@ -180,6 +352,16 @@ impl PlotSidebar {
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
         let glade_def = Self::build_glade_def();
+        let group_toolbar = GroupToolbar::new(
+            builder.clone(),
+            pl_view.clone(),
+            mapping_menus.clone(),
+            plot_notebook.clone(),
+            glade_def.clone(),
+            tbl_nb.clone(),
+            table_env.clone(),
+            status_stack.clone()
+        );
         let (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
             builder.clone(),
             status_stack.clone(),
@@ -224,7 +406,8 @@ impl PlotSidebar {
             design_menu.clone(),
             (scale_menus.0.clone(), scale_menus.1.clone()),
             plot_toggle,
-            layout_stack.clone()
+            layout_stack.clone(),
+            group_toolbar.clone()
         );
         {
             let remove_mapping_btn = remove_mapping_btn.clone();
@@ -253,7 +436,8 @@ impl PlotSidebar {
             glade_def,
             new_layout_btn,
             load_layout_btn,
-            xml_load_dialog
+            xml_load_dialog,
+            group_toolbar
         }
     }
 
@@ -295,7 +479,7 @@ impl PlotSidebar {
             let status_stack = status_stack.clone();
             clear_layout_btn.connect_clicked(move |btn| {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
+                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
                     layout_stack.set_visible_child_name("empty");
                     status_stack.show_curr_status();
                     if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
@@ -334,6 +518,8 @@ impl PlotSidebar {
                         if let Some(m) = menus.get(page - 3) {
                             if let Err(e) = m.reassign_data(selected_cols, &t_env, &mut pl_view) {
                                 status_stack.update(Status::SqlErr(e.to_string()));
+                            } else {
+                                pl_view.redraw();
                             }
                         } else {
                             println!("No mapping at index {}", page - 3);
@@ -550,6 +736,51 @@ impl PlotSidebar {
         }
     }
 
+    fn update_mapping_widgets(
+        plot_view : Rc<RefCell<PlotView>>,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        plot_notebook : Notebook,
+        glade_def : Rc<String>,
+        data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
+        status_stack : StatusStack,
+    ) {
+        let new_info = match plot_view.try_borrow() {
+            Ok(pl_view) => pl_view.mapping_info(),
+            Err(e) => { println!("{}", e); return; }
+        };
+        Self::clear_mappings(
+            mapping_menus.clone(),
+            plot_notebook.clone()
+        ).expect("Error clearing mappings");
+        for m_info in new_info.iter() {
+            let menu = Self::create_new_mapping_menu(
+                glade_def.clone(),
+                Rc::new(RefCell::new(m_info.0.clone())),
+                m_info.1.clone(),
+                data_source.clone(),
+                plot_view.clone(),
+                Some(m_info.2.clone()),
+            );
+            match menu {
+                Ok(m) => {
+                    Self::append_mapping_menu(
+                        m,
+                        mapping_menus.clone(),
+                        plot_notebook.clone(),
+                        plot_view.clone(),
+                        data_source.clone(),
+                        tbl_nb.clone(),
+                        status_stack.clone(),
+                        None,
+                        false
+                    );
+                },
+                Err(e) => { println!("{}", e); return; }
+            }
+        }
+    }
+
     fn build_layout_load_button(
         glade_def : Rc<String>,
         builder : Builder,
@@ -564,7 +795,8 @@ impl PlotSidebar {
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
         plot_toggle : ToggleButton,
-        layout_stack : Stack
+        layout_stack : Stack,
+        group_toolbar : GroupToolbar
     ) -> (Button, FileChooserDialog) {
         let xml_load_dialog : FileChooserDialog =
             builder.get_object("xml_load_dialog").unwrap();
@@ -584,65 +816,38 @@ impl PlotSidebar {
                 match resp {
                     ResponseType::Other(1) => {
                         if let Some(path) = dialog.get_filename() {
-                            //let path = f.get_path().unwrap_or(PathBuf::new());
-                            //println!("{:?}", path);
-                            //if let Some(path) = f {
-                            let new_mapping_info = match plot_view.try_borrow_mut() {
+                            let update_ok = match plot_view.try_borrow_mut() {
                                 Ok(mut pl) => {
-                                    match pl.plot_area.load_layout(path.to_str().unwrap_or("").into()) {
-                                        Ok(_) => Some(pl.plot_area.mapping_info()),
-                                        Err(e) => { println!("{}", e); None }
+                                    match pl.plot_group.load_layout(path.to_str().unwrap_or("").into()) {
+                                        Ok(_) => {
+                                            group_toolbar.reset(pl.group_split());
+                                            true
+                                        },
+                                        Err(e) => { println!("{}", e); false }
                                     }
                                 },
-                                Err(_) => { println!("Could not get reference to Plot widget"); None }
+                                Err(_) => { println!("Could not get mutable reference to Plot widget"); false }
                             };
-                            if let Some(new_info) = new_mapping_info {
-                                Self::clear_mappings(
+                            if update_ok {
+                                Self::update_mapping_widgets(
+                                    plot_view.clone(),
                                     mapping_menus.clone(),
-                                    plot_notebook.clone()
-                                ).expect("Error clearing mappings");
+                                    plot_notebook.clone(),
+                                    glade_def.clone(),
+                                    data_source.clone(),
+                                    tbl_nb.clone(),
+                                    status_stack.clone()
+                                );
                                 Self::update_layout_widgets(
                                     design_menu.clone(),
                                     scale_menus.clone(),
                                     plot_view.clone()
                                 );
-                                layout_clear_btn.set_sensitive(true);
-                                for m_info in new_info.iter() {
-                                    let menu = Self::create_new_mapping_menu(
-                                        glade_def.clone(),
-                                        //builder.clone(),
-                                        Rc::new(RefCell::new(m_info.0.clone())),
-                                        m_info.1.clone(),
-                                        data_source.clone(),
-                                        plot_view.clone(),
-                                        Some(m_info.2.clone()),
-                                        //sidebar.clone()
-                                    );
-                                    match menu {
-                                        Ok(m) => {
-                                            Self::append_mapping_menu(
-                                                m,
-                                                mapping_menus.clone(),
-                                                plot_notebook.clone(),
-                                                plot_view.clone(),
-                                                data_source.clone(),
-                                                tbl_nb.clone(),
-                                                status_stack.clone(),
-                                                None,
-                                                false
-                                            );
-                                        },
-                                        Err(e) => { println!("{}", e); return; }
-                                    }
-                                }
                                 plot_notebook.show_all();
                                 status_stack.try_show_alt();
                                 plot_toggle.set_active(true);
                                 layout_stack.set_visible_child_name("layout");
-                                // sidebar.layout_stack.set_visible_child_name("layout");
-                                // println!("{:?}", mappings);
-                            } else {
-                                println!("No info to update");
+                                layout_clear_btn.set_sensitive(true);
                             }
                         } else {
                             println!("Could not get filename from dialog");
@@ -780,6 +985,7 @@ impl PlotSidebar {
             println!("{}", e);
         }
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
+            pl_view.change_active_area(0);
             pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
         } else {
             println!("Failed to borrow mutable reference to plotview.");
@@ -808,9 +1014,9 @@ impl PlotSidebar {
     ) {
         match plot_view.try_borrow_mut() {
             Ok(pl) => {
-                design_menu.update(pl.plot_area.design_info());
-                scale_menus.0.update(pl.plot_area.scale_info("x"));
-                scale_menus.1.update(pl.plot_area.scale_info("y"));
+                design_menu.update(pl.plot_group.design_info());
+                scale_menus.0.update(pl.current_scale_info("x"));
+                scale_menus.1.update(pl.current_scale_info("y"));
             },
             _ => {
                 panic!("Could not fetch plotview reference to update layout");

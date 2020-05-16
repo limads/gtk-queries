@@ -127,7 +127,20 @@ impl StatusStack {
         }*/
     }
 
-    /// Show alt widget if status is a successful one (Ok|Connected);
+    // Show alt only if status is ok. Show connected if connection is online; and
+    // other status otherwise.
+    pub fn try_show_alt_or_connected(&self) {
+        if let Ok(status) = self.status.try_borrow() {
+            match *status {
+                Status::Ok => self.parent_stack.set_visible_child(&self.alt_wid),
+                _ => self.parent_stack.set_visible_child_name("status"),
+            }
+        } else {
+            println!("Could not borrow status");
+        }
+    }
+
+    /// Show alt widget if status is any successful one (Ok|Connected);
     /// do nothing otherwise.
     pub fn try_show_alt(&self) {
         if let Ok(status) = self.status.try_borrow() {

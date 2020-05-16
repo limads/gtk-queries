@@ -135,6 +135,16 @@ impl TableNotebook {
         }
     }
 
+    pub fn unselect_all_tables(&self) {
+        if let Ok(tbls) = self.tbls.try_borrow() {
+            for t in tbls.iter() {
+                t.unselect_all();
+            }
+        } else {
+            println!("Could not get borrow over tables");
+        }
+    }
+
     pub fn unselect_at_table(&self) {
         let ix = self.get_page_index();
         if let Ok(tbls) = self.tbls.try_borrow() {

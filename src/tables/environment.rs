@@ -178,7 +178,30 @@ impl TableEnvironment {
     /// update, appending the resulting tables to the current environment.
     /// Returns a slice with the new generated tables.
     pub fn execute_saved_funcs<'a>(&'a mut self, reg : Rc<NumRegistry>) -> Result<&'a [Table], String> {
-        unimplemented!()
+        let recent_hist = self.history.iter().rev();
+        let recent_hist : Vec<&EnvironmentUpdate> = recent_hist.take_while(|u| {
+            match u {
+                EnvironmentUpdate::NewTables(_) => false,
+                _ => true
+            }
+        }).collect();
+        let fns : Vec<FunctionCall> = recent_hist.iter().rev().filter_map(|update| {
+            match update {
+                EnvironmentUpdate::Function(call, _) => Some(call.clone()),
+                _ => None
+            }
+        }).collect();
+        println!("Last functions: {:?}", fns);
+        let n_funcs = fns.len();
+        for _ in 0..n_funcs {
+            self.tables.remove(self.tables.len() - 1);
+        }
+        println!("Updated internal tables lenght before new call: {:?}", self.tables.len());
+        for f in fns {
+            self.execute_func(reg.clone(), f.clone())?;
+        }
+        println!("Internal tables length after new call: {:?}", self.tables.len());
+        Ok(&self.tables[(self.tables.len() - n_funcs)..self.tables.len()])
     }
 
     pub fn send_current_query(&mut self) -> Result<(), String> {

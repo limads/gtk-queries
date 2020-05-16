@@ -85,7 +85,7 @@ impl QueriesApp {
     ) -> PlotSidebar {
         //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let pl_view = PlotView::new_with_draw_area(
-            "assets/plot_layout/layout.xml", pl_da.clone());
+            "assets/plot_layout/layout-single.xml", pl_da.clone());
         save_widgets::build_save_widgets(&builder, pl_view.clone());
         let sidebar = PlotSidebar::new(
             builder.clone(),
@@ -125,7 +125,7 @@ impl QueriesApp {
                     false => {
                         //content_stack.set_visible_child_name("plot");
                         if !plot_sidebar.layout_loaded() {
-                            status_stack.try_show_alt();
+                            status_stack.try_show_alt_or_connected();
                         }
                         main_paned.set_position(0);
                         if plot_toggle.get_active() {
@@ -136,7 +136,7 @@ impl QueriesApp {
                     },
                     true => {
                         content_stack.set_visible_child_name("tables");
-                        status_stack.try_show_alt();
+                        status_stack.try_show_alt_or_connected();
                         main_paned.set_position(460);
                         content_stack.set_visible_child_name("tables");
                         if plot_toggle.get_active() {
@@ -462,7 +462,7 @@ impl QueriesApp {
                                         "xml" => {
                                             if let Ok(pl) = pl_view.try_borrow() {
                                                 if let Ok(mut f) = File::create(path) {
-                                                    let content = pl.plot_area.get_layout_as_text();
+                                                    let content = pl.plot_group.get_layout_as_text();
                                                     let _ = f.write_all(&content.into_bytes());
                                                 } else {
                                                     println!("Unable to create file");

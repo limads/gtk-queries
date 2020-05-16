@@ -62,7 +62,7 @@ pub fn build_save_widgets(
                 if let Some(path) = dialog.get_filename() {
                     if let Ok(mut pl) = pl_view.try_borrow_mut() {
                         if let Some(p) = path.to_str() {
-                            pl.plot_area.draw_to_file(p, 800, 600);
+                            pl.plot_group.draw_to_file(p, 800, 600);
                         } else {
                             println!("Could not retrieve path as str");
                         }
