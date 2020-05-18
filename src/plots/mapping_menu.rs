@@ -190,6 +190,16 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_anchor_switch".into(), anchor_switch.upcast());
+                let horizontal_switch : Switch
+                    = builder.get_object("bar_horizontal_switch").unwrap();
+                connect_update_switch_property(
+                    &horizontal_switch,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "horizontal".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("bar_horizontal_switch".into(), horizontal_switch.upcast());
                 let width_scale : Scale =
                     builder.get_object("bar_width_scale").unwrap();
                 connect_update_scale_property(

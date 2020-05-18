@@ -71,7 +71,9 @@ impl GroupToolbar {
         glade_def : Rc<String>,
         tbl_nb : TableNotebook,
         data_source : Rc<RefCell<TableEnvironment>>,
-        status_stack : StatusStack
+        status_stack : StatusStack,
+        design_menu : DesignMenu,
+        scale_menus : (ScaleMenu, ScaleMenu)
     ) -> GroupToolbar {
         let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
         {
@@ -122,15 +124,11 @@ impl GroupToolbar {
                 } else {
                     println!("Unable to retrieve mutable reference to plotview");
                 }
-                /*PlotSidebar::update_mapping_widgets(
-                    plot_view.clone(),
-                    mapping_menus.clone(),
-                    plot_notebook.clone(),
-                    glade_def.clone(),
-                    data_source.clone(),
-                    tbl_nb.clone(),
-                    status_stack.clone()
-                );*/
+                PlotSidebar::update_layout_widgets(
+                    design_menu.clone(),
+                    scale_menus.clone(),
+                    plot_view.clone()
+                );
             });
         }
         let toggle_unique : ToggleButton = builder.get_object("toggle_group_unique").unwrap();
@@ -430,7 +428,9 @@ impl PlotSidebar {
             glade_def.clone(),
             tbl_nb.clone(),
             table_env.clone(),
-            status_stack.clone()
+            status_stack.clone(),
+            design_menu.clone(),
+            scale_menus.clone()
         );
         let (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
             builder.clone(),
