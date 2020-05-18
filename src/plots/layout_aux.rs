@@ -11,22 +11,26 @@ fn change_plot_property(
     parent_class : &str,
     value : &str
 ) {
-    let identifier = match parent_class {
-        "mapping" => "@index",
-        "grid_segment" | "design" => "@name",
-        _ => { println!("Invalid parent class: {}", parent_class); return; }
-    };
-    let mut full_name = if prefix.is_empty() {
-        "//property".to_owned()
+    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+        let mut full_name = format!("/plotgroup/plotarea[@position={}]", pl_view.get_active_area());
+        let identifier = match parent_class {
+            "mapping" => "@index",
+            "grid_segment" | "design" => "@name",
+            _ => { println!("Invalid parent class: {}", parent_class); return; }
+        };
+        match parent_class {
+            "mapping" | "grid_segment" | "design" => {
+                full_name += &("/object[".to_owned() + identifier + "='" + prefix + "']/property")[..];
+            },
+            _ => {
+                full_name += "/property";
+            }
+        }
+        full_name += &("[".to_owned() + "@name" + "='" + name + "']")[..];
+        println!("{}", full_name);
+        pl_view.update(&mut UpdateContent::Layout(full_name, value.to_string()) );
     } else {
-        "/gridplot/object[".to_owned() + identifier + "='" + prefix + "']/property"
-    };
-    full_name = full_name + "[" + "@name" + "='" + name + "']";
-    if let Ok(mut ref_view) = plot_view.try_borrow_mut() {
-        ref_view.update(
-            &mut UpdateContent::Layout(full_name, value.to_string()) );
-        // ref_view.update_layout(&property_name, value);
-        // ref_view.reload_layout_data().unwrap();
+        println!("Unable to get mutable reference to plot view");
     }
 }
 

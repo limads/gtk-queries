@@ -116,8 +116,20 @@ impl TableNotebook {
         cols
     }
 
-    // pub fn get_columns(&self) -> Vec<Column> {
-    //}
+    /// Returns selected columns, as a pair of (table, selected column).
+    pub fn selected_table_and_cols(&self) -> Vec<(usize, usize)> {
+        let mut sel = Vec::new();
+        if let Ok(tbls) = self.tbls.try_borrow() {
+            for (i, t) in tbls.iter().enumerate() {
+                for s in t.selected_cols() {
+                    sel.push((i, s));
+                }
+            }
+        } else {
+            println!("Unable to retrieve reference to tables");
+        }
+        sel
+    }
 
     /// Get selected cols at the current selected page. Indices are relative to
     /// the first column of the selected table.

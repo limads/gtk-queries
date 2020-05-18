@@ -198,6 +198,10 @@ impl Table {
         cols
     }
 
+    pub fn get_column<'a>(&'a self, ix : usize) -> Option<&'a Column> {
+        self.cols.get(ix)
+    }
+
     pub fn names(&self) -> Vec<String> {
         self.names.clone()
     }

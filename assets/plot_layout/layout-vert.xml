@@ -4,7 +4,7 @@
     <property name="split">Vertical</property>
     <property name="vertical_ratio">1.0</property>
     <property name="horizontal_ratio">0.5</property>
-    <plotarea>
+    <plotarea position="0">
       <object class="design" name="design">
         <property name="bg_color">#ffffff</property>
         <property name="grid_color">#d3d7cf</property>
@@ -34,7 +34,7 @@
         <property name="grid_density">4</property>
       </object>
     </plotarea>
-    <plotarea>
+    <plotarea position="1">
       <object class="design" name="design">
         <property name="bg_color">#ffffff</property>
         <property name="grid_color">#d3d7cf</property>

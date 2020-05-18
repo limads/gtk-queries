@@ -16,6 +16,15 @@ use crate::table_notebook::*;
 use crate::tables::table::*;
 use crate::status_stack::*;
 
+//pub struct ActiveMapping {
+    // mapping_name
+    // mapping_type
+    // plot : usize
+    // ixs
+    // clear mapping just sets this to None
+    //menu : Option<MappingMenu>
+//}
+
 /// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
 #[derive(Clone, Debug)]
@@ -25,12 +34,19 @@ pub struct MappingMenu {
     pub mapping_box : Box,
     //pub combos : Vec<ComboBoxText>,
     pub design_widgets : HashMap<String, Widget>,
-    pub ixs : Rc<RefCell<Vec<usize>>>
+    pub ixs : Rc<RefCell<Vec<usize>>>,
+    pub plot_ix : usize,
+    pub tab_img : Image
 }
 
 // If all combo boxes have valid textual entries, return Some<Vec>.
 // Return None otherwise.
 impl MappingMenu {
+
+    pub fn create_tab_image(m_type : String) -> Image {
+        let tab_img_path = String::from("assets/icons/") + &m_type + ".svg";
+        Image::new_from_file(&tab_img_path[..])
+    }
 
     /*pub fn get_selected_cols(&self) -> Option<Vec<String>> {
         let mut cols = Vec::new();
@@ -430,11 +446,7 @@ impl MappingMenu {
         } else {
             println!("Could not get mutable reference to data indices at mapping");
         }
-        for (_, w) in self.design_widgets.iter() {
-            if w.is_sensitive() {
-                w.set_sensitive(false);
-            }
-        }
+        self.set_sensitive(false);
         Ok(())
     }
 
@@ -459,8 +471,19 @@ impl MappingMenu {
         }
     }
 
+    pub fn set_sensitive(&self, sensitive : bool) {
+        for (_, w) in self.design_widgets.iter() {
+            if sensitive && !w.is_sensitive() {
+                w.set_sensitive(true);
+            }
+            if !sensitive && w.is_sensitive() {
+                w.set_sensitive(false);
+            }
+        }
+    }
+
     /// Updates data from a table enviroment and the saved column indices.
-    pub fn update_data(&self, t_env : &TableEnvironment,pl_view : &mut PlotView) -> Result<(), &'static str> {
+    pub fn update_data(&self, t_env : &TableEnvironment, pl_view : &mut PlotView) -> Result<(), &'static str> {
         let selected = self.ixs.try_borrow()
             .map_err(|_| "Unable to retrieve reference to used indices")?;
         if selected.len() == 0 {
@@ -519,11 +542,7 @@ impl MappingMenu {
                 return Err("Invalid mapping type");
             }
         }
-        for (_, w) in self.design_widgets.iter() {
-            if !w.is_sensitive() {
-                w.set_sensitive(true);
-            }
-        }
+        self.set_sensitive(true);
         Ok(())
     }
 

@@ -51,6 +51,18 @@ pub struct GroupToolbar {
 
 impl GroupToolbar {
 
+    fn set_sensitive_at_index(menus : &[MappingMenu], ix : usize) {
+        for m in menus.iter() {
+            if m.plot_ix == ix {
+                m.tab_img.set_sensitive(true);
+                m.set_sensitive(true);
+            } else {
+                m.tab_img.set_sensitive(false);
+                m.set_sensitive(false);
+            }
+        }
+    }
+
     fn new(
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
@@ -63,24 +75,54 @@ impl GroupToolbar {
     ) -> GroupToolbar {
         let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
         {
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             let plot_view = plot_view.clone();
             active_combo.connect_changed(move |combo| {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    match combo.get_active_text().as_ref().map(|s| s.as_str() ) {
-                        Some("Top") => { pl_view.change_active_area(0) },
-                        Some("Bottom") => { pl_view.change_active_area(1) },
-                        Some("Left") => { pl_view.change_active_area(0) },
-                        Some("Right") => { pl_view.change_active_area(1) },
-                        Some("Top Left") => { pl_view.change_active_area(0) },
-                        Some("Top Right") => { pl_view.change_active_area(1) },
-                        Some("Bottom Left") => { pl_view.change_active_area(2) },
-                        Some("Bottom Right") => { pl_view.change_active_area(3) },
-                        _ => { }
+                    if let Ok(menus) = mapping_menus.try_borrow() {
+                        match combo.get_active_text().as_ref().map(|s| s.as_str() ) {
+                            Some("Top") => {
+                                pl_view.change_active_area(0);
+                                Self::set_sensitive_at_index(&menus[..], 0);
+                            },
+                            Some("Bottom") => {
+                                pl_view.change_active_area(1);
+                                Self::set_sensitive_at_index(&menus[..], 1);
+                            },
+                            Some("Left") => {
+                                pl_view.change_active_area(0);
+                                Self::set_sensitive_at_index(&menus[..], 0);
+                            },
+                            Some("Right") => {
+                                pl_view.change_active_area(1);
+                                Self::set_sensitive_at_index(&menus[..], 1);
+                            },
+                            Some("Top Left") => {
+                                pl_view.change_active_area(0);
+                                Self::set_sensitive_at_index(&menus[..], 0);
+                            },
+                            Some("Top Right") => {
+                                pl_view.change_active_area(1);
+                                Self::set_sensitive_at_index(&menus[..], 1);
+                            },
+                            Some("Bottom Left") => {
+                                pl_view.change_active_area(2);
+                                Self::set_sensitive_at_index(&menus[..], 2);
+                            },
+                            Some("Bottom Right") => {
+                                pl_view.change_active_area(3);
+                                Self::set_sensitive_at_index(&menus[..], 3);
+                            },
+                            _ => { }
+                        }
+                    } else {
+                        println!("Unable to get reference to mapping menus");
                     }
                 } else {
                     println!("Unable to retrieve mutable reference to plotview");
                 }
-                PlotSidebar::update_mapping_widgets(
+                /*PlotSidebar::update_mapping_widgets(
                     plot_view.clone(),
                     mapping_menus.clone(),
                     plot_notebook.clone(),
@@ -88,7 +130,7 @@ impl GroupToolbar {
                     data_source.clone(),
                     tbl_nb.clone(),
                     status_stack.clone()
-                );
+                );*/
             });
         }
         let toggle_unique : ToggleButton = builder.get_object("toggle_group_unique").unwrap();
@@ -100,13 +142,22 @@ impl GroupToolbar {
             let (toggle_horiz, toggle_vert, toggle_four) = (toggle_horiz.clone(), toggle_vert.clone(), toggle_four.clone());
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             toggle_unique.connect_toggled(move |toggle_unique| {
                 if toggle_unique.get_active() {
                     toggle_horiz.set_active(false);
                     toggle_vert.set_active(false);
                     toggle_four.set_active(false);
                     active_combo.remove_all();
+                    active_combo.append(Some("Center"), "Center");
+                    active_combo.set_active_id(Some("Center"));
                     active_combo.set_sensitive(false);
+                    // plot_notebook.detach_tab(plot_notebook.)
+                    PlotSidebar::clear_mappings(
+                        mapping_menus.clone(),
+                        plot_notebook.clone()
+                    ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
                         pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
@@ -121,6 +172,8 @@ impl GroupToolbar {
             let (toggle_unique, toggle_vert, toggle_four) = (toggle_unique.clone(), toggle_vert.clone(), toggle_four.clone());
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             toggle_horiz.connect_toggled(move |toggle_horiz| {
                 if toggle_horiz.get_active() {
                     toggle_unique.set_active(false);
@@ -131,6 +184,10 @@ impl GroupToolbar {
                     active_combo.append(Some("Bottom"), "Bottom");
                     active_combo.set_sensitive(true);
                     active_combo.set_active_id(Some("Top"));
+                    PlotSidebar::clear_mappings(
+                        mapping_menus.clone(),
+                        plot_notebook.clone()
+                    ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
                         pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-horiz.xml")));
@@ -145,6 +202,8 @@ impl GroupToolbar {
             let (toggle_unique, toggle_horiz, toggle_four) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_four.clone());
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             toggle_vert.connect_toggled(move |toggle_vert| {
                 if toggle_vert.get_active() {
                     toggle_unique.set_active(false);
@@ -155,6 +214,10 @@ impl GroupToolbar {
                     active_combo.append(Some("Right"), "Right");
                     active_combo.set_sensitive(true);
                     active_combo.set_active_id(Some("Left"));
+                    PlotSidebar::clear_mappings(
+                        mapping_menus.clone(),
+                        plot_notebook.clone()
+                    ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
                         pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-vert.xml")));
@@ -169,6 +232,8 @@ impl GroupToolbar {
             let (toggle_unique, toggle_horiz, toggle_vert) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_vert.clone());
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
+            let mapping_menus = mapping_menus.clone();
+            let plot_notebook = plot_notebook.clone();
             toggle_four.connect_toggled(move |toggle_four| {
                 if toggle_four.get_active() {
                     toggle_unique.set_active(false);
@@ -181,6 +246,10 @@ impl GroupToolbar {
                     active_combo.append(Some("Bottom Right"), "Bottom Right");
                     active_combo.set_sensitive(true);
                     active_combo.set_active_id(Some("Top Left"));
+                    PlotSidebar::clear_mappings(
+                        mapping_menus.clone(),
+                        plot_notebook.clone()
+                    ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
                         pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-four.xml")));
@@ -228,6 +297,7 @@ impl PlotSidebar {
     }
 
     pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
+        // TODO: Allow sensitive only when selected mapping applicable to current plot region.
         let visible = self.layout_stack.get_visible_child_name()
             .ok_or("Unable to determine layout stack status" )?;
         if &visible[..] == "layout" {
@@ -478,6 +548,7 @@ impl PlotSidebar {
             let notebook = plot_notebook.clone();
             let status_stack = status_stack.clone();
             clear_layout_btn.connect_clicked(move |btn| {
+                //TODO toggle group toolbar to single
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                     pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
                     layout_stack.set_visible_child_name("empty");
@@ -690,8 +761,16 @@ impl PlotSidebar {
         status_stack : StatusStack
     ) {
         let name = if let Ok(menus) = mapping_menus.try_borrow() {
-            format!("{}", menus.len())
+            let active = plot_view.borrow().get_active_area();
+            let mut n : usize = 0;
+            for m in menus.iter() {
+                if m.plot_ix == active {
+                    n += 1;
+                }
+            }
+            format!("{}", n)
         } else {
+            println!("Unable to get reference to mapping menus");
             return;
         };
         let menu = Self::create_new_mapping_menu(
@@ -888,12 +967,16 @@ impl PlotSidebar {
         let mapping_box : Box = builder.get_object(&box_name).unwrap();
         let design_widgets = HashMap::new();
         let ixs = Rc::new(RefCell::new(Vec::new()));
+        let plot_ix = pl_view.borrow().get_active_area();
+        let tab_img = MappingMenu::create_tab_image(mapping_type.clone());
         let mut m = MappingMenu {
             mapping_name,
             mapping_type,
             mapping_box,
             design_widgets,
-            ixs
+            ixs,
+            plot_ix,
+            tab_img
         };
         m.build_mapping_design_widgets(
             &builder,
@@ -906,11 +989,6 @@ impl PlotSidebar {
             }
         }
         Ok(m)
-    }
-
-    fn create_tab_image(m_type : String) -> Image {
-        let tab_img_path = String::from("assets/icons/") + &m_type + ".svg";
-        Image::new_from_file(&tab_img_path[..])
     }
 
     pub fn update_all_mappings(
@@ -950,9 +1028,8 @@ impl PlotSidebar {
                     Some(p) => mappings.insert(p, m.clone()),
                     None => mappings.push(m.clone())
                 }
-                let tab_img = Self::create_tab_image(m.mapping_type.clone());
                 notebook.add(&m.get_parent());
-                notebook.set_tab_label(&m.get_parent(), Some(&tab_img));
+                notebook.set_tab_label(&m.get_parent(), Some(&m.tab_img));
                 let npages = notebook.get_children().len() as i32;
                 notebook.set_property_page(npages-1);
                 notebook.show_all();

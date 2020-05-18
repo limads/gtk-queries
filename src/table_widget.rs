@@ -31,6 +31,8 @@ pub struct TableWidget {
     nrows : usize,
     ncols : usize,
     //tbl : Table,
+
+    // Column name, column linear index, is_selected.
     selected : Rc<RefCell<Vec<(String, usize, bool)>>>
 }
 
@@ -170,6 +172,8 @@ impl TableWidget {
         label
     }
 
+    /// Returns selected columns, as a continuous index from the first
+    /// column from the first table
     pub fn selected_cols(&self) -> Vec<usize> {
         if let Ok(sel) = self.selected.try_borrow() {
             sel.iter().filter(|s| s.2 == true ).map(|s| s.1 ).collect()

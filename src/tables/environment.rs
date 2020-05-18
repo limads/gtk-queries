@@ -16,6 +16,7 @@ use super::table::*;
 use crate::functions::num_function::*;
 use crate::functions::function_search::*;
 use std::rc::Rc;
+use super::column::*;
 
 #[derive(Clone, Debug)]
 pub enum EnvironmentUpdate {
@@ -421,6 +422,11 @@ impl TableEnvironment {
             Some(t) => Ok(t),
             None => Err("No table at informed index")
         }
+    }
+
+    fn get_column_at_index<'a>(&'a self, tbl_ix : usize, col_ix : usize) -> Result<&'a Column, &'static str> {
+        let tbl = self.get_table_by_index(tbl_ix)?;
+        tbl.get_column(col_ix).ok_or("Invalid column index")
     }
 
     pub fn get_text_at_index(&self, idx : usize) -> Option<String> {
