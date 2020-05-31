@@ -4,8 +4,8 @@ use libloading::{Library, Symbol};
 use std::env;
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::cell::RefCell;
+// use std::rc::Rc;
+// use std::cell::RefCell;
 
 // (1) Examine sources and update database with library/function names
 // (2) Call libloading to load all functions that were parsed.

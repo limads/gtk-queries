@@ -1,25 +1,25 @@
 use gtk::*;
 use gio::prelude::*;
-use std::env::{self, args};
+// use std::env::{self, args};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell /*, RefMut*/ };
 use std::fs::File;
-use std::io::Write;
+// use std::io::Write;
 use std::io::Read;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 // use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 // use sourceview::*;
-use std::ffi::OsStr;
-use gdk::ModifierType;
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
 use gdk::{self, enums::key};
-use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, sql::SqlListener};
+use crate::tables::{ /*self, source::EnvironmentSource,*/ environment::TableEnvironment, environment::EnvironmentUpdate, /*sql::SqlListener*/ };
 use sourceview::*;
-use std::boxed;
-use std::process::Command;
+// use std::boxed;
+// use std::process::Command;
 use gtk::prelude::*;
-use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook, status_stack::StatusStack };
-use crate::tables::table::Table;
+use crate::{ /*utils, table_widget::TableWidget, table_notebook::TableNotebook,*/ status_stack::StatusStack };
+// use crate::tables::table::Table;
 use crate::status_stack::*;
 use sourceview::View;
 
@@ -241,10 +241,6 @@ impl SqlPopover {
         });
     }
 
-    fn build_load_btn(&self) {
-
-    }
-
     pub fn new(builder : Builder, /*query_toggle : ToggleButton,*/ status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
         //let query_popover_path = utils::glade_path("query-popover-3.glade").expect("Failed to load glade file");
         //let builder = Builder::new_from_file(query_popover_path);
@@ -266,7 +262,7 @@ impl SqlPopover {
         let query_file_label : Label = builder.get_object("query_file_label").unwrap();
         {
             let sql_stack = sql_stack.clone();
-            sql_new_btn.connect_clicked(move |btn| {
+            sql_new_btn.connect_clicked(move |_btn| {
                 sql_stack.set_visible_child_name("source");
             });
         }
@@ -274,7 +270,7 @@ impl SqlPopover {
             builder.get_object("sql_load_dialog").unwrap();
         {
             let sql_load_dialog = sql_load_dialog.clone();
-            sql_load_btn.connect_clicked(move |btn| {
+            sql_load_btn.connect_clicked(move |_btn| {
                 sql_load_dialog.run();
                 sql_load_dialog.hide();
             });
@@ -299,7 +295,7 @@ impl SqlPopover {
         let update_clock = Rc::new(RefCell::new((false, 0, 0)));
         {
             let update_clock = update_clock.clone();
-            let refresh_btn = refresh_btn.clone();
+            // let refresh_btn = refresh_btn.clone();
             update_btn.connect_toggled(move |btn| {
                 if let Ok(mut update) = update_clock.try_borrow_mut() {
                     update.0 = false;
@@ -441,7 +437,7 @@ impl SqlPopover {
         }
     }
 
-    pub fn set_file_mode(&self, fname : &str) {
+    /*pub fn set_file_mode(&self, fname : &str) {
         /*if let Some(buf) = self.view.get_buffer() {
             buf.set_text("");
         }
@@ -453,7 +449,7 @@ impl SqlPopover {
         } else {
             println!("Could not retrieve mutable reference to file status");
         }*/
-    }
+    }*/
 
     pub fn set_view_mode(&self) {
         /*if let Some(buf) = self.view.get_buffer() {
@@ -602,7 +598,7 @@ impl SqlPopover {
         // let table_env = self.t_env.clone();
         let refresh_btn = self.refresh_btn.clone();
         // TODO verify that view is realized before accepting key press
-        self.view.connect_key_press_event(move |view, ev_key| {
+        self.view.connect_key_press_event(move |_view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
                 if refresh_btn.is_sensitive() {
                     refresh_btn.emit_clicked();

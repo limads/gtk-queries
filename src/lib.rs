@@ -20,7 +20,7 @@ pub mod utils {
 
     use std::env;
     use gtk::*;
-    use gio::prelude::*;
+    // use gio::prelude::*;
     use crate::tables::environment::TableEnvironment;
     use crate::table_notebook::*;
     use crate::functions::function_search::*;

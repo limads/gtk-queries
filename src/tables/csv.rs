@@ -6,9 +6,9 @@ use std::io::{self, Read, Write};
 use nalgebra::Scalar;
 use std::fmt::Display;
 use std::str::FromStr;
-use std::convert::TryFrom;
+// use std::convert::TryFrom;
 use nalgebra::base::RowDVector;
-use std::boxed::Box;
+// use std::boxed::Box;
 
 /// Read from a text file, returning its contents as a String
 pub fn load_content_from_file(path : &str) -> Result<String,()> {
@@ -52,8 +52,8 @@ pub fn parse_header(
 ) -> Option<Vec<String>> {
     let mut header_entries = Vec::new();
     if let Ok(header) = csv_reader.headers() {
-        for (i, entry) in header.iter().enumerate() {
-            let mut e = entry.to_string();
+        for entry in header.iter() {
+            let e = entry.to_string();
             header_entries.push(e);
         }
         Some(header_entries)

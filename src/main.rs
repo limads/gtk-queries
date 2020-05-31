@@ -1,33 +1,33 @@
 use gtk::*;
 use gio::prelude::*;
-use std::env::{self, args};
+use std::env::{ /*self,*/ args};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell /*, RefMut*/ };
 use std::fs::File;
 use std::io::Write;
-use std::io::Read;
-use std::collections::HashMap;
+// use std::io::Read;
+// use std::collections::HashMap;
 // use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 // use sourceview::*;
-use std::ffi::OsStr;
-use gdk::ModifierType;
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
 use gdk::{self, enums::key};
-use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, sql::SqlListener};
+use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, /*sql::SqlListener*/ };
 use gtk_queries::conn_popover::*;
 use sourceview::*;
-use std::boxed;
-use std::process::Command;
+// use std::boxed;
+// use std::process::Command;
 use gtk::prelude::*;
-use gtk_queries::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
+use gtk_queries::{utils, /*table_widget::TableWidget,*/ table_notebook::TableNotebook };
 //use nlearn::table::Table;
-use gtk_queries::tables::table::*;
+// use gtk_queries::tables::table::*;
 use gtk_queries::status_stack::*;
 use gtk_queries::sql_popover::*;
 use gtk_queries::functions::function_search::*;
 use gtk_queries::functions::num_function::*;
-use gdk::prelude::*;
-use gtkplotview::plot_view::PlotView;
+// use gdk::prelude::*;
+use gtk_queries::plots::plotview::plot_view::PlotView;
 use gtk_queries::plots::save_widgets;
 use gtk_queries::plots::layout_menu::PlotSidebar;
 use gtk_queries::upload_popover::*;
@@ -102,7 +102,7 @@ impl QueriesApp {
     fn connect_toggles(
         table_toggle : ToggleButton,
         plot_toggle : ToggleButton,
-        builder : Builder,
+        _builder : Builder,
         main_paned : Paned,
         //sidebar_stack : Stack,
         content_stack : Stack,
@@ -193,7 +193,7 @@ impl QueriesApp {
         (table_toggle, plot_toggle)
     }
 
-    pub fn new_from_builder(builder : &Builder, window : Window) -> Self {
+    pub fn new_from_builder(builder : &Builder, _window : Window) -> Self {
         //let header : HeaderBar =
         //    builder.get_object("header").unwrap();
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
@@ -225,7 +225,7 @@ impl QueriesApp {
             plot_toggle.clone()
         );
 
-        let upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
+        let _upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
         //let file_btn : FileChooserButton =
@@ -321,13 +321,11 @@ impl QueriesApp {
                 // if new table output is different than old table output.
                 match update {
                     EnvironmentUpdate::Refresh => {
-                        sidebar.update_all_mappings(
-                            &t_env,
-                            status_stack.clone()
-                        );
+                        sidebar.update_all_mappings(&t_env,status_stack.clone())
+                            .map_err(|e| println!("{}", e) ).ok();
                     },
                     _ => {
-                        sidebar.clear_all_mappings();
+                        sidebar.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
                     }
                 }
                 tables_nb.nb.set_sensitive(true);
@@ -489,7 +487,7 @@ impl QueriesApp {
                     _ => { }
                 }
             });
-            csv_btn.connect_clicked(move |btn| {
+            csv_btn.connect_clicked(move |_btn| {
                 save_dialog.run();
                 save_dialog.hide();
             });
@@ -538,14 +536,14 @@ pub fn switch_paned(paned : Paned, show : bool) {
     }
 }
 
-fn build_func_menu(builder : Builder) {
+/*fn build_func_menu(builder : Builder) {
     let search_entry : Entry =
             builder.get_object("fn_search_entry").unwrap();
         let completion : EntryCompletion =
             builder.get_object("fn_completion").unwrap();
         completion.set_text_column(0);
         completion.set_minimum_key_length(1);
-}
+}*/
 
 fn build_ui(app: &gtk::Application) {
     let path = utils::glade_path("gtk-queries.glade").expect("Failed to load glade file");
@@ -562,11 +560,11 @@ fn build_ui(app: &gtk::Application) {
         let tables_nb = queries_app.tables_nb.clone();
         //let toggle_w = queries_app.ws_toggle.clone();
         let view = queries_app.sql_popover.view.clone();
-        let main_paned = queries_app.main_paned.clone();
+        let _main_paned = queries_app.main_paned.clone();
         let table_toggle = queries_app.table_toggle.clone();
         let plot_toggle = queries_app.plot_toggle.clone();
         let sql_stack : Stack = queries_app.sql_popover.sql_stack.clone();
-        win.connect_key_release_event(move |win, ev_key| {
+        win.connect_key_release_event(move |_win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
                 if ev_key.get_keyval() == key::q {
                     if conn_popover.popover.get_visible() {
@@ -627,8 +625,8 @@ fn build_ui(app: &gtk::Application) {
 // cp queries.desktop /usr/share/applications
 // cp assets/icons/queries.svg /usr/share/icons/hicolor/128x128/apps
 // cp target/debug/queries /usr/bin/
-fn main() {
-    gtk::init();
+fn main() -> Result<(), String> {
+    gtk::init().map_err(|e| format!("{}", e) )?;
 
     // Required for GtkSourceView initialization from glade
     let _ = View::new();
@@ -643,6 +641,7 @@ fn main() {
     });
 
     app.run(&args().collect::<Vec<_>>());
+    Ok(())
 }
 
 // Change GtkSourceView on file set

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
 use super::stdin::StdinListener;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 /// Environment source acts like a proxy for either the filesystem or a remote
 /// database connection, encapsulating the details of establishing connections to this
@@ -57,7 +57,7 @@ impl EnvironmentSource {
                 if content.len() > 0 {
                     //println!("At new from file: {}", content);
                     let p = path.to_str().ok_or("Invalid path".to_string())?;
-                    let mut env = EnvironmentSource::File(
+                    let env = EnvironmentSource::File(
                         p.to_owned(),
                         content
                     );

@@ -1,4 +1,4 @@
-use crate::tables::sql::*;
+// use crate::tables::sql::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
@@ -6,9 +6,9 @@ use gtk::prelude::*;
 //use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
 use crate::tables::environment::TableEnvironment;
-use crate::tables::sql::{SqlListener};
+// use crate::tables::sql::{SqlListener};
 use crate::tables::source::EnvironmentSource;
-use gtk::prelude::*;
+// use gtk::prelude::*;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
@@ -66,7 +66,8 @@ impl ConnPopover {
     of btn here */
     pub fn new_from_glade(
         builder : Builder,
-        btn : gtk::Button, path : &str
+        btn : gtk::Button,
+        _path : &str
     )
         //conn : &'a mut Option<Connection>,
         /*conn_switch : &'a mut gtk::Switch)*/ -> ConnPopover {
@@ -237,9 +238,9 @@ impl ConnPopover {
     }
 
     fn disconnect_with_delay(
-        switch : Switch
+        _switch : Switch
     ) {
-        let switch = switch.clone();
+        //let switch = switch.clone();
         gtk::timeout_add(160, move || {
             //&switch.set_state(false);
             glib::Continue(false)
@@ -309,7 +310,7 @@ impl ConnPopover {
                                                 }
                                             }
                                             Self::upload_csv(db_path[0].clone(), &mut t_env, status.clone(), switch.clone());
-                                            Self::select_all_tables(&mut t_env);
+                                            // Self::select_all_tables(&mut t_env);
                                         },
                                         _ => {
                                             match Self::try_local_connection(&conn_popover, Some(db_path[0].clone()), &mut t_env) {
@@ -342,7 +343,7 @@ impl ConnPopover {
                                 for p in db_path.iter() {
                                     Self::upload_csv(p.clone(), &mut t_env, status.clone(), switch.clone());
                                 }
-                                Self::select_all_tables(&mut t_env);
+                                // Self::select_all_tables(&mut t_env);
                             },
                             _ => {
                                 println!("Invalid connection mode");
@@ -457,7 +458,7 @@ impl ConnPopover {
         }
     }
 
-    /// Assume there is a 1:1 correspondence between table names
+    /*/// Assume there is a 1:1 correspondence between table names
     /// and tables at the database. Select all rows of all tables.
     fn select_all_tables(t_env : &mut TableEnvironment) {
         /*let names : Vec<_> =  t_env.all_tables().iter()
@@ -466,7 +467,7 @@ impl ConnPopover {
             let sql = format !("select * from {};", name);
             t_env.send_query(sql);
         }*/
-    }
+    }*/
 
     fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment, status_stack : StatusStack, switch : Switch) {
         if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {

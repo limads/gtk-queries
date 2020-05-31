@@ -1,34 +1,34 @@
 use gtk::*;
-use gio::prelude::*;
-use std::env::{self, args};
+// use gio::prelude::*;
+// use std::env::{self, args};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell /*, RefMut*/ };
 use std::fs::File;
-use std::io::Write;
+// use std::io::Write;
 use std::io::Read;
-use std::collections::HashMap;
+// use std::collections::HashMap;
 // use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 // use sourceview::*;
-use std::ffi::OsStr;
-use gdk::ModifierType;
-use gdk::{self, enums::key};
-use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
-use crate::conn_popover::*;
-use sourceview::*;
-use std::boxed;
-use std::process::Command;
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
+// use gdk::{self, /*enums::key*/ };
+// use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
+// use crate::conn_popover::*;
+// use sourceview::*;
+// use std::boxed;
+// use std::process::Command;
 use gtk::prelude::*;
-use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
-use crate::tables::table::Table;
-use crate::status_stack::*;
-use crate::sql_popover::*;
-use crate::functions::function_search::*;
-use crate::functions::num_function::*;
-use gdk::prelude::*;
-use gtkplotview::plot_view::PlotView;
+use crate::{ /*utils, table_widget::TableWidget,*/ table_notebook::TableNotebook };
+// use crate::tables::table::Table;
+// use crate::status_stack::*;
+// use crate::sql_popover::*;
+// use crate::functions::function_search::*;
+// use crate::functions::num_function::*;
+// use gdk::prelude::*;
+// use crate::plots::plotview::plot_view::PlotView;
 //use gtk_plots::save_widgets;
-use crate::plots::layout_menu::PlotSidebar;
+// use crate::plots::layout_menu::PlotSidebar;
 
 #[derive(Clone)]
 pub struct UploadPopover {
@@ -80,7 +80,7 @@ impl UploadPopover {
 
         {
             let update_info = update_info.clone();
-            switch.connect_state_set(move |switch, state| {
+            switch.connect_state_set(move |_switch, _state| {
                 let selected = tbl_nb.full_selected_cols();
                 if let Ok(mut info) = update_info.try_borrow_mut() {
                     info.0.clear();

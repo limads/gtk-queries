@@ -1,8 +1,8 @@
 use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use gtk::prelude::*;
-use gtkplotview::plot_view::{PlotView, UpdateContent};
+// use gtk::prelude::*;
+use super::plotview::plot_view::{PlotView, UpdateContent};
 
 fn change_plot_property(
     plot_view : Rc<RefCell<PlotView>>,

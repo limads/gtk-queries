@@ -2,8 +2,8 @@ use postgres::types::ToSql;
 use std::marker::Sync;
 use rust_decimal::Decimal;
 use super::nullable_column::*;
-use std::convert::AsRef;
-use from::*;
+// use std::convert::AsRef;
+// use from::*;
 
 // TODO create Array<Column> for N-D Postgre arrays, that carries a vector of Columns
 // and a dimensionality metadata.
@@ -120,7 +120,7 @@ impl<'a> Column {
 pub mod from {
 
     use super::*;
-    use std::convert::{ From, TryFrom} ;
+    use std::convert::{ From, /*TryFrom*/ };
 
     impl From<Vec<bool>> for Column {
         fn from(value: Vec<bool>) -> Self {
@@ -205,7 +205,7 @@ pub mod from {
 
 pub mod try_into {
 
-    use std::convert::{TryInto, TryFrom};
+    use std::convert::{ /*TryInto,*/ TryFrom};
     use super::*;
 
     impl TryFrom<Column> for Vec<bool> {

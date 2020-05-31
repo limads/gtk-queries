@@ -10,4 +10,6 @@ pub mod layout_aux;
 
 pub mod mapping_menu;
 
+pub mod plotview;
+
 

@@ -1,11 +1,11 @@
 use gtk::*;
-use gio::prelude::*;
-use std::fs::File;
-use std::io::Read;
-use gtkplotview::plot_view::{PlotView, UpdateContent};
-use gtkplotview::PlotArea;
-use std::path::PathBuf;
-use std::io::Write;
+// use gio::prelude::*;
+// use std::fs::File;
+// use std::io::Read;
+use crate::plots::plotview::plot_view::{PlotView /*, UpdateContent*/ };
+// use crate::plots::plotview::PlotArea;
+// use std::path::PathBuf;
+// use std::io::Write;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::prelude::*;
@@ -50,7 +50,7 @@ pub fn build_save_widgets(
         let save_img_dialog = save_img_dialog.clone();
         let save_image_btn : Button =
             builder.get_object("save_image_btn").unwrap();
-        save_image_btn.connect_clicked(move |btn| {
+        save_image_btn.connect_clicked(move |_btn| {
             save_img_dialog.run();
             save_img_dialog.hide();
         });

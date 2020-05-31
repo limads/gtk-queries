@@ -1,10 +1,10 @@
 use gtk::*;
-use gio::prelude::*;
-use crate::*;
+// use gio::prelude::*;
+// use crate::*;
 use std::collections::HashMap;
 use gtk::prelude::*;
-use gtkplotview::plot_view::{PlotView, UpdateContent};
-use gtkplotview::PlotArea;
+use crate::plots::plotview::plot_view::{PlotView, /*UpdateContent*/ };
+// use crate::plots::plotview::PlotArea;
 use super::layout_aux::*;
 use std::rc::Rc;
 use std::cell::RefCell;

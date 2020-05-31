@@ -1,8 +1,8 @@
 use std::thread::{self, JoinHandle};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Receiver, Sender, channel};
-use std::io::{self, Read, Write};
-use std::collections::HashMap;
+use std::sync::mpsc::{ /*Receiver,*/ Sender, channel};
+use std::io::{self, /*Read, Write*/ };
+// use std::collections::HashMap;
 use std::time::Duration;
 use std::rc::Rc;
 

@@ -1,20 +1,20 @@
 use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use gtkplotview::plot_view::{PlotView, UpdateContent};
+use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 //use gtkplotview::PlotArea;
-use std::io::{Read, BufReader};
-use std::path::PathBuf;
+// use std::io::{Read, BufReader};
+// use std::path::PathBuf;
 //use crate::data_source::TableDataSource;
-use gtkplotview::PlotArea;
+// use crate::plots::plotview::PlotArea;
 use crate::plots::layout_aux::*;
-use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
+use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
 use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
-use crate::table_notebook::*;
-use crate::tables::table::*;
-use crate::status_stack::*;
+// use crate::table_notebook::*;
+// use crate::tables::table::*;
+// use crate::status_stack::*;
 
 //pub struct ActiveMapping {
     // mapping_name

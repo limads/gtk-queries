@@ -1,7 +1,7 @@
 use super::column::*;
 use postgres::types::{ToSql, FromSql};
 use std::marker::Sync;
-use rust_decimal::Decimal;
+// use rust_decimal::Decimal;
 use std::convert::{TryFrom, TryInto};
 use std::mem;
 

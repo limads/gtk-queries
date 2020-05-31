@@ -1,22 +1,22 @@
 use gtk::*;
 use gio::prelude::*;
-use std::env::{self, args};
+// use std::env::{self, args};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use std::fs::File;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::ffi::OsStr;
-use gdk::ModifierType;
+use std::cell::{RefCell, /*RefMut*/ };
+// use std::fs::File;
+// use std::collections::HashMap;
+// use std::path::PathBuf;
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
 use gdk::{self, enums::key};
-use crate::tables::{self, source::EnvironmentSource, environment::TableEnvironment, sql::SqlListener};
-use std::boxed;
-use std::process::Command;
+use crate::tables::{ /*self, source::EnvironmentSource,*/ environment::TableEnvironment, /*sql::SqlListener*/ };
+// use std::boxed;
+// use std::process::Command;
 use gtk::prelude::*;
-use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
-use crate::tables::table::Table;
-use std::fmt::Display;
-use std::io::{Read, Write};
+use crate::{ /*utils, table_widget::TableWidget,*/ table_notebook::TableNotebook };
+// use crate::tables::table::Table;
+// use std::fmt::Display;
+// use std::io::{Read, Write};
 use crate::functions::num_function::*;
 use crate::plots::layout_menu::PlotSidebar;
 
@@ -298,7 +298,7 @@ impl FunctionSearch {
         let name = pref_iter.next()?.to_string();
         let args_end = pref_iter.next()?;
         let mut end_iter = args_end.split(")");
-        let mut joined_args = end_iter.next()?.to_string();
+        let joined_args = end_iter.next()?.to_string();
         let call = if joined_args.is_empty() {
             (name, Vec::new())
         } else {
@@ -372,7 +372,7 @@ impl FunctionSearch {
         reg : Rc<NumRegistry>,
         tbl_nb : TableNotebook,
         fn_popover : Popover,
-        pl_sidebar : PlotSidebar,
+        _pl_sidebar : PlotSidebar,
         t_env : Rc<RefCell<TableEnvironment>>
     ) -> Self {
         let search_entry : Entry =
@@ -447,7 +447,7 @@ impl FunctionSearch {
             let tbl_nb = tbl_nb.clone();
             let doc_stack = doc_stack.clone();
             let reg = reg.clone();
-            let fn_popover = fn_popover.clone();
+            let _fn_popover = fn_popover.clone();
             search_entry.connect_key_press_event(move |entry, key_ev| {
                 match key_ev.get_keyval() {
                     key::Return => {
@@ -463,7 +463,9 @@ impl FunctionSearch {
                                 if let Ok(mut t_env) = t_env.try_borrow_mut() {
                                     let full_sel = tbl_nb.full_selected_cols();
                                     let fn_call = FunctionCall::new(call, full_sel);
-                                    t_env.execute_func(reg.clone(), fn_call);
+                                    if let Err(e) = t_env.execute_func(reg.clone(), fn_call) {
+                                        println!("{}", e);
+                                    }
                                 } else {
                                     println!("Unable to retrieve mutable reference to table environment");
                                 }
@@ -487,7 +489,7 @@ impl FunctionSearch {
             //    true
             //});
             let tbl_nb = tbl_nb.clone();
-            completion.connect_match_selected(move |compl, model, iter|{
+            completion.connect_match_selected(move |_compl, model, iter|{
                 if let Ok(Some(text)) = model.get_value(iter, 0).get::<String>() {
                     let selected = tbl_nb.selected_cols();
                     fn_search.update_fn_info(&text[..], &selected[..]);

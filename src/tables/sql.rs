@@ -1,28 +1,28 @@
 use postgres::{self, Client, tls::NoTls};
-use postgres::row::Row;
-use postgres::types::Type;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::fs::File;
+// use postgres::row::Row;
+// use postgres::types::Type;
+// use std::collections::HashMap;
+// use std::rc::Rc;
+// use std::cell::RefCell;
+// use std::fs::File;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::ast::Statement;
 use sqlparser::parser::{Parser, ParserError};
-use std::process::{Command, Stdio};
-use std::io::{BufWriter, Write, BufReader, Read};
+// use std::process::{Command, Stdio};
+// use std::io::{ /*BufWriter,*/ Write /*, BufReader, Read */ };
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use rusqlite;
-use std::path::Path;
+// use std::path::Path;
 //use crate::decoding;
 use std::fmt::Display;
 use std::fmt;
 use std::error::Error;
 use super::table::*;
-use libloading;
-use rusqlite::functions::*;
-use chrono::NaiveDateTime;
+// use libloading;
+// use rusqlite::functions::*;
+// use chrono::NaiveDateTime;
 //use serde_json::value::Value;
 use std::path::PathBuf;
 use super::postgre;
@@ -464,7 +464,7 @@ impl SqlEngine {
         }
     }
 
-    pub fn try_new_local(content : String) -> Result<Self, String> {
+    pub fn try_new_local(_content : String) -> Result<Self, String> {
         let conn = rusqlite::Connection::open_in_memory()
             .map_err(|e| format!("{}", e))?;
         // let guard = rusqlite::LoadExtensionGuard::new(&conn)
@@ -555,7 +555,7 @@ impl SqlEngine {
         }
         match self {
             SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
-            SqlEngine::PostgreSql{ conn_str : _ , conn : conn } => {
+            SqlEngine::PostgreSql{ conn_str : _ , conn } => {
                 for stmt in stmts {
                     match stmt {
                         Statement::Query(q) => {
@@ -581,7 +581,7 @@ impl SqlEngine {
                     }
                 }
             },
-            SqlEngine::Sqlite3{ path : _, conn : conn} => {
+            SqlEngine::Sqlite3{ path : _, conn} => {
                 // conn.execute() for insert/update/delete
                 for stmt in stmts {
                     match stmt {
@@ -706,7 +706,7 @@ pub fn get_subset_valid_queries(
 }*/
 
 pub struct SqlListener {
-    handle : JoinHandle<()>,
+    _handle : JoinHandle<()>,
     ans_receiver : Receiver<Vec<QueryResult>>,
     cmd_sender : Sender<String>,
     pub engine : Arc<Mutex<SqlEngine>>,
@@ -750,7 +750,7 @@ impl SqlListener {
             }
         });
         Self {
-            handle : r_thread,
+            _handle : r_thread,
             ans_receiver : ans_rx,
             cmd_sender : cmd_tx,
             engine : engine,

@@ -1,22 +1,22 @@
 use gtk::*;
-use gio::prelude::*;
-use std::env::args;
+// use gio::prelude::*;
+// use std::env::args;
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use std::fs::File;
-use std::io::Write;
-use std::io::Read;
-use std::collections::HashMap;
+use std::cell::{RefCell /*, RefMut*/ };
+// use std::fs::File;
+// use std::io::Write;
+// use std::io::Read;
+// use std::collections::HashMap;
 // use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 // use sourceview::*;
-use std::ffi::OsStr;
-use gdk::ModifierType;
-use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment, /*button::TableChooser*/ };
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
+// use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment, /*button::TableChooser*/ };
 use crate::table_widget::*;
 //use gtk::builder::BuilderExtManual;
 use gtk::prelude::*;
-use crate::tables::table::*;
+// use crate::tables::table::*;
 use crate::functions::function_search::*;
 use crate::plots::layout_menu::*;
 
@@ -81,8 +81,8 @@ impl TableNotebook {
                 println!("Selected: {:?}", selected);
                 fn_search.update_fn_info("", &selected[..]);
                 fn_popover.set_relative_to(Some(ev_bx));
-                sidebar.set_add_mapping_sensitive(selected.len());
-                sidebar.set_edit_mapping_sensitive(selected.len());
+                sidebar.set_add_mapping_sensitive(selected.len()).map_err(|e| println!("{}", e) ).ok();
+                sidebar.set_edit_mapping_sensitive(selected.len()).map_err(|e| println!("{}", e) ).ok();
                 glib::signal::Inhibit(false)
             });
         }

@@ -1,19 +1,19 @@
 use gtk::*;
 use gtk::prelude::*;
-use gio::prelude::*;
-use std::env::args;
+// use gio::prelude::*;
+// use std::env::args;
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
-use std::fs::File;
-use std::io::Write;
-use std::io::Read;
-use std::collections::HashMap;
+use std::cell::{RefCell /*, RefMut*/ };
+// use std::fs::File;
+// use std::io::Write;
+// use std::io::Read;
+// use std::collections::HashMap;
 // use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-use std::path::PathBuf;
+// use std::path::PathBuf;
 // use sourceview::*;
-use std::ffi::OsStr;
-use gdk::ModifierType;
-use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment};
+// use std::ffi::OsStr;
+// use gdk::ModifierType;
+// use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment};
 use crate::tables::table::*;
 use crate::utils;
 use gdk::prelude::*;
@@ -48,7 +48,7 @@ impl TableWidget {
     pub fn new() -> TableWidget {
         let grid = Grid::new();
         // let data = Rc::new(RefCell::new(Vec::new()));
-        let message = Label::new(None);
+        let _message = Label::new(None);
         let provider = utils::provider_from_path("tables.css")
             .expect("Unable to load tables CSS");
         let parent_ctx = grid.get_style_context();

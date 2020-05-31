@@ -1,22 +1,22 @@
-use nalgebra::DVector;
-use std::collections::HashMap;
+// use nalgebra::DVector;
+// use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Read, BufReader};
+use std::io::{Read, /*BufReader*/ };
 use std::path::PathBuf;
-use nalgebra::*;
-use nalgebra::base::storage::Storage;
-use super::csv::*;
+// use nalgebra::*;
+// use nalgebra::base::storage::Storage;
+// use super::csv::*;
 use crate::tables::sql::*;
-use chrono;
+// use chrono;
 use super::source::*;
-use super::stdin::*;
+// use super::stdin::*;
 use std::path::Path;
-use super::sql::*;
+// use super::sql::*;
 use super::table::*;
 use crate::functions::num_function::*;
 use crate::functions::function_search::*;
 use std::rc::Rc;
-use super::column::*;
+// use super::column::*;
 
 #[derive(Clone, Debug)]
 pub enum EnvironmentUpdate {
@@ -350,8 +350,8 @@ impl TableEnvironment {
                 //println!("Received source at update_from_source: {}", content);
                 self.tables.clear();
                 let p = Path::new(&path);
-                let p = p.file_stem().ok_or("Could not extract table name from path".to_string())?;
-                let tbl_name = Some(p.to_str().ok_or("Could not convert table path to str".to_string())?.to_string());
+                let _p = p.file_stem().ok_or("Could not extract table name from path".to_string())?;
+                //let _tbl_name = Some(p.to_str().ok_or("Could not convert table path to str".to_string())?.to_string());
                 match Table::new_from_text(content.to_string()) {
                     Ok(tbl) => { self.tables.push(tbl)  },
                     Err(e) => { return Err(format!("Error: {}", e)); }
@@ -424,10 +424,10 @@ impl TableEnvironment {
         }
     }
 
-    fn get_column_at_index<'a>(&'a self, tbl_ix : usize, col_ix : usize) -> Result<&'a Column, &'static str> {
+    /*fn get_column_at_index<'a>(&'a self, tbl_ix : usize, col_ix : usize) -> Result<&'a Column, &'static str> {
         let tbl = self.get_table_by_index(tbl_ix)?;
         tbl.get_column(col_ix).ok_or("Invalid column index")
-    }
+    }*/
 
     pub fn get_text_at_index(&self, idx : usize) -> Option<String> {
         if let Ok(tbl) = self.get_table_by_index(idx) {
@@ -506,7 +506,7 @@ impl TableEnvironment {
 
     pub fn append_table_from_text(
         &mut self,
-        name : Option<String>,
+        _name : Option<String>,
         content : String
     ) -> Result<(), &'static str> {
         let t = Table::new_from_text(content)?;
@@ -544,7 +544,7 @@ impl TableEnvironment {
                 }
             },
             EnvironmentSource::SQLite3(_) | EnvironmentSource::PostgreSQL(_) => {
-                self.send_current_query();
+                self.send_current_query().map_err(|e| println!("{}", e) ).ok();
             },
             _ => { }
         }

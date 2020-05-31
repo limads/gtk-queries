@@ -5,13 +5,13 @@ use super::mapping_menu::*;
 //use crate::PlotSidebar;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
-use gtkplotview::GroupSplit;
-use gtkplotview::plot_view::{PlotView, UpdateContent};
-use std::path::PathBuf;
+use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
+use crate::plots::plotview::GroupSplit;
+use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
+// use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-use gio::FileExt;
+// use gio::FileExt;
 use super::design_menu::*;
 use super::scale_menu::*;
 use std::collections::HashMap;
@@ -68,17 +68,17 @@ impl GroupToolbar {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
-        glade_def : Rc<String>,
-        tbl_nb : TableNotebook,
-        data_source : Rc<RefCell<TableEnvironment>>,
-        status_stack : StatusStack,
+        _glade_def : Rc<String>,
+        _tbl_nb : TableNotebook,
+        _data_source : Rc<RefCell<TableEnvironment>>,
+        _status_stack : StatusStack,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu)
     ) -> GroupToolbar {
         let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
         {
             let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
+            // let _plot_notebook = plot_notebook.clone();
             let plot_view = plot_view.clone();
             active_combo.connect_changed(move |combo| {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
@@ -272,7 +272,6 @@ impl GroupToolbar {
             GroupSplit::Horizontal => { self.toggle_horiz.toggled(); }
             GroupSplit::Vertical => { self.toggle_vert.toggled(); }
             GroupSplit::Both => { self.toggle_four.toggled(); }
-            _ => { }
         }
     }
 }
@@ -320,13 +319,13 @@ impl PlotSidebar {
                             return Ok(());
                         }
                     },
-                    "text" | "scatter" | "surface" => {
+                    "text" | "surface" => {
                         if ncols == 3 {
                             self.edit_mapping_btn.set_sensitive(true);
                             return Ok(());
                         }
                     },
-                    mapping => return Err("Unrecognized mapping")
+                    _ => return Err("Unrecognized mapping")
                 }
             }
         }
@@ -382,7 +381,7 @@ impl PlotSidebar {
             let layout_stack = layout_stack.clone();
             let status_stack = status_stack.clone();
             let clear_layout_btn = clear_layout_btn.clone();
-            new_layout_btn.connect_clicked(move |btn| {
+            new_layout_btn.connect_clicked(move |_btn| {
                 layout_stack.set_visible_child_name("layout");
                 status_stack.try_show_alt();
                 clear_layout_btn.set_sensitive(true);
@@ -805,7 +804,9 @@ impl PlotSidebar {
         match (self.pl_view.try_borrow_mut(), self.mapping_menus.try_borrow()) {
             (Ok(mut pl_view), Ok(mappings)) => {
                 for m in mappings.iter() {
-                    m.clear_data(&mut pl_view);
+                    if let Err(e) = m.clear_data(&mut pl_view) {
+                        println!("{}", e);
+                    }
                 }
                 Ok(())
             },
@@ -947,10 +948,10 @@ impl PlotSidebar {
     /// to avoid aliasing.
     /// Make this mapping_menu::create(.)
     fn create_new_mapping_menu(
-        glade_def : Rc<String>,
+        _glade_def : Rc<String>,
         mapping_name : Rc<RefCell<String>>,
         mapping_type : String,
-        tbl_env : Rc<RefCell<TableEnvironment>>,
+        _tbl_env : Rc<RefCell<TableEnvironment>>,
         pl_view : Rc<RefCell<PlotView>>,
         properties : Option<HashMap<String, String>>,
         //sidebar : PlotSidebar
@@ -1011,7 +1012,7 @@ impl PlotSidebar {
     }
 
     fn append_mapping_menu(
-        mut m : MappingMenu,
+        m : MappingMenu,
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         notebook : Notebook,
         plot_view : Rc<RefCell<PlotView>>,
@@ -1044,7 +1045,9 @@ impl PlotSidebar {
                             return;
                         }
                     } else {
-                        m.clear_data(&mut pl);
+                        if let Err(e) = m.clear_data(&mut pl) {
+                            println!("{}", e);
+                        }
                     }
                 } else {
                     println!("Unable to retrive reference to mapping name");
