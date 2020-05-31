@@ -197,6 +197,9 @@ impl QueriesApp {
         //let header : HeaderBar =
         //    builder.get_object("header").unwrap();
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
+        //main_paned.set_property("min_position", &(400) as &dyn ToValue );
+        let sidebar_paned : Paned =  builder.get_object("sidebar_paned").unwrap();
+        //sidebar_paned.set_property("min_position", &(400) as &dyn ToValue );
         let tables_nb = TableNotebook::new(&builder);
         //let exec_btn : Button =
         //    builder.get_object("exec_btn").unwrap();

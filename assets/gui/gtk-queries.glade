@@ -38,62 +38,6 @@
       <object class="GtkImage">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
-        <property name="pixbuf">../icons/integer.svg</property>
-      </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">0</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkLabel">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="label" translatable="yes">Field (Integer)</property>
-      </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">1</property>
-      </packing>
-    </child>
-  </object>
-  <object class="GtkBox">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <child>
-      <object class="GtkImage">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="pixbuf">../icons/fnicon.svg</property>
-      </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">0</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkLabel">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="label" translatable="yes">Function</property>
-      </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">1</property>
-      </packing>
-    </child>
-  </object>
-  <object class="GtkBox">
-    <property name="visible">True</property>
-    <property name="can_focus">False</property>
-    <child>
-      <object class="GtkImage">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
         <property name="pixbuf">../icons/binary.svg</property>
       </object>
       <packing>
@@ -135,6 +79,62 @@
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <property name="label" translatable="yes">Field (Real)</property>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
+        <property name="position">1</property>
+      </packing>
+    </child>
+  </object>
+  <object class="GtkBox">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkImage">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="pixbuf">../icons/integer.svg</property>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
+        <property name="position">0</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">Field (Integer)</property>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
+        <property name="position">1</property>
+      </packing>
+    </child>
+  </object>
+  <object class="GtkBox">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkImage">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="pixbuf">../icons/fnicon.svg</property>
+      </object>
+      <packing>
+        <property name="expand">False</property>
+        <property name="fill">True</property>
+        <property name="position">0</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">Function</property>
       </object>
       <packing>
         <property name="expand">False</property>
@@ -2740,17 +2740,16 @@
       <object class="GtkPaned" id="main_paned">
         <property name="visible">True</property>
         <property name="can_focus">True</property>
-        <property name="position">600</property>
-        <property name="position_set">True</property>
+        <property name="position">426</property>
         <child>
-          <object class="GtkPaned">
+          <object class="GtkPaned" id="sidebar_paned">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="orientation">vertical</property>
             <child>
               <object class="GtkBox">
-                <property name="width_request">100</property>
-                <property name="height_request">100</property>
+                <property name="width_request">426</property>
+                <property name="height_request">240</property>
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="orientation">vertical</property>
@@ -2933,12 +2932,14 @@
                 </child>
               </object>
               <packing>
-                <property name="resize">False</property>
-                <property name="shrink">True</property>
+                <property name="resize">True</property>
+                <property name="shrink">False</property>
               </packing>
             </child>
             <child>
               <object class="GtkBox">
+                <property name="width_request">300</property>
+                <property name="height_request">100</property>
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="orientation">vertical</property>
@@ -2948,8 +2949,8 @@
                     <property name="can_focus">False</property>
                     <child>
                       <object class="GtkBox">
-                        <property name="width_request">100</property>
-                        <property name="height_request">100</property>
+                        <property name="width_request">426</property>
+                        <property name="height_request">240</property>
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="homogeneous">True</property>
@@ -3953,17 +3954,18 @@
               </object>
               <packing>
                 <property name="resize">True</property>
-                <property name="shrink">True</property>
+                <property name="shrink">False</property>
               </packing>
             </child>
           </object>
           <packing>
-            <property name="resize">False</property>
-            <property name="shrink">True</property>
+            <property name="resize">True</property>
+            <property name="shrink">False</property>
           </packing>
         </child>
         <child>
           <object class="GtkStack" id="main_stack">
+            <property name="width_request">640</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="transition_duration">0</property>
@@ -4057,7 +4059,7 @@
           </object>
           <packing>
             <property name="resize">True</property>
-            <property name="shrink">True</property>
+            <property name="shrink">False</property>
           </packing>
         </child>
       </object>

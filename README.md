@@ -2,7 +2,7 @@
 
 Queries is an experimental SQL client for PostgreSQL and Sqlite3 with support for real-time graphical data visualization.
 
-# Instalation
+# Installation
 
 ## System requirements
 

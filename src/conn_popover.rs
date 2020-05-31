@@ -168,27 +168,32 @@ impl ConnPopover {
         conn_popover : &ConnPopover,
         t_env : &mut TableEnvironment
     ) -> Result<(), String> {
-        if !t_env.is_engine_active() && !conn_popover.check_entries_clear() {
-            let msg = match ConnPopover::generate_conn_str(&conn_popover.entries) {
-                Ok(conn_str) => {
-                    let res = t_env.update_source(
-                        EnvironmentSource::PostgreSQL((conn_str, "".into())),
-                        true
-                    );
-                    match res {
-                        Ok(_) => String::from("Connected"),
-                        Err(e) => { return Err(format!("{}", e)); }
-                    }
-                },
-                Err(err_str) => {
-                    err_str.into()
-                }
-            };
-            println!("{}", msg);
-            // Now output message to logging system
-            conn_popover.set_db_loaded_mode();
+        if t_env.is_engine_active() {
+            return Err(format!("Invalid connection state"));
         }
-        Ok(())
+        if conn_popover.check_entries_clear() {
+            return Err(format!("Invalid connection parameters"));
+        }
+        match ConnPopover::generate_conn_str(&conn_popover.entries) {
+            Ok(conn_str) => {
+                let res = t_env.update_source(
+                    EnvironmentSource::PostgreSQL((conn_str, "".into())),
+                    true
+                );
+                match res {
+                    Ok(_) => {
+                        conn_popover.set_db_loaded_mode();
+                        Ok(())
+                    },
+                    Err(e) => {
+                        Err(format!("{}", e))
+                    }
+                }
+            },
+            Err(err_str) => {
+                Err(err_str)
+            }
+        }
     }
 
     fn try_local_connection(
@@ -196,6 +201,9 @@ impl ConnPopover {
         opt_path : Option<PathBuf>,
         t_env : &mut TableEnvironment
     ) -> Result<(), String> {
+        if t_env.is_engine_active() {
+            return Err(format!("Invalid connection state"));
+        }
         let source = EnvironmentSource::SQLite3((opt_path.clone(), String::new()));
         if let Err(e) = t_env.update_source(source, true) {
             println!("{}", e);
@@ -537,7 +545,8 @@ impl ConnPopover {
                         let spl_port : Vec<&str> = value.split(":").collect();
                         if spl_port.len() >= 2 {
                             conn_info.insert(
-                                "host", spl_port[0].to_owned().clone());
+                                "host", spl_port[0].to_owned().clone()
+                            );
                             conn_info.insert(
                                 "port", spl_port[1].to_owned().clone());
                         } else {
@@ -559,7 +568,11 @@ impl ConnPopover {
             conn_str = conn_str + ":" + &s;
         }
         if let Some(s) = conn_info.get("host") {
-            conn_str = conn_str + "@" + &s;
+            if s == "localhost" || s == "127.0.0.1" {
+                conn_str = conn_str + "@" + &s;
+            } else {
+                return Err(format!("Remote connections not allowed yet."));
+            }
         } else {
             conn_str = conn_str + &"@localhost";
         }
