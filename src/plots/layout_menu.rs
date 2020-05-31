@@ -35,7 +35,7 @@ pub struct PlotSidebar {
     remove_mapping_btn : ToolButton,
     new_layout_btn : Button,
     load_layout_btn : Button,
-    glade_def : Rc<String>,
+    glade_def : Rc<HashMap<String, String>>,
     xml_load_dialog : FileChooserDialog,
     group_toolbar : GroupToolbar
 }
@@ -68,7 +68,7 @@ impl GroupToolbar {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
-        _glade_def : Rc<String>,
+        _glade_def : Rc<HashMap<String, String>>,
         _tbl_nb : TableNotebook,
         _data_source : Rc<RefCell<TableEnvironment>>,
         _status_stack : StatusStack,
@@ -227,7 +227,8 @@ impl GroupToolbar {
         }
 
         {
-            let (toggle_unique, toggle_horiz, toggle_vert) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_vert.clone());
+            let (toggle_unique, toggle_horiz, toggle_vert) =
+                (toggle_unique.clone(), toggle_horiz.clone(), toggle_vert.clone());
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
@@ -391,15 +392,19 @@ impl PlotSidebar {
         new_layout_btn
     }
 
-    pub fn build_glade_def() -> Rc<String> {
-        let mut def_content = String::new();
-        let fpath = utils::glade_path("gtk-queries.glade").unwrap();
-        if let Ok(mut f) = File::open(fpath) {
-            if let Err(e) = f.read_to_string(&mut def_content) {
-                panic!("{}", e);
+    pub fn build_glade_def() -> Rc<HashMap<String, String>> {
+        let mut def_content = HashMap::new();
+        for m in ["line", "bar", "area", "scatter", "surface", "text"].iter() {
+            let fpath = utils::glade_path(&format!("{}-box.glade", m)[..]).unwrap();
+            if let Ok(mut f) = File::open(fpath) {
+                let mut glade_str = String::new();
+                if let Err(e) = f.read_to_string(&mut glade_str) {
+                    panic!("{}", e);
+                }
+                def_content.insert(format!("{}", m), glade_str);
+            } else {
+                panic!("Error opening glade definition");
             }
-        } else {
-            panic!("Error opening glade definition");
         }
         Rc::new(def_content)
     }
@@ -647,7 +652,7 @@ impl PlotSidebar {
         tbl_env : Rc<RefCell<TableEnvironment>>,
         plot_view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook,
-        glade_def : Rc<String>,
+        glade_def : Rc<HashMap<String, String>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
         plot_toggle : ToggleButton,
@@ -749,7 +754,7 @@ impl PlotSidebar {
     /// name the number of mappings currently used. Used when the user
     /// already selected some columns and want to create a new mapping.
     pub fn add_mapping_from_type(
-        glade_def : Rc<String>,
+        glade_def : Rc<HashMap<String, String>>,
         mapping_type : &str,
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
@@ -820,7 +825,7 @@ impl PlotSidebar {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_notebook : Notebook,
-        glade_def : Rc<String>,
+        glade_def : Rc<HashMap<String, String>>,
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
@@ -862,7 +867,7 @@ impl PlotSidebar {
     }
 
     fn build_layout_load_button(
-        glade_def : Rc<String>,
+        glade_def : Rc<HashMap<String, String>>,
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
@@ -948,7 +953,7 @@ impl PlotSidebar {
     /// to avoid aliasing.
     /// Make this mapping_menu::create(.)
     fn create_new_mapping_menu(
-        _glade_def : Rc<String>,
+        glade_def : Rc<HashMap<String, String>>,
         mapping_name : Rc<RefCell<String>>,
         mapping_type : String,
         _tbl_env : Rc<RefCell<TableEnvironment>>,
@@ -958,7 +963,7 @@ impl PlotSidebar {
     ) -> Result<MappingMenu, &'static str> {
         //println!("{}", *glade_def);
         //let builder = Builder::new_from_string(&glade_def[..]);
-        let builder = Builder::new_from_file(utils::glade_path("gtk-queries.glade").unwrap());
+        let builder = Builder::new_from_string(&glade_def[&mapping_type][..]);
         //println!("{:?}", builder);
         let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
         if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
