@@ -99,6 +99,23 @@ impl QueriesApp {
         sidebar
     }
 
+    fn switch_paned_pos(main_paned : Paned, paned_pos : Rc<RefCell<i32>>, state : bool) {
+        if state {
+            if let Ok(s_pos) = paned_pos.try_borrow() {
+                main_paned.set_position(*s_pos);
+            } else {
+                println!("Unable to retrieve sidebar position");
+            }
+        } else {
+            if let Ok(mut s_pos) = paned_pos.try_borrow_mut() {
+                *s_pos = main_paned.get_position();
+                main_paned.set_position(0);
+            } else {
+                println!("Unable to retrieve sidebar position");
+            }
+        }
+    }
+
     fn connect_toggles(
         table_toggle : ToggleButton,
         plot_toggle : ToggleButton,
@@ -113,6 +130,23 @@ impl QueriesApp {
         //main_paned.show_all();
         //plot_sidebar.sidebar_box.show_all();
 
+        let paned_pos : Rc<RefCell<i32>> = Rc::new(RefCell::new(main_paned.get_position()));
+
+        {
+            let main_paned_c = main_paned.clone();
+            let paned_pos = paned_pos.clone();
+            main_paned.connect_size_allocate(move |_paned_wid, _all| {
+                if let Ok(mut s_pos) = paned_pos.try_borrow_mut() {
+                    let new_pos = main_paned_c.get_position();
+                    if new_pos > 0 {
+                        *s_pos = new_pos
+                    }
+                } else {
+                    println!("Error acquiring reference to main paned");
+                }
+            });
+        }
+
         {
             let main_paned = main_paned.clone();
             let plot_toggle = plot_toggle.clone();
@@ -120,6 +154,7 @@ impl QueriesApp {
             let content_stack = content_stack.clone();
             let plot_sidebar = plot_sidebar.clone();
             let status_stack = status_stack.clone();
+            let paned_pos = paned_pos.clone();
             table_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -127,17 +162,17 @@ impl QueriesApp {
                         if !plot_sidebar.layout_loaded() {
                             status_stack.try_show_alt_or_connected();
                         }
-                        main_paned.set_position(0);
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), false);
                         if plot_toggle.get_active() {
                             //plot_toggle.set_active(false);
                             plot_toggle.toggled();
-                            main_paned.set_position(460);
+                            Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
                         }
                     },
                     true => {
                         content_stack.set_visible_child_name("tables");
                         status_stack.try_show_alt_or_connected();
-                        main_paned.set_position(460);
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
                         content_stack.set_visible_child_name("tables");
                         if plot_toggle.get_active() {
                             plot_toggle.set_active(false);
@@ -151,19 +186,19 @@ impl QueriesApp {
         {
             let main_paned = main_paned.clone();
             let table_toggle = table_toggle.clone();
-
+            let paned_pos = paned_pos.clone();
             plot_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
-                        main_paned.set_position(0);
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), false);
                         if table_toggle.get_active() {
                             //table_toggle.set_active(false);
                             table_toggle.toggled();
-                            main_paned.set_position(360);
+                            Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
                         }
                     },
                     true => {
-                        main_paned.set_position(360);
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
                         content_stack.set_visible_child_name("plot");
                         if let Ok(pl_view) = plot_sidebar.pl_view.try_borrow() {
                             pl_view.redraw();
@@ -198,7 +233,7 @@ impl QueriesApp {
         //    builder.get_object("header").unwrap();
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
         //main_paned.set_property("min_position", &(400) as &dyn ToValue );
-        let sidebar_paned : Paned =  builder.get_object("sidebar_paned").unwrap();
+        let _sidebar_paned : Paned =  builder.get_object("sidebar_paned").unwrap();
         //sidebar_paned.set_property("min_position", &(400) as &dyn ToValue );
         let tables_nb = TableNotebook::new(&builder);
         //let exec_btn : Button =
@@ -530,7 +565,7 @@ impl QueriesApp {
 pub fn switch_paned(paned : Paned, show : bool) {
     if paned.get_position() == 0 {
         if show {
-            paned.set_position(360);
+            paned.set_position(426);
         }
     } else {
         if !show {

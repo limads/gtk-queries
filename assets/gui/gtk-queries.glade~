@@ -3960,11 +3960,12 @@
           </object>
           <packing>
             <property name="resize">True</property>
-            <property name="shrink">False</property>
+            <property name="shrink">True</property>
           </packing>
         </child>
         <child>
           <object class="GtkStack" id="main_stack">
+            <property name="width_request">640</property>
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="transition_duration">0</property>
