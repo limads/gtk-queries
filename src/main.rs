@@ -30,7 +30,7 @@ use gtk_queries::functions::num_function::*;
 use gtk_queries::plots::plotview::plot_view::PlotView;
 use gtk_queries::plots::save_widgets;
 use gtk_queries::plots::layout_menu::PlotSidebar;
-use gtk_queries::upload_popover::*;
+// use gtk_queries::upload_popover::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -263,7 +263,7 @@ impl QueriesApp {
             plot_toggle.clone()
         );
 
-        let _upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
+        // let _upload_popover = UploadPopover::new(builder.clone(), tables_nb.clone());
         // fn get_property_gtk_theme_name(&self) -> Option<GString>
         // Load icon based on theme type
         //let file_btn : FileChooserButton =
@@ -627,7 +627,7 @@ fn build_ui(app: &gtk::Application) {
                     conn_popover.popover.show();
                     return glib::signal::Inhibit(true)
                 }
-                if ev_key.get_keyval() == key::f {
+                /*if ev_key.get_keyval() == key::f {
                     if tables_nb.selected_cols().len() > 0 {
                         if !fn_popover.is_visible() {
                             fn_popover.show();
@@ -635,7 +635,7 @@ fn build_ui(app: &gtk::Application) {
                             fn_popover.hide();
                         }
                     }
-                }
+                }*/
                 if ev_key.get_keyval() == key::l {
 
                 }

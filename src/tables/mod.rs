@@ -16,6 +16,4 @@ pub mod sql;
 
 pub mod stdin;
 
-pub mod csv;
-
 

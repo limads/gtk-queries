@@ -2,6 +2,11 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
+  <object class="GtkAdjustment" id="scatter_radius_adjustment">
+    <property name="upper">25</property>
+    <property name="step_increment">1</property>
+    <property name="page_increment">10</property>
+  </object>
   <object class="GtkBox" id="scatter_box">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
@@ -78,10 +83,5 @@
         <property name="position">1</property>
       </packing>
     </child>
-  </object>
-  <object class="GtkAdjustment" id="scatter_radius_adjustment">
-    <property name="upper">25</property>
-    <property name="step_increment">1</property>
-    <property name="page_increment">10</property>
   </object>
 </interface>
