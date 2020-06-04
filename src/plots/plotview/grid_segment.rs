@@ -18,25 +18,23 @@ impl GridSegment {
         label : String, precision : i32, from : f64, to : f64,
         n_intervals : i32, log : bool, invert : bool, offset : i32
     ) -> GridSegment {
-
-        let off_prop = ((to - from) / n_intervals as f64)*(offset as f64 / 100.0);
-        let from_offset = from + off_prop;
-
-        /*let intv_size = match log {
-            true => (to.log10() - from.log10()) / (n_intervals as f64),
-            false => (to - from) / (n_intervals as f64)
-        };*/
-
+        let off_prop = match log {
+            true => (10. as f64).powf(((to.log10() - from.log10()) / n_intervals as f64)*(offset as f64 / 100.)),
+            false => ((to - from) / n_intervals as f64)*(offset as f64 / 100.0)
+        };
+        let from_offset = match log {
+            true => from*off_prop,
+            false => from + off_prop
+        };
         let intv_size = match log {
-            true => (to.log10() - from.log10() /*- 2.0*off_prop.log10() */ ) / (n_intervals as f64),
-            false => (to - from /*- 2.0*off_prop */ ) / (n_intervals as f64)
+            true => (to.log10() - from.log10() - 2.*(off_prop).log10()  ) / (n_intervals as f64),
+            false => (to - from - 2.0*off_prop ) / (n_intervals as f64)
         };
 
         let mut steps = Vec::<f64>::new();
-        let base : f64 = 10.0;
         for i in 0..n_intervals+1 {
             let step = if log {
-                base.powf(from_offset.log10() + (i as f64)*intv_size)
+                (10.0 as f64).powf(from_offset.log10() + (i as f64)*intv_size)
             } else {
                 from_offset + (i as f64)*intv_size
             };

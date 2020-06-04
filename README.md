@@ -52,7 +52,7 @@ By toggling the `Update` button, you can repeat a `select` statement execution e
 
 ## Visualization
 
-Queries rely on the (also in early-stage development) ![gtkplotview](https://github.com/limads/gtkplotview) sister project for visualization. First, load a XML `gtkplotview` layout, or start a new one. After a layout is loaded, select 1, 2 or 3 columns from any table in the environment by clicking in their headers, and click the `Add Mapping` button in the lower-left sidebar, or press `CTRL+M`. Select one from the available mappings, and edit its visual properties in the lower-left menu.
+First, load a XML plot layout, or start a new one from the lower-left portion of the left sidebar. After a layout is loaded, select 1, 2 or 3 columns from any table in the environment by clicking in their headers, and click the `Add Mapping` button in the lower-left sidebar, or press `CTRL+M`. Select one from the available mappings, and edit its visual properties in the lower-left menu.
 
 Plots can be saved to SVG via the `Export Figure` button on the upper right header menu. To reproduce the visualization at another Queries session, you can also use the export text button, using `.xml` as the extension. This layout can be used as at a new session. If the same table environment is found when the layout is uploaded, Queries will try to map any columns satisfying the same names and positions found at the last session to the current plot. If a column is not found, it is disabilitated until the user selects a new column.
 

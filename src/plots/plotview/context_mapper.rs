@@ -104,12 +104,8 @@ impl ContextMapper {
     }
 
     pub fn map(&self, x : f64, y : f64) -> Coord2D {
-        // Those are offset elements
         let padw = 0.1*(self.w as f64);
         let padh = 0.1*(self.h as f64);
-
-        // Those are aspect ratio elements
-        // let dataw = (self.w as f64) - 2.0*padw;
         let dataw = (self.w as f64) - 2.0*padw;
         let datah = (self.h as f64) - 2.0*padh;
 
