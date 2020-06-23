@@ -487,16 +487,21 @@ impl ConnPopover {
                             let t = Table::new_from_text(content);
                             match t {
                                 Ok(t) => {
-                                    if let Some(sql) = t.sql_string(name) {
-                                        println!("{}", sql);
-                                        if let Err(e) = t_env.prepare_and_send_query(sql) {
-                                            status_stack.update(Status::SqlErr(e));
+                                    match t.sql_string(name) {
+                                        Ok(sql) => {
+                                            // TODO there is a bug here when the user executes the first query, because
+                                            // the first call to indle callback will retrieve the create/insert statements,
+                                            // not the actual user query.
+                                            if let Err(e) = t_env.prepare_and_send_query(sql) {
+                                                status_stack.update(Status::SqlErr(e));
+                                            }
+                                        },
+                                        Err(e) =>  {
+                                            status_stack.update(Status::SqlErr(
+                                                format!("Failed to generate SQL: {}", e)
+                                            ));
+                                            Self::disconnect_with_delay(switch.clone());
                                         }
-                                    } else {
-                                        status_stack.update(Status::SqlErr(
-                                            format!("Could not generate SQL string for table"))
-                                        );
-                                        Self::disconnect_with_delay(switch.clone());
                                     }
                                 },
                                 Err(e) => {

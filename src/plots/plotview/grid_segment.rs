@@ -30,7 +30,6 @@ impl GridSegment {
             true => (to.log10() - from.log10() - 2.*(off_prop).log10()  ) / (n_intervals as f64),
             false => (to - from - 2.0*off_prop ) / (n_intervals as f64)
         };
-
         let mut steps = Vec::<f64>::new();
         for i in 0..n_intervals+1 {
             let step = if log {

@@ -140,6 +140,11 @@ impl StatusStack {
         }
     }
 
+    /// Show alternative widget, no matter the current state
+    pub fn show_alt(&self) {
+        self.parent_stack.set_visible_child(&self.alt_wid)
+    }
+
     /// Show alt widget if status is any successful one (Ok|Connected);
     /// do nothing otherwise.
     pub fn try_show_alt(&self) {

@@ -74,7 +74,7 @@ Plots can be saved to SVG via the `Export Figure` button on the upper right head
 
 # Relevant projects
 
-Queries builds on several recent open-source projects, most notably the Rust/Gtk integration ecosystem ![gtk-rs](https://gtk-rs.org/). Database connectivity to SQLite/Postgres is supported by the crates ![rusqlite](https://crates.io/crates/rusqlite) and ![postgres](https://crates.io/crates/postgres), respectively. Visualization is based on Cairo, via the sister ![gtkplotview](https://github.com/limads/gtkplotview) Rust project.
+Queries relies on several recent open-source projects, most notably the Rust/Gtk integration ecosystem ![gtk-rs](https://gtk-rs.org/). Database connectivity to SQLite/Postgres is supported by the crates ![rusqlite](https://crates.io/crates/rusqlite) and ![postgres](https://crates.io/crates/postgres), respectively.
 
 # License
 

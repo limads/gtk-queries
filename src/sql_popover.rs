@@ -33,9 +33,9 @@ pub enum ExecStatus {
 pub struct SqlPopover {
     pub view : View,
     pub sql_load_dialog : FileChooserDialog,
-    pub refresh_btn : ToolButton,
+    pub refresh_btn : Button,
     clear_btn : ToolButton,
-    update_btn : ToggleToolButton,
+    update_btn : ToggleButton,
     //pub popover : Popover,
     //pub query_toggle : ToggleButton,
     //pub sql_toggle : ToggleToolButton,
@@ -49,6 +49,7 @@ pub struct SqlPopover {
     sql_new_btn : Button,
     sql_load_btn : Button,
     query_file_label : Label,
+    table_toggle : ToggleButton,
 
     // Keeps status if clock was started at first position,
     // the update interval at second position (constant) and
@@ -155,6 +156,10 @@ impl SqlPopover {
     // TODO change stack to table any time a new query result arrives.
     // But toggle should stay off (full table view).
 
+    // TODO if the results arrived before the first iteration of this  function
+    // the procedure will fail. Verify if there isn't any updates queued before issuing
+    // command.
+
     pub fn connect_result_arrived<F>(
         &self,
         //tbl_env_c : Rc<RefCell<TableEnvironment>>,
@@ -167,6 +172,7 @@ impl SqlPopover {
         let status_stack = self.status_stack.clone();
         let view_c = self.view.clone();
         let sql_popover = self.clone();
+        let table_toggle = self.table_toggle.clone();
         gtk::timeout_add(16, move || {
             if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
                 if *sent {
@@ -191,6 +197,7 @@ impl SqlPopover {
                                                 if let Err(e) = f(&t_env, update) {
                                                     println!("{}", e);
                                                     status_stack.update(Status::SqlErr(e));
+                                                    table_toggle.set_active(true);
                                                 } else {
                                                     status_stack.update(Status::Ok);
                                                 }
@@ -198,6 +205,7 @@ impl SqlPopover {
                                             Err(e) => {
                                                 println!("{}", e);
                                                 status_stack.update(Status::SqlErr(e));
+                                                table_toggle.set_active(true);
                                             }
                                         }
                                         true
@@ -210,15 +218,20 @@ impl SqlPopover {
                                         match ans {
                                             Ok(msg) => {
                                                 status_stack.update(Status::StatementExecuted(msg));
+                                                table_toggle.set_active(true);
                                             },
                                             Err(e) => {
                                                 println!("{}", e);
                                                 status_stack.update(Status::SqlErr(e));
+                                                table_toggle.set_active(true);
                                             }
                                         }
                                         true
                                     },
-                                    None => false
+                                    None => {
+                                        println!("No result from last statement");
+                                        false
+                                    }
                                 }
                             }
                         } else {
@@ -227,6 +240,7 @@ impl SqlPopover {
                         };
                         if updated {
                             view_c.set_sensitive(true);
+                            view_c.grab_focus();
                             *sent = false;
                             println!("Sent set to false");
                         } else {
@@ -241,7 +255,7 @@ impl SqlPopover {
         });
     }
 
-    pub fn new(builder : Builder, /*query_toggle : ToggleButton,*/ status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
+    pub fn new(builder : Builder, table_toggle : ToggleButton, status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
         //let query_popover_path = utils::glade_path("query-popover-3.glade").expect("Failed to load glade file");
         //let builder = Builder::new_from_file(query_popover_path);
         //let popover : Popover =
@@ -279,17 +293,17 @@ impl SqlPopover {
         let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
         let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_btn = ToolButton::new(Some(&img_clear), None);
-        let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
-        let refresh_btn : ToolButton = ToolButton::new(Some(&img_refresh), None);
-        let update_btn = ToggleToolButton::new();
-        let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
-        update_btn.set_icon_widget(Some(&img_clock));
+        //let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
+        let refresh_btn : Button = builder.get_object("refresh_btn").unwrap();
+        let update_btn : ToggleButton = builder.get_object("update_btn").unwrap();
+        //let img_clock = Image::new_from_icon_name(Some("clock-app-symbolic"), IconSize::SmallToolbar);
+        //update_btn.set_icon_widget(Some(&img_clock));
         clear_btn.set_sensitive(false);
         update_btn.set_sensitive(false);
         refresh_btn.set_sensitive(false);
-        sql_toolbar.insert(&refresh_btn, 2);
+        //sql_toolbar.insert(&refresh_btn, 2);
         sql_toolbar.insert(&clear_btn, 0);
-        sql_toolbar.insert(&update_btn, 1);
+        //sql_toolbar.insert(&update_btn, 1);
         sql_toolbar.show_all();
 
         let update_clock = Rc::new(RefCell::new((false, 0, 0)));
@@ -433,7 +447,8 @@ impl SqlPopover {
             update_btn,
             sql_new_btn,
             sql_load_btn,
-            query_file_label
+            query_file_label,
+            table_toggle
         }
     }
 

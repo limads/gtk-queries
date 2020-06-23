@@ -126,11 +126,16 @@ impl Table {
     /// if table is not named.
     /// TODO check if SQL is valid (maybe external to the struct). SQL can
     /// be invalid if there are reserved keywords as column names.
-    pub fn sql_string(&self, name : &str) -> Option<String> {
-        self.sql_table_creation(name).map(|mut creation| {
+    pub fn sql_string(&self, name : &str) -> Result<String, String> {
+        if let Some(mut creation) = self.sql_table_creation(name) {
             creation += &self.sql_table_insertion(name);
-            creation
-        })
+            match super::sql::parse_sql(&creation[..]) {
+                Ok(_) => Ok(creation),
+                Err(e) => Err(format!("{}", e))
+            }
+        } else {
+            Err(format!("Unable to form create table statement"))
+        }
     }
 
     pub fn sql_types(&self) -> Vec<String> {
@@ -158,13 +163,15 @@ impl Table {
     pub fn sql_table_insertion(&self, name : &str) -> String {
         let mut q = String::new();
         let mut content = self.text_rows();
+        let nrows = content.len();
         if self.cols.len() <= 1 {
             return q;
         }
         content.remove(0);
         let types = self.sql_types();
-        for line in content.iter() {
-            q += &format!("insert into {} values (", name);
+        q += &format!("insert into {} values ", name)[..];
+        for (line_n, line) in content.iter().enumerate() {
+            q += "(";
             for (i, (f, t)) in line.iter().zip(types.iter()).enumerate() {
                 match &t[..] {
                     "text" => {
@@ -176,10 +183,16 @@ impl Table {
                 if i < line.len() - 1 {
                     q += ","
                 } else {
-                    q += ");\n"
+                    //println!("{}", nrows - 1 - line_n);
+                    if line_n < nrows - 2 {
+                        q += "),";
+                    } else {
+                        q += ");\n";
+                    }
                 }
             }
         }
+        //println!("{}", q);
         q
     }
 

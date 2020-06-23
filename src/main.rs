@@ -49,8 +49,10 @@ pub struct QueriesApp {
     table_env : Rc<RefCell<TableEnvironment>>,
     tables_nb : TableNotebook,
     main_paned : Paned,
+    sub_paned : Paned,
     table_toggle : ToggleButton,
-    plot_toggle : ToggleButton
+    plot_toggle : ToggleButton,
+    paned_pos : Rc<RefCell<i32>>
     //query_toggle : ToggleButton //,
     //ws_toggle : ToggleButton
 
@@ -109,7 +111,12 @@ impl QueriesApp {
         } else {
             if let Ok(mut s_pos) = paned_pos.try_borrow_mut() {
                 *s_pos = main_paned.get_position();
-                main_paned.set_position(0);
+                if main_paned.get_orientation() == Orientation::Horizontal {
+                    main_paned.set_position(0);
+                } else {
+                    //println!("{:?}", main_paned.get_allocation());
+                    main_paned.set_position(main_paned.get_allocation().height);
+                }
             } else {
                 println!("Unable to retrieve sidebar position");
             }
@@ -124,8 +131,9 @@ impl QueriesApp {
         //sidebar_stack : Stack,
         content_stack : Stack,
         status_stack : StatusStack,
-        plot_sidebar : PlotSidebar
-    ) -> (ToggleButton, ToggleButton) {
+        plot_sidebar : PlotSidebar,
+        query_toggle : ToggleButton
+    ) -> (ToggleButton, ToggleButton, ToggleButton, Rc<RefCell<i32>>) {
         //main_paned.add1(&plot_sidebar.sidebar_box);
         //main_paned.show_all();
         //plot_sidebar.sidebar_box.show_all();
@@ -155,6 +163,7 @@ impl QueriesApp {
             let plot_sidebar = plot_sidebar.clone();
             let status_stack = status_stack.clone();
             let paned_pos = paned_pos.clone();
+            let query_toggle = query_toggle.clone();
             table_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -168,15 +177,21 @@ impl QueriesApp {
                             plot_toggle.toggled();
                             Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
                         }
+                        if query_toggle.get_active() {
+                            query_toggle.toggled();
+                        }
                     },
                     true => {
                         content_stack.set_visible_child_name("tables");
                         status_stack.try_show_alt_or_connected();
                         Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
-                        content_stack.set_visible_child_name("tables");
+                        // content_stack.set_visible_child_name("tables");
                         if plot_toggle.get_active() {
                             plot_toggle.set_active(false);
                             //plot_toggle.toggled();
+                        }
+                        if query_toggle.get_active() {
+                            query_toggle.set_active(false);
                         }
                     }
                 }
@@ -187,6 +202,9 @@ impl QueriesApp {
             let main_paned = main_paned.clone();
             let table_toggle = table_toggle.clone();
             let paned_pos = paned_pos.clone();
+            let content_stack = content_stack.clone();
+            let query_toggle = query_toggle.clone();
+            let status_stack = status_stack.clone();
             plot_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -195,6 +213,9 @@ impl QueriesApp {
                             //table_toggle.set_active(false);
                             table_toggle.toggled();
                             Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
+                        }
+                        if query_toggle.get_active() {
+                            query_toggle.toggled();
                         }
                     },
                     true => {
@@ -215,6 +236,10 @@ impl QueriesApp {
                             table_toggle.set_active(false);
                             //table_toggle.toggled();
                         }
+                        if query_toggle.get_active() {
+                            query_toggle.set_active(false);
+                            //table_toggle.toggled();
+                        }
                         if plot_sidebar.layout_loaded() {
                             status_stack.try_show_alt();
                         } else {
@@ -225,15 +250,48 @@ impl QueriesApp {
                 }
             });
         }
-        (table_toggle, plot_toggle)
+
+        {
+            let plot_toggle = plot_toggle.clone();
+            let table_toggle = table_toggle.clone();
+            let status_stack = status_stack.clone();
+            let paned_pos = paned_pos.clone();
+            query_toggle.connect_toggled(move |btn| {
+                match btn.get_active() {
+                    false => {
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), false);
+                        if plot_toggle.get_active() {
+                            plot_toggle.toggled();
+                        }
+                        if table_toggle.get_active() {
+                            table_toggle.toggled();
+                        }
+                    },
+                    true => {
+                        content_stack.set_visible_child_name("queries");
+                        status_stack.show_alt();
+                        Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
+                        println!("Queries visible");
+                        if table_toggle.get_active() {
+                            table_toggle.set_active(false);
+                        }
+                        if plot_toggle.get_active() {
+                            plot_toggle.set_active(false);
+                        }
+                    }
+                }
+            });
+        }
+        (table_toggle, plot_toggle, query_toggle, paned_pos)
     }
 
-    pub fn new_from_builder(builder : &Builder, _window : Window) -> Self {
+    pub fn new_from_builder(builder : &Builder, _window : Window, full : bool) -> Self {
         //let header : HeaderBar =
         //    builder.get_object("header").unwrap();
+
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
         //main_paned.set_property("min_position", &(400) as &dyn ToValue );
-        let _sidebar_paned : Paned =  builder.get_object("sidebar_paned").unwrap();
+        let sub_paned : Paned =  builder.get_object("sidebar_paned").unwrap();
         //sidebar_paned.set_property("min_position", &(400) as &dyn ToValue );
         let tables_nb = TableNotebook::new(&builder);
         //let exec_btn : Button =
@@ -246,6 +304,7 @@ impl QueriesApp {
 
         let table_toggle : ToggleButton = builder.get_object("table_toggle").unwrap();
         let plot_toggle : ToggleButton = builder.get_object("plot_toggle").unwrap();
+        let query_toggle : ToggleButton = builder.get_object("query_toggle").unwrap();
 
         let env_source = EnvironmentSource::File("".into(),"".into());
         let table_env = Rc::new(RefCell::new(TableEnvironment::new(env_source)));
@@ -273,6 +332,7 @@ impl QueriesApp {
 
         let sql_popover = SqlPopover::new(
             builder.clone(),
+            table_toggle.clone(),
             status_stack.clone(),
             table_env.clone()
         );
@@ -294,6 +354,9 @@ impl QueriesApp {
         {
             let tables_nb = tables_nb.clone();
             let status_stack = status_stack.clone();
+            let query_toggle = query_toggle.clone();
+            let plot_toggle = plot_toggle.clone();
+            let table_toggle = table_toggle.clone();
             sql_popover.connect_send_query(move |res| {
                 match res {
                     Ok(_) => {
@@ -301,6 +364,7 @@ impl QueriesApp {
                     },
                     Err(e) => {
                         status_stack.update(Status::SqlErr(e));
+                        table_toggle.set_active(true);
                     }
                 }
                 Ok(())
@@ -312,7 +376,7 @@ impl QueriesApp {
         let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
         fn_toggle.set_icon_widget(Some(&fn_img));
         //sql_popover.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
-        Self::connect_toggles(
+        let (_, _, _, paned_pos) = Self::connect_toggles(
             table_toggle.clone(),
             plot_toggle.clone(),
             builder.clone(),
@@ -320,7 +384,8 @@ impl QueriesApp {
             //sidebar_stack.clone(),
             content_stack.clone(),
             status_stack.clone(),
-            sidebar.clone()
+            sidebar.clone(),
+            query_toggle.clone()
         );
         let fn_popover : Popover = builder.get_object("fn_popover").unwrap();
         let reg = Rc::new(NumRegistry::load().map_err(|e| { println!("{}", e); e }).unwrap());
@@ -346,6 +411,9 @@ impl QueriesApp {
             let fn_popover = fn_popover.clone();
             let sidebar = sidebar.clone();
             let status_stack = status_stack.clone();
+            let query_toggle = query_toggle.clone();
+            let plot_toggle = plot_toggle.clone();
+            let table_toggle = table_toggle.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
                 utils::set_tables(
@@ -367,6 +435,9 @@ impl QueriesApp {
                     }
                 }
                 tables_nb.nb.set_sensitive(true);
+                if query_toggle.get_active() {
+                    table_toggle.set_active(true);
+                }
                 Ok(())
                 //} else {
                 //    Err(String::from("Error retrieving reference to table environment"))
@@ -531,7 +602,9 @@ impl QueriesApp {
             });
         }
 
-        Self { conn_popover, sql_popover, main_paned, table_env, fn_popover, tables_nb, table_toggle, plot_toggle }
+        Self { conn_popover, sql_popover, main_paned,
+            sub_paned, table_env, fn_popover, tables_nb,
+            table_toggle, plot_toggle, paned_pos }
     }
 
     //fn check_active_selection(&self) {
@@ -574,6 +647,45 @@ pub fn switch_paned(paned : Paned, show : bool) {
     }
 }
 
+fn switch_orientation(
+    paned : &Paned,
+    switch_children : bool,
+    new_pos : Option<(i32, i32)>,
+    shrink1 : bool,
+    shrink2 : bool,
+    paned_pos : Rc<RefCell<i32>>
+) {
+    if paned.get_orientation() == Orientation::Horizontal {
+        paned.set_orientation(Orientation::Vertical);
+        if switch_children {
+            let child1 = paned.get_child1().unwrap();
+            let child2 = paned.get_child2().unwrap();
+            paned.remove(&child1);
+            paned.remove(&child2);
+            paned.pack1(&child2, true, shrink1);
+            paned.pack2(&child1, true, shrink2);
+        }
+        if let Some(pos) = new_pos {
+            paned.set_position(pos.0);
+            *(paned_pos.borrow_mut()) = pos.0;
+        }
+    } else {
+        paned.set_orientation(Orientation::Horizontal);
+        if switch_children {
+            let child1 = paned.get_child1().unwrap();
+            let child2 = paned.get_child2().unwrap();
+            paned.remove(&child1);
+            paned.remove(&child2);
+            paned.pack1(&child2, true, shrink1);
+            paned.pack2(&child1, true, shrink2);
+        }
+        if let Some(pos) = new_pos {
+            paned.set_position(pos.1);
+            *(paned_pos.borrow_mut()) = pos.1;
+        }
+    }
+}
+
 /*fn build_func_menu(builder : Builder) {
     let search_entry : Entry =
             builder.get_object("fn_search_entry").unwrap();
@@ -584,12 +696,17 @@ pub fn switch_paned(paned : Paned, show : bool) {
 }*/
 
 fn build_ui(app: &gtk::Application) {
-    let path = utils::glade_path("gtk-queries.glade").expect("Failed to load glade file");
+    let full = true;
+    let path = if full {
+        utils::glade_path("gtk-queries-full.glade").expect("Failed to load glade file")
+    } else {
+        utils::glade_path("gtk-queries.glade").expect("Failed to load glade file")
+    };
     let builder = Builder::new_from_file(path);
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
 
-    let queries_app = QueriesApp::new_from_builder(&builder, win.clone());
+    let queries_app = QueriesApp::new_from_builder(&builder, win.clone(), full);
 
     {
         //let toggle_q = queries_app.sql_popover.query_toggle.clone();
@@ -598,10 +715,12 @@ fn build_ui(app: &gtk::Application) {
         let tables_nb = queries_app.tables_nb.clone();
         //let toggle_w = queries_app.ws_toggle.clone();
         let view = queries_app.sql_popover.view.clone();
-        let _main_paned = queries_app.main_paned.clone();
+        let main_paned = queries_app.main_paned.clone();
+        let sub_paned = queries_app.sub_paned.clone();
         let table_toggle = queries_app.table_toggle.clone();
         let plot_toggle = queries_app.plot_toggle.clone();
         let sql_stack : Stack = queries_app.sql_popover.sql_stack.clone();
+        let paned_pos = queries_app.paned_pos.clone();
         win.connect_key_release_event(move |_win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
                 if ev_key.get_keyval() == key::q {
@@ -626,6 +745,10 @@ fn build_ui(app: &gtk::Application) {
                 if ev_key.get_keyval() == key::c {
                     conn_popover.popover.show();
                     return glib::signal::Inhibit(true)
+                }
+                if ev_key.get_keyval() == key::e {
+                    switch_orientation(&main_paned, true, Some((426, 480)), true, false, paned_pos.clone());
+                    switch_orientation(&sub_paned, false, None, false, false, paned_pos.clone());
                 }
                 /*if ev_key.get_keyval() == key::f {
                     if tables_nb.selected_cols().len() > 0 {

@@ -106,6 +106,7 @@ impl PlotGroup {
     }
 
     pub fn draw_to_file(&mut self, path : &str, w : usize, h : usize) {
+        // TODO Error creating SVG surface: "error while writing to output stream
         let surf = SvgSurface::new(w as f64, h as f64, Some(path))
             .expect("Error creating SVG surface");
         let ctx = Context::new(&surf);

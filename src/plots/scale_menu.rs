@@ -75,6 +75,27 @@ pub fn prepare_scale_menu(
         "log_scaling".to_string(),
         "grid_segment"
     );
+    {
+        let invert_switch = invert_switch.clone();
+        let view = view.clone();
+        let entry_min = entry_min.clone();
+        log_switch.connect_state_set(move |_switch, state| {
+            if state {
+                /*if let Some(txt) = entry_min.get_text() {
+                    if let Ok(val) = txt.parse::<f64>() {
+                        if val <= 0.0 {
+                            entry_min.set_text("0.001");
+                        }
+                    }
+                }*/
+                if invert_switch.get_active() {
+                    // invert_switch.set_active(false);
+                    // pl_view.update(&mut UpdateContent::Layout(format!("log_switch_{}", prefix), "false") );
+                }
+            }
+            glib::signal::Inhibit(true)
+        });
+    }
     connect_update_switch_property(
         &invert_switch,
         view.clone(),

@@ -122,6 +122,7 @@ impl GroupToolbar {
                         println!("Unable to get reference to mapping menus");
                     }
                 } else {
+                    // TODO falling here
                     println!("Unable to retrieve mutable reference to plotview");
                 }
                 PlotSidebar::update_layout_widgets(
@@ -1071,7 +1072,7 @@ impl PlotSidebar {
         }
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
             pl_view.change_active_area(0);
-            pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout.xml")));
+            pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
         } else {
             println!("Failed to borrow mutable reference to plotview.");
         }
@@ -1104,6 +1105,7 @@ impl PlotSidebar {
                 scale_menus.1.update(pl.current_scale_info("y"));
             },
             _ => {
+                // TODO panicking here when loading layout.
                 panic!("Could not fetch plotview reference to update layout");
             }
         }

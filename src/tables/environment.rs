@@ -272,6 +272,7 @@ impl TableEnvironment {
     /// return the update event that happened (Refresh or NewTables).
     pub fn maybe_update_from_query_results(&mut self) -> Option<Result<EnvironmentUpdate,String>> {
         let results = self.listener.maybe_get_result()?;
+        println!("Query results: {:?}", results);
         self.tables.clear();
         if results.len() == 0 {
             self.history.push(EnvironmentUpdate::Clear);
@@ -320,7 +321,7 @@ impl TableEnvironment {
     pub fn result_last_statement(&self) -> Option<Result<String,String>> {
         let results = self.listener.maybe_get_result()?;
         if let Some(r) = results.last() {
-            println!("{:?}", r);
+            println!("Last statement: {:?}", r);
             match r {
                 QueryResult::Statement(s) => Some(Ok(s.clone())),
                 QueryResult::Invalid(e) => Some(Err(e.clone())),

@@ -68,6 +68,7 @@ impl PlotView {
         layout_path : &str,
         draw_area : gtk::DrawingArea,
     ) -> Rc<RefCell<PlotView>> {
+        println!("Layout path = {}", layout_path);
         let plot_group = PlotGroup::new(String::from(layout_path)).unwrap();
         let plot_view = Rc::new(RefCell::new(
             PlotView{plot_group, parent : draw_area, active_area : 0, layout_path : layout_path.into() }));

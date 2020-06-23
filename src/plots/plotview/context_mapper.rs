@@ -113,13 +113,13 @@ impl ContextMapper {
             (false, false) => (x - self.xmin) / self.xext,
             (false, true)  => (self.xmax - x) / self.xext,
             (true, false)  => (x.log10() - self.xmin.log10()) / self.xext,
-            (true, true)   => (self.xmin.log10() - x.log10()) / self.xext
+            (true, true)   => (self.xmax.log10() - x.log10()) / self.xext
         };
         let yprop = 1.0 - match (self.ylog, self.yinv) { // Here
             (false, false) => (y - self.ymin) / self.yext,
             (false, true)  => (self.ymax - y) / self.yext,
             (true, false)  => (y.log10() - self.ymin.log10()) / self.yext,
-            (true, true)   => (self.ymin.log10() - y.log10()) / self.yext
+            (true, true)   => (self.ymax.log10() - y.log10()) / self.yext
         };
 
         //println!("{:?} {:?} {:?} {:?}", self.xlog, self.xinv, self.ylog,self.yinv);

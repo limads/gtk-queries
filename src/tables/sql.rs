@@ -5,7 +5,7 @@ use postgres::{self, Client, tls::NoTls};
 // use std::rc::Rc;
 // use std::cell::RefCell;
 // use std::fs::File;
-use sqlparser::dialect::PostgreSqlDialect;
+use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
 use sqlparser::ast::Statement;
 use sqlparser::parser::{Parser, ParserError};
 // use std::process::{Command, Stdio};
@@ -201,13 +201,6 @@ pub fn as_bool(r : &Row, ix : usize) -> String {
     content
 }*/
 
-/// Parse a SQL String, separating the queries.
-pub fn split_sql(sql_text : String) -> Vec<String> {
-    sql_text.split(";")
-        .filter(|c| c.len() > 0 && *c != "\n" && *c != " " && *c != "\t")
-        .map(|c| c.to_string()).collect()
-}
-
 /*pub fn as_rows(&self) -> Vec<Vec<String>> {
     let mut rows : Vec<Vec<String>> = Vec::new();
     let keys : Vec<&String> = self.results.keys().collect();
@@ -289,8 +282,10 @@ pub fn split_sql(sql_text : String) -> Vec<String> {
 }*/
 
 // TODO SQL parser is not accepting PostgreSQL double precision types
+// Use this if client-side parsing is desired.
 pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
-    let dialect = PostgreSqlDialect {};
+    //let dialect = PostgreSqlDialect {};
+    let dialect = GenericDialect {};
     Parser::parse_sql(&dialect, sql.to_string())
         .map_err(|e| {
             match e {
@@ -298,6 +293,15 @@ pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
                 ParserError::ParserError(s) => s
             }
         })
+}
+
+
+/// Parse a SQL String, separating the queries.
+/// Use this if no client-side parsing is desired.
+pub fn split_sql(sql_text : String) -> Vec<String> {
+    sql_text.split(";")
+        .filter(|c| c.len() > 0 && *c != "\n" && *c != " " && *c != "\t")
+        .map(|c| c.to_string()).collect()
 }
 
 pub fn sql2table(result : Result<Vec<Statement>, String>) -> String {
@@ -456,7 +460,7 @@ impl SqlEngine {
                 // let lib = libloading::Library::new("/home/diego/Software/mvlearn-sqlite/target/debug/libmvlearn.so").expect("Library not found");
                 // unsafe {
                 //    let func: libloading::Symbol<unsafe extern fn(rusqlite::Row)->rusqlite::Row> = lib.get(b"process_row").expect("Function not found");
-                //func();
+                // func();
                 //}
                 Ok(SqlEngine::Sqlite3{path, conn})
             },
@@ -479,7 +483,7 @@ impl SqlEngine {
             SqlEngine::Sqlite3{path, conn : _} => {
                 match &path {
                     None => {
-                        if let Some(q) = tbl.sql_string("transf_table") {
+                        if let Ok(q) = tbl.sql_string("transf_table") {
                             println!("{}", q);
                             if let Err(e) = self.try_run(q) {
                                 println!("{}", e);
@@ -550,7 +554,7 @@ impl SqlEngine {
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = parse_sql(&query_seq).map_err(|e| format!("{}", e) )?;
         let mut results = Vec::new();
-        if stmts.len() == 0{
+        if stmts.len() == 0 {
             return Err(String::from("Empty query sequence"));
         }
         match self {
@@ -586,13 +590,20 @@ impl SqlEngine {
                 for stmt in stmts {
                     match stmt {
                         Statement::Query(q) => {
+                            println!("Sending query: {}", q);
                             match conn.prepare(&format!("{}",q)[..]) {
-                                Ok(mut stmt) => {
-                                    match stmt.query(rusqlite::NO_PARAMS) {
+                                Ok(mut prep_stmt) => {
+                                    match prep_stmt.query(rusqlite::NO_PARAMS) {
                                         Ok(rows) => {
                                             match sqlite::build_table_from_sqlite(rows) {
-                                                Ok(tbl) => results.push(QueryResult::Valid(tbl)),
-                                                Err(e) => results.push(QueryResult::Invalid(e.to_string()))
+                                                Ok(tbl) => {
+                                                    println!("Table built: {}", tbl);
+                                                    results.push(QueryResult::Valid(tbl))
+                                                },
+                                                Err(e) => {
+                                                    println!("Error building table: {}", e);
+                                                    results.push(QueryResult::Invalid(e.to_string()));
+                                                }
                                             }
                                         },
                                         Err(e) => {
@@ -787,12 +798,15 @@ impl SqlListener {
         Ok(())
     }
 
+    /// Gets all results which might have been queued at the receiver.
     pub fn maybe_get_result(&self) -> Option<Vec<QueryResult>> {
-        if let Ok(ans) = self.ans_receiver.try_recv() {
-            // println!("{:?}", ans);
-            Some(ans)
+        let mut full_ans = Vec::new();
+        while let Ok(ans) = self.ans_receiver.try_recv() {
+            full_ans.extend(ans);
+        }
+        if full_ans.len() > 0 {
+            Some(full_ans)
         } else {
-            // println!("Unable to acquire lock");
             None
         }
     }
