@@ -6,7 +6,7 @@ use postgres::{self, Client, tls::NoTls};
 // use std::cell::RefCell;
 // use std::fs::File;
 use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
-use sqlparser::ast::Statement;
+use sqlparser::ast::{Statement, Function, Select, Value, Expr};
 use sqlparser::parser::{Parser, ParserError};
 // use std::process::{Command, Stdio};
 // use std::io::{ /*BufWriter,*/ Write /*, BufReader, Read */ };
@@ -281,12 +281,50 @@ pub fn as_bool(r : &Row, ix : usize) -> String {
     w
 }*/
 
+/*fn function_data(f : Function) -> (String, Vec<String>) {
+    let mut args = Vec::new();
+    for a in args {
+        match a {
+            Expr::Identifier(id) => args.push(id.value),
+            Expr::Wildcard => args.push(String::from("*")),
+            Expr::Value(v) => match v {
+                Value::Number(n) => args.push(n),
+                Value::SingleQuotedString(s) => args.push(s),
+                Value::Boolean(b) => args.push(b.to_string()),
+                Value::Null => args.push(String::from("NULL"))
+            }
+        }
+    }
+    (f.name.to_string(), args)
+}
+
+fn filter_functions(stmt : &Statement) -> Vec<Function> {
+    let mut funcs = Vec::new();
+    match stmt {
+        Statement::Query(q) => {
+            match q.body {
+                SetExpr::Select(sel) => {
+                    for proj in sel.projection {
+                        match proj {
+                            Expr::Function(func) => funcs.push(func),
+                            _ => { }
+                        }
+                    }
+                },
+                _ => { },
+            }
+        },
+        _ => { }
+    }
+    funcs
+}*/
+
 // TODO SQL parser is not accepting PostgreSQL double precision types
 // Use this if client-side parsing is desired.
 pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
     //let dialect = PostgreSqlDialect {};
     let dialect = GenericDialect {};
-    Parser::parse_sql(&dialect, sql.to_string())
+    Parser::parse_sql(&dialect, &sql[..])
         .map_err(|e| {
             match e {
                 ParserError::TokenizerError(s) => s,
@@ -553,6 +591,7 @@ impl SqlEngine {
         query_seq : String
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = parse_sql(&query_seq).map_err(|e| format!("{}", e) )?;
+        println!("{:?}", stmts);
         let mut results = Vec::new();
         if stmts.len() == 0 {
             return Err(String::from("Empty query sequence"));

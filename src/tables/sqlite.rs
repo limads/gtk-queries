@@ -7,13 +7,27 @@ use super::nullable_column::*;
 use super::table::*;
 use rusqlite::types::FromSql;
 use rusqlite::Row;
+use std::fmt::{self, Display};
 
 #[derive(Debug, Clone)]
-enum SqliteColumn {
+pub enum SqliteColumn {
     I64(Vec<Option<i64>>),
     F64(Vec<Option<f64>>),
     Str(Vec<Option<String>>),
     Bytes(Vec<Option<Vec<u8>>>)
+}
+
+impl Display for SqliteColumn {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let t = match self {
+            SqliteColumn::I64(_) => "Integer",
+            SqliteColumn::F64(_) => "Real",
+            SqliteColumn::Str(_) => "String",
+            SqliteColumn::Bytes(_) => "Bytes",
+        };
+        write!(f, "{}", t)
+    }
 }
 
 impl SqliteColumn {

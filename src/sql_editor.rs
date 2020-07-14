@@ -30,7 +30,7 @@ pub enum ExecStatus {
 }
 
 #[derive(Clone)]
-pub struct SqlPopover {
+pub struct SqlEditor {
     pub view : View,
     pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : Button,
@@ -58,7 +58,7 @@ pub struct SqlPopover {
     update_clock : Rc<RefCell<(bool, usize, usize)>>
 }
 
-impl SqlPopover {
+impl SqlEditor {
 
     pub fn set_active(&self, state : bool) {
         // self.sql_new_btn.set_sensitive(state);

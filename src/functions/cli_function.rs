@@ -13,12 +13,12 @@ use std::collections::HashMap;
 pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns, &[&str])->Result<Table,String>>;
 
 #[derive(Debug)]
-pub struct NumRegistry {
+pub struct FuncRegistry {
     conn : Connection,
-    libs : Vec<NumFunctionLibrary>
+    libs : Vec<FunctionLibrary>
 }
 
-impl NumRegistry {
+impl FuncRegistry {
 
     pub fn load() -> Result<Self, &'static str> {
         let exe_path = env::current_exe().map_err(|_| "Could not get executable path")?;
@@ -42,23 +42,23 @@ impl NumRegistry {
     }
 
     pub fn reload_libs(&mut self) -> Result<(), &'static str> {
-        let new_libs : Vec<NumFunctionLibrary> = Self::load_libs(&self.conn)?;
+        let new_libs : Vec<FunctionLibrary> = Self::load_libs(&self.conn)?;
         self.libs.clear();
         self.libs.extend(new_libs);
         Ok(())
     }
 
-    pub fn load_libs(conn : &Connection) -> Result<Vec<NumFunctionLibrary>, &'static str> {
+    pub fn load_libs(conn : &Connection) -> Result<Vec<FunctionLibrary>, &'static str> {
         let mut stmt = conn.prepare("select name, libpath from library;").unwrap();
         let mut ans = stmt.query(rusqlite::NO_PARAMS).unwrap();
-        let mut libs : Vec<NumFunctionLibrary> = Vec::new();
+        let mut libs : Vec<FunctionLibrary> = Vec::new();
         while let Ok(opt_row) = ans.next() {
             if let Some(r) = opt_row {
                 let name : String = r.get(0).unwrap();
                 let path : String = r.get(1).unwrap();
                 let lib = Library::new(path.clone()).map_err(|_| "Library not found")?;
-                //let funcs = NumFunctionLibrary::load_functions(&conn, &name[..], &libr)?;
-                let lib = NumFunctionLibrary {
+                //let funcs = FunctionLibrary::load_functions(&conn, &name[..], &libr)?;
+                let lib = FunctionLibrary {
                     funcs : Vec::new(),
                     local_path : path,
                     remote_path : None,
@@ -84,7 +84,7 @@ impl NumRegistry {
         //}
     }
 
-    pub fn function_list<'a>(&'a self) -> Vec<&'a NumFunction> {
+    pub fn function_list<'a>(&'a self) -> Vec<&'a ClientFunction> {
         let mut funcs = Vec::new();
         for lib in &self.libs {
             funcs.extend(lib.funcs.iter().map(|f| f));
@@ -92,7 +92,7 @@ impl NumRegistry {
         funcs
     }
 
-    pub fn get_func<'a>(&'a self, name : &str) -> Option<&'a NumFunction> {
+    pub fn get_func<'a>(&'a self, name : &str) -> Option<&'a ClientFunction> {
         for lib in self.libs.iter() {
             if let Some(func) = lib.funcs.iter().find(|func| func.name == name) {
                 return Some(func)
@@ -127,15 +127,15 @@ impl NumRegistry {
 }
 
 #[derive(Debug)]
-pub struct NumFunctionLibrary {
-    funcs : Vec<NumFunction>,
+pub struct FunctionLibrary {
+    funcs : Vec<ClientFunction>,
     local_path : String,
     remote_path : Option<String>,
     name : String,
     lib : Library
 }
 
-impl NumFunctionLibrary {
+impl FunctionLibrary {
 
     pub fn retrieve_all<'a>(
         &'a self
@@ -199,7 +199,7 @@ impl NumFunctionLibrary {
                                 }
                             }
                         }
-                        funcs.push(NumFunction {name, args, doc });
+                        funcs.push(ClientFunction {name, args, doc });
                     } else {
                         return Err("Error retrieving nth row");
                     }
@@ -215,7 +215,7 @@ impl NumFunctionLibrary {
 }
 
 #[derive(Clone, Debug)]
-pub struct NumFunction {
+pub struct ClientFunction {
     pub name : String,
     pub args : Vec<String>,
     pub doc : String,
@@ -223,7 +223,27 @@ pub struct NumFunction {
     // func : Symbol<'a, unsafe extern fn(Table, Vec<String>)->Result<Table,String>>
 }
 
-/*impl NumFunction {
+#[derive(Clone, Debug)]
+pub struct FunctionCall {
+    pub name : String,
+    pub args : Vec<String>,
+    pub source : Vec<usize>,
+    //dst : Vec<String>
+}
+
+impl FunctionCall {
+
+    pub fn new(call : (String, Vec<String>), selected : Vec<usize>) -> Self {
+        Self{
+            name : call.0,
+            args : call.1,
+            source : selected,
+        }
+    }
+
+}
+
+/*impl ClientFunction {
     /*pub fn set_arg(&mut self, arg : String, val : String) -> Result<(), String> {
         let arg_pos = self.args.iter().position(|a| a.0 == arg )
             .ok_or(String::from("Argument not found"))?;
@@ -245,17 +265,17 @@ pub struct NumFunction {
 
 /*pub struct FunctionCall {
     source : String,
-    func : NumFunction,
+    func : ClientFunction,
     dst : String
 }
 pub struct NumericScript {
-    registry : NumFunctionRegistry,
+    registry : ClientFunctionRegistry,
     source : String,
     procedures : FunctionCall,
     dest : String
 }*/
 
-// NumFunctionRegistry::load("/home/diego/Software/mvlearn-sqlite/target/debug/libmvlearn.so")
+// ClientFunctionRegistry::load("/home/diego/Software/mvlearn-sqlite/target/debug/libmvlearn.so")
 
 
 

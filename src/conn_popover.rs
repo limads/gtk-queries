@@ -14,7 +14,7 @@ use std::fs::File;
 use std::io::Read;
 use crate::tables::table::*;
 use crate::status_stack::*;
-use crate::sql_popover::SqlPopover;
+use crate::sql_editor::SqlEditor;
 use crate::plots::layout_menu::PlotSidebar;
 use crate::table_notebook::*;
 
@@ -256,7 +256,7 @@ impl ConnPopover {
     }
 
     fn clear_session(
-        sql_popover : SqlPopover,
+        sql_popover : SqlEditor,
         plot_sidebar : PlotSidebar,
         table_notebook : TableNotebook,
         t_env : &mut TableEnvironment
@@ -278,7 +278,7 @@ impl ConnPopover {
         table_env : Rc<RefCell<TableEnvironment>>,
         table_notebook : TableNotebook,
         status : StatusStack,
-        sql_popover : SqlPopover,
+        sql_popover : SqlEditor,
         plot_sidebar : PlotSidebar
     ) {
         let conn_popover = self.clone();

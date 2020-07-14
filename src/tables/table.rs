@@ -6,7 +6,7 @@ use super::column::*;
 // use super::column::from::*;
 // use super::nullable_column::*;
 //use rusqlite::{self, /*Rows*/ };
-use bayes::table::csv;
+use bayes::sample::table::csv;
 use std::fmt::{self, Display};
 use std::string::ToString;
 use num_traits::cast::ToPrimitive;

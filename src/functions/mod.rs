@@ -1,7 +1,6 @@
-pub mod num_function;
+pub mod cli_function;
 
 pub mod function_search;
 
-// pub mod parsing;
-
+pub mod parsing;
 

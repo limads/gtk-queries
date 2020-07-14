@@ -10,7 +10,7 @@ use super::super::context_mapper::Coord2D;
 // use super::super::text::{FontData, draw_label};
 use super::*;
 use cairo::Mesh;
-use bayes::basis::interpolation::{ /*interpolate2d,*/ InterpolationTask};
+use bayes::signal::interp::{ /*interpolate2d,*/ Interpolation2D};
 // use std::cmp::Ord;
 // use std::f64::*;
 
@@ -23,7 +23,7 @@ pub struct SurfaceMapping {
     color : RGBA,
     color_final : RGBA,
     col_names : [String; 3],
-    _interp_task : Option<InterpolationTask>
+    _interp_task : Option<Interpolation2D>
 }
 
 /// Count everything clock-wise from bottom-left point of the patch.
@@ -99,7 +99,7 @@ impl SurfaceMapping {
         patches
     }
 
-    fn calc_color_ratios(&self, mut patch : CoordPatch, interp_task : &InterpolationTask) -> CoordPatch {
+    fn calc_color_ratios(&self, mut patch : CoordPatch, interp_task : &Interpolation2D) -> CoordPatch {
         let red_distance = (self.color_final.red - self.color.red).abs();
         let green_distance = (self.color_final.green - self.color.green).abs();
         let blue_distance = (self.color_final.blue - self.color.blue).abs();
@@ -152,7 +152,7 @@ impl Mapping for SurfaceMapping {
         // Save coordinates corresponding to the bottom and left part of the plot area.
         let x_coords : Vec<_>= self.x.iter().map(|x| mapper.map(*x, 0.0).x ).collect();
         let y_coords : Vec<_>= self.y.iter().map(|y| mapper.map(0.0, *y).y ).collect();
-        let task = InterpolationTask::new(
+        let task = Interpolation2D::new(
             (bl.x, br.x),
             (tl.y, bl.y),
             density,

@@ -4,7 +4,7 @@ pub mod table_notebook;
 
 pub mod status_stack;
 
-pub mod sql_popover;
+pub mod sql_editor;
 
 pub mod functions;
 
@@ -15,6 +15,10 @@ pub mod plots;
 pub mod upload_popover;
 
 pub mod tables;
+
+pub mod query_sidebar;
+
+pub mod main_menu;
 
 pub mod utils {
 

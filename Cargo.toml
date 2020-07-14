@@ -5,26 +5,27 @@ authors = ["Diego Lima <lima.ds@outlook.com>"]
 edition = "2018"
 
 [dependencies]
-gtk = "0.8.0"
+gtk = { version = "0.8.0", features = ["v3_16"] }
 gio = "0.8.0"
 glib = "0.9.1"
 gdk = "0.12.0"
 sourceview = "0.8.0"
 cairo-rs = { version = "0.8.0", features = ["svg", "png"] }
 regex = "1"
-postgres = { version="0.17.3", features = [ "with-chrono-0_4" ] }
+postgres = { version="0.17.4", features = [ "with-chrono-0_4" ] }
 libloading = "0.5"
-rusqlite = { version="0.21.0", features=["load_extension", "csvtab", "functions", "serde_json", "backup" ] }
+rusqlite = { version="0.23.1", features=["load_extension", "csvtab", "functions", "serde_json", "backup" ] }
 syn = { version = "1.0.17", features = ["full"] }
 quote = "1.0.3"
 toml = "0.5.6"
-chrono = "0.4.11"
-rust_decimal = { version = "1.3.0", features = ["postgres"] }
+chrono = "0.4.13"
+rust_decimal = { version = "1.7.0", features = ["db-postgres"] }
 # csv = "1.1.1"
-sqlparser = "0.5.0"
+sqlparser = "0.5.1"
 nalgebra = "0.21.0"
 num-traits="0.2.11"
 bayes = { git = "https://github.com/limads/bayes.git" }
+# byteorder="1.3.4"
 
 libxml = "0.2.13"
 pango = "0.8.0"

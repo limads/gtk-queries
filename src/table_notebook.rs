@@ -79,7 +79,7 @@ impl TableNotebook {
             table_w.show_data();
             table_w.set_selected_action(move |ev_bx, _ev, selected| {
                 println!("Selected: {:?}", selected);
-                fn_search.update_fn_info("", &selected[..]);
+                // fn_search.update_fn_info("", &selected[..]);
                 fn_popover.set_relative_to(Some(ev_bx));
                 sidebar.set_add_mapping_sensitive(selected.len()).map_err(|e| println!("{}", e) ).ok();
                 sidebar.set_edit_mapping_sensitive(selected.len()).map_err(|e| println!("{}", e) ).ok();

@@ -13,7 +13,7 @@ use super::source::*;
 use std::path::Path;
 // use super::sql::*;
 use super::table::*;
-use crate::functions::num_function::*;
+use crate::functions::cli_function::*;
 use crate::functions::function_search::*;
 use std::rc::Rc;
 // use super::column::*;
@@ -129,7 +129,7 @@ impl TableEnvironment {
 
     /// Execute a single function, appending the table to the end and returning a reference to it in case of
     /// success. Returns an error message from the user function otherwise.
-    pub fn execute_func<'a>(&'a mut self, reg : Rc<NumRegistry>, call : FunctionCall) -> Result<&'a Table, String> {
+    pub fn execute_func<'a>(&'a mut self, reg : Rc<FuncRegistry>, call : FunctionCall) -> Result<&'a Table, String> {
         if reg.has_func_name(&call.name[..]) {
             if let Some(f) = reg.retrieve_func(&call.name[..]) {
                 let columns = self.get_columns(&call.source[..]);
@@ -178,7 +178,7 @@ impl TableEnvironment {
     /// Re-execute all function calls since the last NewTables history
     /// update, appending the resulting tables to the current environment.
     /// Returns a slice with the new generated tables.
-    pub fn execute_saved_funcs<'a>(&'a mut self, reg : Rc<NumRegistry>) -> Result<&'a [Table], String> {
+    pub fn execute_saved_funcs<'a>(&'a mut self, reg : Rc<FuncRegistry>) -> Result<&'a [Table], String> {
         let recent_hist = self.history.iter().rev();
         let recent_hist : Vec<&EnvironmentUpdate> = recent_hist.take_while(|u| {
             match u {
