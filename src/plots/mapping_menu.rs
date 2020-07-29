@@ -2,10 +2,10 @@ use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-//use gtkplotview::PlotArea;
+// use gtkplotview::PlotArea;
 // use std::io::{Read, BufReader};
 // use std::path::PathBuf;
-//use crate::data_source::TableDataSource;
+// use crate::data_source::TableDataSource;
 // use crate::plots::plotview::PlotArea;
 use crate::plots::layout_aux::*;
 use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
@@ -15,6 +15,7 @@ use gtk::prelude::*;
 // use crate::table_notebook::*;
 // use crate::tables::table::*;
 // use crate::status_stack::*;
+use std::default::Default;
 
 //pub struct ActiveMapping {
     // mapping_name
@@ -25,6 +26,21 @@ use gtk::prelude::*;
     //menu : Option<MappingMenu>
 //}
 
+#[derive(Clone, Debug, Default)]
+pub struct DataSource {
+
+    /// Table position in the environment.
+    pub tbl_pos : Option<usize>,
+
+    /// Linear index, from first column of first table to last column of last table
+    pub ixs : Vec<usize>,
+
+    /// Table index, from first column of the current table.
+    pub tbl_ixs : Vec<usize>,
+    pub col_names : Vec<String>,
+    pub query : String
+}
+
 /// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
 #[derive(Clone, Debug)]
@@ -34,7 +50,8 @@ pub struct MappingMenu {
     pub mapping_box : Box,
     //pub combos : Vec<ComboBoxText>,
     pub design_widgets : HashMap<String, Widget>,
-    pub ixs : Rc<RefCell<Vec<usize>>>,
+    pub column_labels : Vec<Label>,
+    pub source : Rc<RefCell<DataSource>>,
     pub plot_ix : usize,
     pub tab_img : Image
 }
@@ -125,6 +142,33 @@ impl MappingMenu {
         }
     }
 
+    pub fn build_column_labels(&mut self, builder : &Builder) {
+        match &self.mapping_type[..] {
+            "line" => {
+                self.column_labels.push(builder.get_object::<Label>("column_x_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_y_label").unwrap());
+            },
+            "scatter" => {
+
+            },
+            "bar" => {
+
+            },
+            "text" => {
+
+            },
+            "area" => {
+
+            },
+            "surface" => {
+
+            },
+            _ => {
+
+            }
+        }
+    }
+
     /// The "design_menu" is the group of widgets that compose a mapping menu
     /// excluding the column combo boxes. The dispatching logic that instantiate
     /// the widgets specific to each mapping is implemented here.
@@ -210,6 +254,8 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_width_scale".into(), width_scale.upcast());
+
+                // TODO panicking here (bar_origin_x_entry not fond).
                 let origin_x_entry : Entry =
                     builder.get_object("bar_origin_x_entry").unwrap();
                 connect_update_entry_property(
@@ -451,10 +497,14 @@ impl MappingMenu {
                 return Err("Invalid mapping type");
             }
         }
-        if let Ok(mut selected) = self.ixs.try_borrow_mut() {
-            *selected = Vec::new();
+        if let Ok(mut source) = self.source.try_borrow_mut() {
+            source.ixs.clear();
+            source.tbl_pos = None;
+            source.tbl_ixs.clear();
+            source.query.clear();
+            source.col_names.clone();
         } else {
-            println!("Could not get mutable reference to data indices at mapping");
+            println!("Could not get mutable reference to table source");
         }
         self.set_sensitive(false);
         Ok(())
@@ -467,17 +517,34 @@ impl MappingMenu {
         t_env : &TableEnvironment,
         pl_view : &mut PlotView
     ) -> Result<(), &'static str> {
-        self.update_source_columns(cols)?;
+        self.update_source(cols, &t_env)?;
         self.update_data(&t_env, pl_view)
     }
 
-    /// Update source columns, without changing the data.
-    pub fn update_source_columns(&self, new_ixs : Vec<usize>) -> Result<(), &'static str> {
-        if let Ok(mut ixs) = self.ixs.try_borrow_mut() {
-            *ixs = new_ixs;
+    pub fn update_source(&self, new_ixs : Vec<usize>, t_env : &TableEnvironment) -> Result<(), &'static str> {
+        if let Ok(mut source) = self.source.try_borrow_mut() {
+            source.ixs.clear();
+            source.ixs.extend(new_ixs.clone());
+            let (col_names, tbl_ix, query) = t_env.get_column_names(&new_ixs[..])
+                .ok_or("Unable to retrieve table data")?;
+            for (name, lbl) in col_names.iter().zip(self.column_labels.iter()) {
+                lbl.set_text(&name[..]);
+            }
+            source.col_names = col_names;
+            source.query = query;
+            source.tbl_pos = Some(tbl_ix);
+            if let Some((_, new_tbl_ixs)) = t_env.global_to_tbl_ix(&new_ixs[..]) {
+                source.tbl_ixs.clear();
+                source.tbl_ixs.extend(new_tbl_ixs);
+            } else {
+                return Err("Failed to convert global to local indices");
+            }
+            println!("Column names : {:?}", source.col_names);
+            println!("Linear indices : {:?}", source.ixs);
+            println!("Table indices : {:?}", source.tbl_ixs);
             Ok(())
         } else {
-            Err("Failed to get mutable reference to table environment")
+            Err("Failed to get mutable reference to table source")
         }
     }
 
@@ -494,13 +561,14 @@ impl MappingMenu {
 
     /// Updates data from a table enviroment and the saved column indices.
     pub fn update_data(&self, t_env : &TableEnvironment, pl_view : &mut PlotView) -> Result<(), &'static str> {
-        let selected = self.ixs.try_borrow()
+        let selected = self.source.try_borrow()
+            .map(|source| source.ixs.clone() )
             .map_err(|_| "Unable to retrieve reference to used indices")?;
         if selected.len() == 0 {
             println!("No data for current mapping");
             return Ok(())
         }
-        let cols = t_env.get_columns(&selected[..]);
+        let (cols, _, _) = t_env.get_columns(&selected[..]).unwrap();
         let name = self.get_mapping_name().map(|n| n.clone())
             .ok_or("Unable to get mapping name")?;
         let pos0 = cols.try_numeric(0).ok_or("Error mapping column 1 to position")?;

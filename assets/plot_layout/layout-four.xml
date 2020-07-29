@@ -4,13 +4,13 @@
     <property name="split">Both</property>
     <property name="vertical_ratio">0.5</property>
     <property name="horizontal_ratio">0.5</property>
-    <plotarea position="0">
-      <object class="design" name="design">
+    <object class="design" name="design">
         <property name="bg_color">#ffffff</property>
         <property name="grid_color">#d3d7cf</property>
         <property name="grid_width">1</property>
         <property name="font">Monospace Regular 12</property>
-      </object>
+     </object>
+    <plotarea position="0">
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>
         <property name="from">0.0</property>
@@ -35,12 +35,6 @@
       </object>
     </plotarea>
     <plotarea position="1">
-      <object class="design" name="design">
-        <property name="bg_color">#ffffff</property>
-        <property name="grid_color">#d3d7cf</property>
-        <property name="grid_width">1</property>
-        <property name="font">Monospace Regular 12</property>
-      </object>
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>
         <property name="from">0.0</property>
@@ -65,12 +59,6 @@
       </object>
     </plotarea>
     <plotarea position="2">
-      <object class="design" name="design">
-        <property name="bg_color">#ffffff</property>
-        <property name="grid_color">#d3d7cf</property>
-        <property name="grid_width">1</property>
-        <property name="font">Monospace Regular 12</property>
-      </object>
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>
         <property name="from">0.0</property>
@@ -95,12 +83,6 @@
       </object>
     </plotarea>
     <plotarea position="3">
-      <object class="design" name="design">
-        <property name="bg_color">#ffffff</property>
-        <property name="grid_color">#d3d7cf</property>
-        <property name="grid_width">1</property>
-        <property name="font">Monospace Regular 12</property>
-      </object>
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>
         <property name="from">0.0</property>

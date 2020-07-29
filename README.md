@@ -68,9 +68,7 @@ Plots can be saved to SVG via the `Export Figure` button on the upper right head
 
 5. [ ] TLS-enabled remote connections
 
-6. [ ] Menu to manage SQLite3 extensions, integrated with Rust's package manager.
-
-7. [ ] Full integration with Dark/White Gnome Shell themes.
+6. [ ] Full integration with Dark/White Gnome Shell themes.
 
 # Relevant projects
 

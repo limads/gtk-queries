@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <plotgroup>
-    <property name="split">None</property>
-    <property name="vertical_ratio">1.0</property>
-    <property name="horizontal_ratio">1.0</property>
-    <plotarea position="0">
-      <object class="design" name="design">
+    <object class="design">
+        <property name="split">None</property>
+        <property name="vertical_ratio">1.0</property>
+        <property name="horizontal_ratio">1.0</property>
         <property name="bg_color">#ffffff</property>
         <property name="grid_color">#d3d7cf</property>
         <property name="grid_width">1</property>
         <property name="font">Monospace Regular 12</property>
-      </object>
+    </object>
+    <plotarea position="0">
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>
         <property name="from">0.0</property>

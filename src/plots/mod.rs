@@ -12,4 +12,8 @@ pub mod mapping_menu;
 
 pub mod plotview;
 
+pub mod layout_toolbar;
+
+pub mod plot_popover;
+
 

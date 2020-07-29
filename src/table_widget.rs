@@ -1,19 +1,7 @@
 use gtk::*;
 use gtk::prelude::*;
-// use gio::prelude::*;
-// use std::env::args;
 use std::rc::Rc;
 use std::cell::{RefCell /*, RefMut*/ };
-// use std::fs::File;
-// use std::io::Write;
-// use std::io::Read;
-// use std::collections::HashMap;
-// use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-// use std::path::PathBuf;
-// use sourceview::*;
-// use std::ffi::OsStr;
-// use gdk::ModifierType;
-// use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment};
 use crate::tables::table::*;
 use crate::utils;
 use gdk::prelude::*;
@@ -22,7 +10,6 @@ use gdk::{Cursor, CursorType};
 #[derive(Clone)]
 pub struct TableWidget {
     grid : Grid,
-    // data : Rc<RefCell<Vec<Vec<String>>>>,
     pub scroll_window : ScrolledWindow,
     box_container : Box,
     msg : Label,
@@ -30,9 +17,6 @@ pub struct TableWidget {
     provider : CssProvider,
     nrows : usize,
     ncols : usize,
-    //tbl : Table,
-
-    // Column name, column linear index, is_selected.
     selected : Rc<RefCell<Vec<(String, usize, bool)>>>
 }
 
@@ -47,7 +31,6 @@ impl TableWidget {
 
     pub fn new() -> TableWidget {
         let grid = Grid::new();
-        // let data = Rc::new(RefCell::new(Vec::new()));
         let _message = Label::new(None);
         let provider = utils::provider_from_path("tables.css")
             .expect("Unable to load tables CSS");
@@ -61,6 +44,7 @@ impl TableWidget {
             Some(&Adjustment::new(0.0, 0.0, 100.0, 10.0, 10.0, 100.0)),
             Some(&Adjustment::new(0.0, 0.0, 100.0, 10.0, 10.0, 100.0))
         );
+        scroll_window.set_shadow_type(ShadowType::None);
         scroll_window.add(&box_container);
         scroll_window.show_all();
         let selected = Rc::new(RefCell::new(Vec::new()));
@@ -219,21 +203,50 @@ impl TableWidget {
         }
     }
 
-    pub fn set_selected_action<F>(&self, f : F)
-        where
-            F : Clone,
-            for<'r,'s> F : Fn(&'r EventBox, &'s gdk::EventButton, Vec<usize>)->Inhibit+'static
+    pub fn expose_event_box(&self, ix : usize) -> Option<EventBox> {
+        let children = self.grid.get_children();
+
+        // TODO correct "attempted to subtract with overflow: changing from one
+        // mapping to the other leads to search for inexistent table.
+        let children = self.grid.get_children();
+        let header_iter = children.iter()
+            .skip(self.ncols * self.nrows - self.ncols);
+        let n = header_iter.clone().count();
+        let wid = header_iter.skip(n-ix-1).next()?;
+        if let Ok(ev_box) = wid.clone().downcast::<EventBox>() {
+            Some(ev_box.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Function supplied by user should take all selected columns at
+    /// the third argument and the index of the last selected column at
+    /// the last argument.
+    pub fn set_selected_action<F>(&self, f : F, btn : u32)
+    where
+        F : Clone,
+        for<'r,'s> F : Fn(&'r EventBox, &'s gdk::EventButton, Vec<usize>, usize)->Inhibit+'static
     {
-        for wid in self.grid.get_children().iter().skip(self.ncols * self.nrows - self.ncols) {
+        let children = self.grid.get_children();
+        let header_iter = children.iter()
+            .skip(self.ncols * self.nrows - self.ncols);
+        let n = header_iter.clone().count();
+        for (i, wid) in header_iter.enumerate() {
             if let Ok(ev_box) = wid.clone().downcast::<EventBox>() {
                 let selected = self.selected.clone();
                 let f = f.clone();
                 ev_box.connect_button_press_event(move |ev_box, ev| {
-                    if let Ok(sel) = selected.try_borrow() {
-                        let sel_ix : Vec<_> = sel.iter().filter(|c| c.2).map(|c| c.1).collect();
-                        f(ev_box, ev, sel_ix);
-                    } else {
-                        println!("Unable to retrieve reference to selected vector");
+                    if ev.get_button() == btn {
+                        if let Ok(sel) = selected.try_borrow() {
+                            let sel_ix : Vec<_> = sel.iter()
+                                .filter(|c| c.2)
+                                .map(|c| c.1)
+                                .collect();
+                            f(ev_box, ev, sel_ix, n - i - 1);
+                        } else {
+                            println!("Unable to retrieve reference to selected vector");
+                        }
                     }
                     glib::signal::Inhibit(false)
                 });
@@ -279,14 +292,16 @@ impl TableWidget {
                                     let label : Label = child.clone().downcast().unwrap();
                                     if let Some(txt) = label.get_text().map(|t| t.to_string()) {
                                         if let Ok(mut sel) = selected.try_borrow_mut() {
-                                            if ev.get_click_count() == Some(1) {
-                                                if let Some(pos) = sel.iter_mut().position(|c| &c.0[..] == &txt[..] ) {
-                                                    Self::switch_selected(grid.clone(), &mut sel[..], pos);
+                                            if ev.get_button() == 1 {
+                                                if ev.get_click_count() == Some(1) {
+                                                    if let Some(pos) = sel.iter_mut().position(|c| &c.0[..] == &txt[..] ) {
+                                                        Self::switch_selected(grid.clone(), &mut sel[..], pos);
+                                                    } else {
+                                                        println!("Invalid column name");
+                                                    }
                                                 } else {
-                                                    println!("Invalid column name");
+                                                    Self::switch_all(grid.clone(), &mut sel[..]);
                                                 }
-                                            } else {
-                                                Self::switch_all(grid.clone(), &mut sel[..]);
                                             }
                                         } else {
                                            println!("Selected vector mutably borrowed");
@@ -364,6 +379,17 @@ impl TableWidget {
             self.grid.insert_row(r);
         }
 
+    }
+
+    pub fn set_selected(&self, new_sel : &[usize]) {
+        self.unselect_all();
+        if let Ok(mut sel) = self.selected.try_borrow_mut() {
+            for i in new_sel.iter() {
+                Self::switch_selected(self.grid.clone(), &mut sel[..], *i);
+            }
+        } else {
+            println!("Failed to retrieve mutable reference to selected columns");
+        }
     }
 
     pub fn show_message(&self, msg : &str) {

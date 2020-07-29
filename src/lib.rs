@@ -1,3 +1,5 @@
+// #![recursion_limit = "512"]
+
 pub mod table_widget;
 
 pub mod table_notebook;
@@ -27,15 +29,15 @@ pub mod utils {
     // use gio::prelude::*;
     use crate::tables::environment::TableEnvironment;
     use crate::table_notebook::*;
-    use crate::functions::function_search::*;
+    //use crate::functions::function_search::*;
     use crate::plots::layout_menu::*;
 
     pub fn set_tables(
         table_env : &TableEnvironment,
         tables_nb : &mut TableNotebook,
-        fn_search : FunctionSearch,
+        mapping_popover : Popover,
         pl_sidebar : PlotSidebar,
-        fn_popover : Popover
+        //fn_popover : Popover
     ) {
         tables_nb.clear();
         let all_tbls = table_env.all_tables_as_rows();
@@ -45,9 +47,9 @@ pub mod utils {
                 None,
                 Some("No queries"),
                 None,
-                fn_search.clone(),
+                mapping_popover.clone(),
                 pl_sidebar.clone(),
-                fn_popover.clone()
+                //fn_popover.clone()
             );
         } else {
             tables_nb.clear();
@@ -62,9 +64,9 @@ pub mod utils {
                         Some(&name[..]),
                         None,
                         Some(t_rows),
-                        fn_search.clone(),
+                        mapping_popover.clone(),
                         pl_sidebar.clone(),
-                        fn_popover.clone()
+                        //fn_popover.clone()
                     );
                 } else {
                     println!("No rows to display");

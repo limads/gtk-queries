@@ -1,7 +1,8 @@
 use postgres::{self, /*Row, types::FromSql,*/ types::ToSql };
 use std::convert::{ /*TryFrom,*/ TryInto};
 use rust_decimal::Decimal;
-use super::column::*;
+use ::queries::column::*;
+use ::queries::nullable_column::*;
 // use super::column::try_into::*;
 // use super::column::from::*;
 // use super::nullable_column::*;
@@ -204,7 +205,7 @@ impl Table {
         let mut cols = Columns::new();
         for ix in ixs.iter() {
             match (self.names.get(*ix), self.cols.get(*ix)) {
-                (Some(name), Some(col)) => { cols = cols.take_and_push(name, col); },
+                (Some(name), Some(col)) => { cols = cols.take_and_push(name, col, *ix); },
                 _ => println!("Column not found at index {}", ix)
             }
         }
@@ -217,6 +218,10 @@ impl Table {
 
     pub fn names(&self) -> Vec<String> {
         self.names.clone()
+    }
+
+    pub fn take_columns(self) -> Vec<Column> {
+        self.cols
     }
 
 }
@@ -245,29 +250,36 @@ impl Display for Table {
 #[derive(Clone, Debug)]
 pub struct Columns<'a> {
     names : Vec<&'a str>,
-    cols : Vec<&'a Column>
+    cols : Vec<&'a Column>,
+    ixs : Vec<usize>
 }
 
 impl<'a> Columns<'a> {
 
     pub fn new() -> Self {
-        Self{ names : Vec::new(), cols: Vec::new() }
+        Self{ names : Vec::new(), cols: Vec::new(), ixs : Vec::new() }
     }
 
-    pub fn take_and_push(mut self, name : &'a str, col : &'a Column) -> Self {
+    pub fn take_and_push(mut self, name : &'a str, col : &'a Column, ix : usize) -> Self {
         self.names.push(name);
         self.cols.push(col);
+        self.ixs.push(ix);
         self
     }
 
     pub fn take_and_extend(mut self, cols : Columns<'a>) -> Self {
         self.names.extend(cols.names);
         self.cols.extend(cols.cols);
+        self.ixs.extend(cols.ixs);
         self
     }
 
     pub fn names(&'a self) -> &'a [&'a str] {
         &self.names[..]
+    }
+
+    pub fn indices(&'a self) -> &'a [usize] {
+        &self.ixs[..]
     }
 
     pub fn get(&'a self, ix : usize) -> Option<&'a Column> {

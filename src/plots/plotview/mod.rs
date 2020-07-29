@@ -1,13 +1,9 @@
-// use gdk::RGBA;
 use cairo::Context;
-// use cairo::*;
 use libxml::tree::document::{Document, SaveOptions};
 use libxml::parser::Parser;
 use libxml::tree::node::Node;
 use std::default::Default;
 use std::collections::HashMap;
-// use regex::Regex;
-// use std::f64::consts::PI;
 use std::error::Error;
 use gtk::WidgetExt;
 use std::rc::*;
@@ -18,10 +14,8 @@ use mappings::area::*;
 use mappings::*;
 use context_mapper::*;
 use grid_segment::*;
-// use std::f64::*;
 use plot_design::*;
 use std::fmt::Display;
-// use plot_view::*;
 mod text;
 use std::any::Any;
 use std::error;
@@ -77,6 +71,8 @@ pub enum GroupSplit {
 /// A plotgroup has at least one first plot.
 pub struct PlotGroup {
 
+    design : PlotDesign,
+
     plots : Vec<PlotArea>,
 
     split : GroupSplit,
@@ -100,7 +96,14 @@ impl PlotGroup {
         let parser : Parser = Default::default();
         let doc = parser.parse_file(&layout_path)
             .map_err(|e| format!("Failed parsing XML file: {}", e) )?;
-        let mut plot_group = Self{ parser, doc, plots, split : GroupSplit::None, v_ratio : 1.0, h_ratio : 1.0 };
+        let root = doc.get_root_element().unwrap();
+        let design_node = root
+            .findnodes("object[@class='design']")
+            .expect("No design node")
+            .first().cloned().expect("No design node");
+        let design = PlotDesign::new(&design_node)
+            .expect("Failed instantiating design");
+        let mut plot_group = Self{ parser, doc, plots, split : GroupSplit::None, v_ratio : 1.0, h_ratio : 1.0, design };
         plot_group.load_layout(layout_path)?;
         Ok(plot_group)
     }
@@ -111,6 +114,10 @@ impl PlotGroup {
             .expect("Error creating SVG surface");
         let ctx = Context::new(&surf);
         self.draw_to_context(&ctx, 0, 0, w as i32, h as i32);
+    }
+
+    pub fn size(&self) -> usize {
+        self.plots.len()
     }
 
     /// Draws the current Plot definition to a Cairo context.
@@ -154,7 +161,7 @@ impl PlotGroup {
             // ctx.move_to(0.0, 0.0);
             ctx.translate(origin.0, origin.1);
             //println!("i: {}; origin: {:?}, size: {:?}", i, origin, size);
-            plot.draw_plot(&ctx, size.0, size.1);
+            plot.draw_plot(&ctx, &self.design, size.0, size.1);
             ctx.restore();
         }
         //println!("--");
@@ -178,6 +185,7 @@ impl PlotGroup {
             return Err(format!("Root node should be called plotgroup"));
         }
         self.plots.clear();
+        let mut found_split = false;
         for node in root_el.get_child_nodes() {
             //println!("Node name: {}", node.get_name());
             if &node.get_name()[..] == "property" {
@@ -192,6 +200,7 @@ impl PlotGroup {
                             .map_err(|_| format!("Unabe to parse horizontal ratio"))?;
                     },
                     Some("split") => {
+                        found_split = true;
                         match &node.get_content()[..] {
                             "None" => self.split = GroupSplit::None,
                             "Both" => self.split = GroupSplit::Both,
@@ -209,6 +218,9 @@ impl PlotGroup {
         }
         if self.plots.len() == 0 {
             return Err("Root node plotgroup does not contain any plotarea children.".into());
+        }
+        if !found_split {
+            self.split = GroupSplit::None;
         }
         match self.split {
             GroupSplit::None => if self.plots.len() != 1 {
@@ -256,7 +268,35 @@ impl PlotGroup {
         self.doc.to_string_with_options(opts)
     }
 
-    pub fn update_layout(&mut self, ix: usize, property : &str, value : &str) {
+    pub fn update_design(&mut self, property : &str, value : &str) {
+        println!("Updating design at {} to {}", property, value);
+        if property.is_empty() || value.is_empty() {
+            println!("Informed empty property!");
+            return;
+        }
+        let root = self.doc.get_root_element().unwrap();
+        let design_node = root
+            .findnodes("object[@class='design']")
+            .expect("No design node")
+            .first().cloned().expect("No design node");
+        match design_node.findnodes(&property) {
+            Ok(mut props) => {
+                if let Some(p) = props.iter_mut().next() {
+                    if let Err(e) = p.set_content(&value) {
+                        println!("Error setting node content: {}", e);
+                        return;
+                    }
+                    self.design = PlotDesign::new(&design_node)
+                        .expect("Failed loading plot design");
+                } else {
+                    println!("No property named {} found", property);
+                }
+            },
+            _ => { println!("Failed at finding property {}", property); }
+        }
+    }
+
+    pub fn update_plot_property(&mut self, ix: usize, property : &str, value : &str) {
         println!("Updating {} at {} to {}", ix, property, value);
         self.plots[ix].update_layout(property, value);
     }
@@ -283,7 +323,7 @@ impl PlotGroup {
     }
 
     pub fn design_info(&self) -> HashMap<String, String> {
-        self.plots[0].design_info()
+        self.design.description()
     }
 
     pub fn mapping_info(&self, ix : usize) -> Vec<(String, String, HashMap<String,String>)> {
@@ -297,8 +337,6 @@ impl PlotGroup {
 }
 
 pub struct PlotArea {
-    design : PlotDesign,
-    //mappings : HashMap<String, Mapping>,
     mappings : Vec<Box<dyn Mapping>>,
     mapper : ContextMapper,
     x : GridSegment,
@@ -343,11 +381,9 @@ impl PlotArea {
         let mapper : ContextMapper = Default::default();
         let x : GridSegment = Default::default();
         let y : GridSegment = Default::default();
-        let design = PlotDesign::new(&node)
-            .expect("Failed instantiating design");
         let frozen = false;
         let pl_area =
-            PlotArea{ design, mappings, mapper, x, y, frozen, node };
+            PlotArea{ mappings, mapper, x, y, frozen, node };
         // if let Err(e) = pl_area.reload_layout_data() {
         //   println!("Error when reloading layout data: {}", e.description());
         // }
@@ -358,12 +394,12 @@ impl PlotArea {
 
     }*/
 
-    fn draw_plot(&mut self, ctx: &Context, w : i32, h : i32) {
+    fn draw_plot(&mut self, ctx: &Context, design : &PlotDesign, w : i32, h : i32) {
         self.mapper.update_dimensions(w, h);
         // If frozen, do not redraw background/grid.
         // Draw only frozen mapping increment.
-        self.draw_background(ctx);
-        self.draw_grid(ctx);
+        self.draw_background(ctx, design);
+        self.draw_grid(ctx, design);
         for mapping in self.mappings.iter() {
             println!("Mapping drawn");
             mapping.draw(&self.mapper, &ctx);
@@ -447,8 +483,6 @@ impl PlotArea {
         //    .expect("Root node not found");
         println!("updating node: {:?} position: {:?}", self.node.get_name(), self.node.get_property("position"));
 
-        self.design = PlotDesign::new(&self.node)
-            .unwrap();
         let xprops = utils::children_as_hash(
             &self.node, "object[@name='x']/property");
         println!("xprops: {:?}", xprops);
@@ -780,13 +814,13 @@ impl PlotArea {
         }
     }
 
-    fn draw_background(&self, ctx : &Context) {
+    fn draw_background(&self, ctx : &Context, design : &PlotDesign) {
         ctx.save();
         ctx.set_line_width(0.0);
         ctx.set_source_rgb(
-            self.design.bg_color.red,
-            self.design.bg_color.green,
-            self.design.bg_color.blue);
+            design.bg_color.red,
+            design.bg_color.green,
+            design.bg_color.blue);
         ctx.rectangle(
             0.1*(self.mapper.w as f64), 0.1*(self.mapper.h as f64),
             0.8*(self.mapper.w as f64), 0.8*(self.mapper.h as f64));
@@ -797,14 +831,15 @@ impl PlotArea {
     fn draw_grid_line(
         &self,
         ctx : &Context,
+        design : &PlotDesign,
         from : Coord2D,
         to : Coord2D
     ) {
         ctx.save();
         ctx.set_source_rgb(
-            self.design.grid_color.red,
-            self.design.grid_color.green,
-            self.design.grid_color.blue);
+            design.grid_color.red,
+            design.grid_color.green,
+            design.grid_color.blue);
         ctx.move_to(from.x, from.y);
         ctx.line_to(to.x, to.y);
         ctx.stroke();
@@ -822,6 +857,7 @@ impl PlotArea {
     fn draw_grid_value(
         &self,
         ctx : &Context,
+        design : &PlotDesign,
         value : &str,
         pos : Coord2D,
         center_x : bool,
@@ -830,7 +866,7 @@ impl PlotArea {
     ) {
         ctx.set_source_rgb(0.2666, 0.2666, 0.2666);
         text::draw_label(
-            &self.design.font.sf,
+            &design.font.sf,
             ctx,
             &value[..],
             pos,
@@ -852,10 +888,11 @@ impl PlotArea {
 
     fn get_max_extent(
         &self,
+        design : &PlotDesign,
         labels : &Vec<String>
     ) -> f64 {
         labels.iter()
-            .map(|l| self.design.font.sf.text_extents(&l[..]).x_advance)
+            .map(|l| design.font.sf.text_extents(&l[..]).x_advance)
             .fold(0.0, |m, f| f64::max(m,f))
     }
 
@@ -867,10 +904,10 @@ impl PlotArea {
             .collect()
     }*/
 
-    fn draw_grid(&self, ctx : &Context) {
+    fn draw_grid(&self, ctx : &Context, design : &PlotDesign) {
         ctx.save();
-        ctx.set_line_width(self.design.grid_width as f64);
-        self.design.font.set_font_into_context(&ctx);
+        ctx.set_line_width(design.grid_width as f64);
+        design.font.set_font_into_context(&ctx);
         let mut x_labels = PlotArea::steps_to_labels(
             &self.x.steps[..],
             self.x.precision as usize
@@ -894,8 +931,8 @@ impl PlotArea {
             // let from = self.mapper.map(*x, self.mapper.ymin);
             // let to = match self.mapper.self.mapper.map(*x, self.mapper.ymax);
             // println!("{:?}, {:?}, {:?}", x, from, to);
-            self.draw_grid_line(ctx, from, to);
-            self.draw_grid_value(ctx, x_label, from, true, 0.0, 1.5);
+            self.draw_grid_line(ctx, design, from, to);
+            self.draw_grid_value(ctx, design, x_label, from, true, 0.0, 1.5);
         }
 
         let mut y_labels = PlotArea::steps_to_labels(
@@ -905,7 +942,7 @@ impl PlotArea {
         if self.mapper.yinv {
             y_labels.reverse();
         }
-        let max_extent = self.get_max_extent(&y_labels);
+        let max_extent = self.get_max_extent(design, &y_labels);
         for (y, y_label) in self.y.steps.iter().zip(y_labels.iter()) {
             let mut from = match (self.mapper.xinv, self.mapper.yinv) {
                 (false, false) => self.mapper.map(self.mapper.xmin, *y),
@@ -919,19 +956,19 @@ impl PlotArea {
                 (true, false) =>  self.mapper.map(self.mapper.xmin, *y),
                 (true, true) => self.mapper.map(self.mapper.xmin, self.mapper.ymin + self.mapper.ymax - *y)
             };
-            self.draw_grid_line(ctx, from, to);
+            self.draw_grid_line(ctx, design, from, to);
             //let mut y_label_coord = match self.mapper.yinv {
             //    true => to,
             //    false => from
             //};
             from.x -= 1.1*max_extent;
-            self.draw_grid_value(ctx, y_label, from, false, 0.0, 0.0);
+            self.draw_grid_value(ctx, design, y_label, from, false, 0.0, 0.0);
         }
-        self.draw_scale_names(&ctx);
+        self.draw_scale_names(ctx, design);
         ctx.restore();
     }
 
-    fn draw_scale_names(&self, ctx : &Context) {
+    fn draw_scale_names(&self, ctx : &Context, design : &PlotDesign) {
         let pos_x = Coord2D::new(
             self.mapper.w as f64 * 0.5,
             self.mapper.h as f64 * 0.975
@@ -941,7 +978,7 @@ impl PlotArea {
             self.mapper.h as f64 * 0.5
         );
         text::draw_label(
-            &self.design.font.sf,
+            &design.font.sf,
             ctx,
             &self.x.label[..],
             pos_x,
@@ -951,7 +988,7 @@ impl PlotArea {
             None
         );
         text::draw_label(
-            &self.design.font.sf,
+            &design.font.sf,
             ctx,
             &self.y.label[..],
             pos_y,
@@ -982,10 +1019,6 @@ impl PlotArea {
             names.extend(m.get_ordered_col_names());
         }
         names
-    }
-
-    pub fn design_info(&self) -> HashMap<String, String> {
-        self.design.description()
     }
 
     pub fn scale_info(&self, scale : &str) -> HashMap<String, String> {
@@ -1058,18 +1091,26 @@ pub mod utils {
     use super::Document;
     use super::Error;
 
+    /// Return all children of node that satisfy the
+    /// informed xpath.
     pub fn children_as_hash(
         node : &Node,
         xpath : &str
     ) -> HashMap<String, String> {
         let mut prop_hash = HashMap::new();
         if let Ok(props) = node.findnodes(xpath) {
+            if props.len() == 0 {
+                panic!("No children found for node {:?} at path {}", node, xpath);
+            }
             for prop in props.iter() {
+                // println!("Property = {:?}", prop);
                 let name = prop.get_attribute("name")
-                    .expect("No attribute found");
+                    .expect(&format!("No name attribute found for property {:?}", prop));
                 let value = prop.get_content();
                 prop_hash.insert(name, value);
             }
+        } else {
+            panic!("Failed to retrieve children of {:?} at path {}", node, xpath);
         }
         prop_hash
     }

@@ -6,7 +6,7 @@ use postgres::{self, Client, tls::NoTls};
 // use std::cell::RefCell;
 // use std::fs::File;
 use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
-use sqlparser::ast::{Statement, Function, Select, Value, Expr};
+use sqlparser::ast::{Statement, Function, Select, Value, Expr, SetExpr, SelectItem, Ident};
 use sqlparser::parser::{Parser, ParserError};
 // use std::process::{Command, Stdio};
 // use std::io::{ /*BufWriter,*/ Write /*, BufReader, Read */ };
@@ -27,11 +27,12 @@ use super::table::*;
 use std::path::PathBuf;
 use super::postgre;
 use super::sqlite;
+use crate::functions::loader::*;
 
 // Carries a result (arranged over columns)
 #[derive(Debug)]
 pub enum QueryResult {
-    Valid(Table),
+    Valid(String, Table),
     Statement(String),
     Invalid(String)
 }
@@ -281,9 +282,16 @@ pub fn as_bool(r : &Row, ix : usize) -> String {
     w
 }*/
 
-/*fn function_data(f : Function) -> (String, Vec<String>) {
+#[derive(Debug, Clone)]
+pub struct Substitution {
+    proj_ix : usize,
+    func_name : String,
+    func_args : Vec<String>
+}
+
+fn split_function(f : Function) -> Substitution {
     let mut args = Vec::new();
-    for a in args {
+    for a in f.args {
         match a {
             Expr::Identifier(id) => args.push(id.value),
             Expr::Wildcard => args.push(String::from("*")),
@@ -291,33 +299,64 @@ pub fn as_bool(r : &Row, ix : usize) -> String {
                 Value::Number(n) => args.push(n),
                 Value::SingleQuotedString(s) => args.push(s),
                 Value::Boolean(b) => args.push(b.to_string()),
-                Value::Null => args.push(String::from("NULL"))
-            }
+                Value::Null => args.push(String::from("NULL")),
+                _ => { }
+            },
+            Expr::QualifiedWildcard(ws) => {
+                for w in ws {
+                    args.push(w.to_string())
+                }
+            },
+            Expr::CompoundIdentifier(ids) => {
+                for id in ids {
+                    args.push(id.to_string())
+                }
+            },
+            _ => { }
         }
     }
-    (f.name.to_string(), args)
+    Substitution{ proj_ix : 0, func_name : f.name.to_string(), func_args : args }
 }
 
-fn filter_functions(stmt : &Statement) -> Vec<Function> {
-    let mut funcs = Vec::new();
-    match stmt {
-        Statement::Query(q) => {
-            match q.body {
-                SetExpr::Select(sel) => {
-                    for proj in sel.projection {
+/// If query has a single function call statement, separate it for client-side
+/// execution while the naked arguments are sent to the database. Pass the statement
+/// unchanged and None otherwise.
+fn filter_single_function_out(stmt : &Statement) -> (Statement, Option<Substitution>) {
+    let mut transf_stmt = stmt.clone();
+    let sub : Option<Substitution> = match transf_stmt {
+        Statement::Query(ref mut q) => match q.body {
+            SetExpr::Select(ref mut sel) => {
+                if sel.projection.len() == 1 {
+                    if let Some(proj) = sel.projection.iter().next().cloned() {
                         match proj {
-                            Expr::Function(func) => funcs.push(func),
-                            _ => { }
+                            SelectItem::ExprWithAlias{ expr, .. } | SelectItem::UnnamedExpr(expr) => {
+                                match expr {
+                                    Expr::Function(func) => {
+                                        let sub = split_function(func);
+                                        sel.projection.remove(0);
+                                        for name in sub.func_args.iter().rev() {
+                                            sel.projection.push(SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(name))));
+                                        }
+                                        Some(sub)
+                                    },
+                                    _ => None
+                                }
+                            },
+                            _ => None
                         }
+                    } else {
+                        None
                     }
-                },
-                _ => { },
-            }
+                } else {
+                    None
+                }
+            },
+            _ => None,
         },
-        _ => { }
-    }
-    funcs
-}*/
+        _ => None
+    };
+    (transf_stmt, sub)
+}
 
 // TODO SQL parser is not accepting PostgreSQL double precision types
 // Use this if client-side parsing is desired.
@@ -523,7 +562,7 @@ impl SqlEngine {
                     None => {
                         if let Ok(q) = tbl.sql_string("transf_table") {
                             println!("{}", q);
-                            if let Err(e) = self.try_run(q) {
+                            if let Err(e) = self.try_run(q, None) {
                                 println!("{}", e);
                             }
                         } else {
@@ -586,12 +625,31 @@ impl SqlEngine {
         }
     }*/
 
+    /// Table is an expesive data structure, so we pass ownership to the function call
+    /// because it may be disassembled if the function is found, but we return it back to
+    /// the user on an not-found error, since the caller will want to re-use it.
+    fn try_client_function(sub : Substitution, tbl : Table, loader : &FunctionLoader) -> QueryResult {
+        match loader.try_exec_fn(sub.func_name, sub.func_args, tbl) {
+            Ok(tbl) => QueryResult::Valid(String::new(), tbl),
+            Err(FunctionErr::UserErr(msg)) | Err(FunctionErr::TableAgg(msg)) => {
+                QueryResult::Invalid(msg)
+            },
+            Err(FunctionErr::TypeMismatch(ix)) => {
+                QueryResult::Invalid(format!("Type mismatch at column {}", ix))
+            },
+            Err(FunctionErr::NotFound(tbl)) => {
+                QueryResult::Valid(String::new(), tbl)
+            }
+        }
+    }
+
     pub fn try_run(
         &mut self,
-        query_seq : String
+        query_seq : String,
+        loader : Option<&FunctionLoader>
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = parse_sql(&query_seq).map_err(|e| format!("{}", e) )?;
-        println!("{:?}", stmts);
+        // println!("Split query: {:?}", stmts);
         let mut results = Vec::new();
         if stmts.len() == 0 {
             return Err(String::from("Empty query sequence"));
@@ -600,13 +658,21 @@ impl SqlEngine {
             SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
             SqlEngine::PostgreSql{ conn_str : _ , conn } => {
                 for stmt in stmts {
+                    // let (stmt, opt_sub) = filter_single_function_out(&stmt);
+                    let stmt_string = stmt.to_string();
                     match stmt {
                         Statement::Query(q) => {
                             match conn.query(&format!("{}", q)[..], &[]) {
                                 Ok(rows) => {
                                     // let vec_rows : Vec<&Row> = rows.iter().collect();
                                     match postgre::build_table_from_postgre(&rows[..]) {
-                                        Ok(tbl) => results.push(QueryResult::Valid(tbl)),
+                                        Ok(tbl) => {
+                                            //if let (Some(sub), Some(loader)) = (opt_sub, loader) {
+                                            //    results.push(Self::try_client_function(sub, tbl, loader));
+                                            //} else {
+                                            results.push(QueryResult::Valid(stmt_string, tbl));
+                                            //}
+                                        },
                                         Err(e) => results.push(QueryResult::Invalid(e.to_string()))
                                     }
                                 },
@@ -627,17 +693,22 @@ impl SqlEngine {
             SqlEngine::Sqlite3{ path : _, conn} => {
                 // conn.execute() for insert/update/delete
                 for stmt in stmts {
+                    //let (stmt, opt_sub) = filter_single_function_out(&stmt);
+                    let stmt_string = stmt.to_string();
                     match stmt {
                         Statement::Query(q) => {
-                            println!("Sending query: {}", q);
+                            // println!("Sending query: {}", q);
                             match conn.prepare(&format!("{}",q)[..]) {
                                 Ok(mut prep_stmt) => {
                                     match prep_stmt.query(rusqlite::NO_PARAMS) {
                                         Ok(rows) => {
                                             match sqlite::build_table_from_sqlite(rows) {
                                                 Ok(tbl) => {
-                                                    println!("Table built: {}", tbl);
-                                                    results.push(QueryResult::Valid(tbl))
+                                                    //if let (Some(sub), Some(loader)) = (opt_sub, loader) {
+                                                    //    results.push(Self::try_client_function(sub, tbl, loader));
+                                                    //} else {
+                                                    results.push(QueryResult::Valid(stmt_string, tbl));
+                                                    //}
                                                 },
                                                 Err(e) => {
                                                     println!("Error building table: {}", e);
@@ -760,12 +831,13 @@ pub struct SqlListener {
     ans_receiver : Receiver<Vec<QueryResult>>,
     cmd_sender : Sender<String>,
     pub engine : Arc<Mutex<SqlEngine>>,
-    pub last_cmd : Arc<Mutex<Vec<String>>>
+    pub last_cmd : Arc<Mutex<Vec<String>>>,
+    //loader : Arc<Mutex<FunctionLoader>>
 }
 
 impl SqlListener {
 
-    pub fn launch() -> Self {
+    pub fn launch(loader : Arc<Mutex<FunctionLoader>>) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<String>();
         let (ans_tx, ans_rx) = mpsc::channel::<Vec<QueryResult>>();
 
@@ -774,10 +846,13 @@ impl SqlListener {
 
         // Must join on structure desctruction.
         let r_thread = thread::spawn(move ||  {
+            let loader = loader.clone();
             loop {
-                match (cmd_rx.recv(), engine_c.lock()) {
-                    (Ok(cmd), Ok(mut eng)) => {
-                        let result = eng.try_run(cmd);
+                // TODO perhaps move SQL parsing to here so loader is passed to
+                // try_run iff there are local functions matching the query.
+                match (cmd_rx.recv(), engine_c.lock(), loader.lock()) {
+                    (Ok(cmd), Ok(mut eng), Ok(loader)) => {
+                        let result = eng.try_run(cmd, Some(&loader));
                         match result {
                             Ok(ans) => {
                                 if let Err(e) = ans_tx.send(ans) {
@@ -793,7 +868,7 @@ impl SqlListener {
                         }
                     },
                     _ => {
-                        println!("Failed to acquire lock over engine");
+                        panic!("Failed to acquire lock over engine");
                     }
 
                 }

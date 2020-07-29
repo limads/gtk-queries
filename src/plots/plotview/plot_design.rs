@@ -1,6 +1,4 @@
 use gdk::RGBA;
-// use cairo::*;
-// use regex::Regex;
 use libxml::tree::node::Node;
 use super::utils;
 use std::error::Error;
@@ -17,8 +15,8 @@ pub struct PlotDesign {
 impl PlotDesign {
 
     pub fn new(node : &Node) -> Result<PlotDesign, Box<dyn Error>> {
-        let design_props = utils::children_as_hash(node,
-            "//object[@name='design']/property");
+        let design_props = utils::children_as_hash(node,"property");
+        //println!("Design = {:?}", design_props);
         let standard_color = RGBA{red:0.0,green:0.0,blue:0.0,alpha:0.0};
         let bg_color = match design_props["bg_color"].parse() {
             Ok(c) => c,

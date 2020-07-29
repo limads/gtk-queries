@@ -1,6 +1,11 @@
-pub mod cli_function;
+// pub mod cli_function;
 
-pub mod function_search;
+pub mod loader;
 
-pub mod parsing;
+pub mod registry;
+
+// pub mod parser;
+
+// pub mod exec;
+
 

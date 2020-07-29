@@ -1,8 +1,8 @@
 use rusqlite::{self, /*Rows,*/ types::Value };
 // use std::convert::{TryFrom, TryInto};
 // use rust_decimal::Decimal;
-use super::column::*;
-use super::nullable_column::*;
+use ::queries::column::*;
+use ::queries::nullable_column::*;
 // use std::fmt::Display;
 use super::table::*;
 use rusqlite::types::FromSql;
@@ -172,6 +172,8 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
     let cols = rows.columns().ok_or("No columns available")?;
     let col_names = rows.column_names().ok_or("No columns available")?;
     let empty_cols : Vec<Column> = cols.iter().map(|c| {
+
+        // TODO value breaking here as type is returned with different names.
         let sq_c = SqliteColumn::new(c.decl_type().unwrap_or("blob")).unwrap();
         let nc : NullableColumn = sq_c.into();
         nc.to_column()

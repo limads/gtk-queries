@@ -3,15 +3,20 @@ use super::*;
 pub struct PlotView {
     pub plot_group : PlotGroup,
     //pub plot_area : PlotArea,
-    parent : gtk::DrawingArea,
+    pub parent : gtk::DrawingArea,
     active_area : usize,
     layout_path : String
 }
 
 pub enum UpdateContent {
 
+    /// Used to evaluate plot-specific characteristics.
     /// Layout path, Layout value
     Layout(String, String),
+
+    /// Used to evaluate characteristics shared by all plots.
+    /// Design path, design value
+    Design(String, String),
 
     /// Mapping name, position values
     Data(String, Vec<Vec<f64>>),
@@ -115,7 +120,7 @@ impl PlotView {
         let active = self.active_area;
         match content {
             UpdateContent::Layout(key, property) => {
-                self.plot_group.update_layout(active, &key, &property);
+                self.plot_group.update_plot_property(active, &key, &property);
                 /*if self.plot_area.reload_layout_data().is_err() {
                     println!(
                         "Error updating property {:?} with value {:?}",
@@ -123,6 +128,10 @@ impl PlotView {
                 }*/
                 self.parent.queue_draw();
             },
+            UpdateContent::Design(key, property) => {
+                self.plot_group.update_design(&key, &property);
+                self.parent.queue_draw();
+            }
             UpdateContent::Data(key, data) => {
                 if let Err(e) = self.plot_group.update_mapping(active, &key, data) {
                     println!("Error updating mapping {:}: {}", key, e);

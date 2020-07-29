@@ -1,45 +1,22 @@
 use gtk::*;
 use gtk::prelude::*;
-// use gio::prelude::*;
-use super::mapping_menu::*;
-//use crate::PlotSidebar;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
+use crate::tables::{ environment::TableEnvironment };
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-// use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
-// use gio::FileExt;
 use super::design_menu::*;
 use super::scale_menu::*;
+use super::layout_toolbar::*;
+use super::mapping_menu::*;
+use super::plot_popover::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
-
-/// PlotsSidebar holds the information of the used mappings
-#[derive(Clone)]
-pub struct PlotSidebar {
-    pub design_menu : DesignMenu,
-    pub scale_menus : (ScaleMenu, ScaleMenu),
-    pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-    pub notebook : Notebook,
-    pub sidebar_stack : Stack,
-    pub pl_view : Rc<RefCell<PlotView>>,
-    mapping_btns : HashMap<String, ToolButton>,
-    add_mapping_btn : ToolButton,
-    edit_mapping_btn : ToolButton,
-    clear_layout_btn : ToolButton,
-    remove_mapping_btn : ToolButton,
-    new_layout_btn : Button,
-    load_layout_btn : Button,
-    glade_def : Rc<HashMap<String, String>>,
-    xml_load_dialog : FileChooserDialog,
-    group_toolbar : GroupToolbar,
-    layout_path : Rc<RefCell<Option<String>>>
-}
+use std::default::Default;
 
 #[derive(Clone)]
 pub struct GroupToolbar {
@@ -68,7 +45,7 @@ impl GroupToolbar {
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook,
+        mapping_stack : Stack,
         _glade_def : Rc<HashMap<String, String>>,
         _tbl_nb : TableNotebook,
         _data_source : Rc<RefCell<TableEnvironment>>,
@@ -143,7 +120,7 @@ impl GroupToolbar {
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
+            let mapping_stack = mapping_stack.clone();
             toggle_unique.connect_toggled(move |toggle_unique| {
                 if toggle_unique.get_active() {
                     toggle_horiz.set_active(false);
@@ -156,7 +133,8 @@ impl GroupToolbar {
                     // plot_notebook.detach_tab(plot_notebook.)
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
-                        plot_notebook.clone()
+                        mapping_stack.clone()
+                        //plot_notebook.clone()
                     ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
@@ -173,7 +151,7 @@ impl GroupToolbar {
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
+            let mapping_stack = mapping_stack.clone();
             toggle_horiz.connect_toggled(move |toggle_horiz| {
                 if toggle_horiz.get_active() {
                     toggle_unique.set_active(false);
@@ -186,7 +164,7 @@ impl GroupToolbar {
                     active_combo.set_active_id(Some("Top"));
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
-                        plot_notebook.clone()
+                        mapping_stack.clone()
                     ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
@@ -203,7 +181,7 @@ impl GroupToolbar {
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
+            let mapping_stack = mapping_stack.clone();
             toggle_vert.connect_toggled(move |toggle_vert| {
                 if toggle_vert.get_active() {
                     toggle_unique.set_active(false);
@@ -216,7 +194,7 @@ impl GroupToolbar {
                     active_combo.set_active_id(Some("Left"));
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
-                        plot_notebook.clone()
+                        mapping_stack.clone()
                     ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
@@ -234,7 +212,7 @@ impl GroupToolbar {
             let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
+            let mapping_stack = mapping_stack.clone();
             toggle_four.connect_toggled(move |toggle_four| {
                 if toggle_four.get_active() {
                     toggle_unique.set_active(false);
@@ -249,7 +227,7 @@ impl GroupToolbar {
                     active_combo.set_active_id(Some("Top Left"));
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
-                        plot_notebook.clone()
+                        mapping_stack.clone()
                     ).expect("Error clearing mappings");
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
@@ -279,17 +257,36 @@ impl GroupToolbar {
     }
 }
 
+/// PlotsSidebar holds the information of the used mappings
+#[derive(Clone)]
+pub struct PlotSidebar {
+    pub design_menu : DesignMenu,
+    pub scale_menus : (ScaleMenu, ScaleMenu),
+    pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+    //pub notebook : Notebook,
+    pub sidebar_stack : Stack,
+    pub pl_view : Rc<RefCell<PlotView>>,
+    pub plot_popover : PlotPopover,
+    pub layout_toolbar : LayoutToolbar,
+    new_layout_btn : Button,
+    load_layout_btn : Button,
+    glade_def : Rc<HashMap<String, String>>,
+    xml_load_dialog : FileChooserDialog,
+    group_toolbar : GroupToolbar,
+    layout_path : Rc<RefCell<Option<String>>>
+}
+
 impl PlotSidebar {
 
     pub fn set_active(&self, state : bool) {
         // self.new_layout_btn.set_sensitive(state);
         // self.load_layout_btn.set_sensitive(state);
-        if let Err(e) = self.set_add_mapping_sensitive(0) {
+        /*if let Err(e) = self.layout_toolbar.set_add_mapping_sensitive(0) {
             println!("{}", e);
         }
-        if let Err(e) = self.set_edit_mapping_sensitive(0) {
+        if let Err(e) = self.layout_toolbar.set_edit_mapping_sensitive(0) {
             println!("{}" ,e);
-        }
+        }*/
         if state == false {
             self.xml_load_dialog.unselect_all();
         }
@@ -299,74 +296,6 @@ impl PlotSidebar {
         } else {
             self.sidebar_stack.set_visible_child_name("database");
         }
-    }
-
-    pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
-        // TODO: Allow sensitive only when selected mapping applicable to current plot region.
-        //let visible = self.sidebar_stack.get_visible_child_name()
-        //    .ok_or("Unable to determine layout stack status" )?;
-        //if &visible[..] == "layout" {
-        if self.layout_loaded() {
-            let page = self.notebook.get_property_page() as usize;
-            if page <= 2 {
-                self.edit_mapping_btn.set_sensitive(false);
-                return Ok(());
-            }
-            let menus = self.mapping_menus.try_borrow()
-                .map_err(|_| "Unable to retrieve reference to mapping menus")?;
-            if let Some(m_type) = menus.get(page - 3).map(|m| m.mapping_type.clone() ) {
-                match &m_type[..] {
-                    "line" | "scatter" => {
-                        if ncols == 2 {
-                            self.edit_mapping_btn.set_sensitive(true);
-                            return Ok(());
-                        }
-                    },
-                    "bar" => {
-                        if ncols == 1 {
-                            self.edit_mapping_btn.set_sensitive(true);
-                            return Ok(());
-                        }
-                    },
-                    "text" | "surface" => {
-                        if ncols == 3 {
-                            self.edit_mapping_btn.set_sensitive(true);
-                            return Ok(());
-                        }
-                    },
-                    _ => return Err("Unrecognized mapping")
-                }
-            }
-        }
-        self.edit_mapping_btn.set_sensitive(false);
-        Ok(())
-    }
-
-    pub fn set_add_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
-        //let visible = self.sidebar_stack.get_visible_child_name()
-        //    .ok_or("Unable to determine layout stack status" )?;
-        //if &visible[..] == "layout" {
-        if self.layout_loaded() {
-            if ncols >= 1 {
-                self.add_mapping_btn.set_sensitive(true);
-            } else {
-                self.add_mapping_btn.set_sensitive(false);
-            }
-            let sensitive : Vec<&str> = match ncols {
-                1 => vec!["bar"],
-                2 => vec!["line", "scatter"],
-                3 => vec!["area", "text", "surface"],
-                _ => vec![]
-            };
-            for (mapping, btn) in self.mapping_btns.iter() {
-                if sensitive.iter().find(|n| *n == mapping).is_some() {
-                    btn.set_sensitive(true);
-                } else {
-                    btn.set_sensitive(false);
-                }
-            }
-        }
-        Ok(())
     }
 
     pub fn layout_loaded(&self) -> bool {
@@ -427,6 +356,52 @@ impl PlotSidebar {
         Rc::new(def_content)
     }
 
+    pub fn get_active_coords(pl_view : &PlotView) -> (i32, i32, i32, i32) {
+        let rect = pl_view.parent.get_allocation();
+        let (w, h) = (rect.width, rect.height);
+        println!("Allocation: {:?}", (w, h));
+        let (x, y) = match pl_view.plot_group.size() {
+            1 => ((w as f64 * 0.5) as i32, (h as f64 * 0.5) as i32),
+            2 => match pl_view.plot_group.group_split() {
+                GroupSplit::Horizontal => match pl_view.get_active_area() {
+                    0 => ((w as f64 * 0.5) as i32, (h as f64 * 0.33) as i32),
+                    1 => ((w as f64 * 0.5) as i32, (h as f64 * 0.66) as i32),
+                    _ => panic!("Invalid area"),
+                },
+                GroupSplit::Vertical => match pl_view.get_active_area() {
+                    0 => ((w as f64 * 0.33) as i32, (h as f64 * 0.5) as i32),
+                    1 => ((w as f64 * 0.66) as i32, (h as f64 * 0.5) as i32),
+                    _ => panic!("Invalid area"),
+                },
+                _ => panic!("Invalid split pattern")
+            },
+            4 => match pl_view.get_active_area() {
+                0 => ((w as f64 * 0.25) as i32, (h as f64 * 0.25) as i32),
+                1 => ((w as f64 * 0.75) as i32, (h as f64 * 0.25) as i32),
+                2 => ((w as f64 * 0.25) as i32, (h as f64 * 0.75) as i32),
+                3 => ((w as f64 * 0.75) as i32, (h as f64 * 0.75) as i32),
+                _ => panic!("Invalid area"),
+            },
+            _ => panic!("Invalid plot index")
+        };
+        (x, y, w, h)
+    }
+
+    fn updated_active_area(pl_view : &PlotView, x : i32, y : i32, w : i32, h : i32) -> usize {
+        match (pl_view.plot_group.size(), pl_view.plot_group.group_split()) {
+            (1, _) => 0,
+            (2, GroupSplit::Horizontal) => if y < h / 2 { 0 } else { 1 },
+            (2, GroupSplit::Vertical) => if x < w / 2 { 0 } else { 1 },
+            (4, _) => match (x < w / 2, y < h / 2) {
+                    (true, true) => 0,
+                    (true, false) => 1,
+                    (false, true) => 2,
+                    (false, false) => 3,
+            },
+            _ => panic!("Undefined plot size")
+        }
+    }
+
     pub fn new(
         builder : Builder,
         pl_view : Rc<RefCell<PlotView>>,
@@ -434,21 +409,47 @@ impl PlotSidebar {
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
         plot_toggle : ToggleButton,
+        table_toggle : ToggleButton,
         sidebar_stack : Stack
     ) -> Self {
         let mapping_menus = Rc::new(RefCell::new(Vec::new()));
         let design_menu = build_design_menu(&builder, pl_view.clone());
-        let plot_notebook : Notebook =
-            builder.get_object("plot_notebook").unwrap();
+        //let plot_notebook : Notebook =
+        //    builder.get_object("plot_notebook").unwrap();
         let scale_menus = build_scale_menus(&builder, pl_view.clone());
         //let sidebar_stack : Stack = builder.get_object("sidebar_stack").unwrap();
         let glade_def = Self::build_glade_def();
         let layout_path = Rc::new(RefCell::new(None));
+
+        let plot_ev : EventBox = builder.get_object("plot_ev").unwrap();
+        let sel_mapping = Rc::new(RefCell::new(String::new()));
+        let plot_popover = PlotPopover::new(&builder);
+
+        {
+            let pl_view = pl_view.clone();
+            let plot_popover = plot_popover.clone();
+            plot_ev.connect_button_press_event(move |wid, ev| {
+                let (x, y) = ev.get_position();
+                let w = wid.get_allocation().width;
+                let h = wid.get_allocation().height;
+                if let Ok(mut pl) = pl_view.try_borrow_mut() {
+                    let ix = Self::updated_active_area(&*pl, x as i32, y as i32, w, h);
+                    println!("Active area: {}", ix);
+                    pl.change_active_area(ix);
+                    plot_popover.set_active_mapping(ix, None);
+                } else {
+                    println!("Failed acquiring mutable reference to plot view/selected mapping");
+                }
+                println!("Draw area touched at {:?}", (x, y));
+                plot_popover.show_from_click(&ev, w, h);
+                glib::signal::Inhibit(true)
+            });
+        }
         let group_toolbar = GroupToolbar::new(
             builder.clone(),
             pl_view.clone(),
             mapping_menus.clone(),
-            plot_notebook.clone(),
+            plot_popover.mapping_stack.clone(),
             glade_def.clone(),
             tbl_nb.clone(),
             table_env.clone(),
@@ -456,35 +457,50 @@ impl PlotSidebar {
             design_menu.clone(),
             scale_menus.clone()
         );
-        let (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn) = Self::build_layout_toolbar(
+        let layout_toolbar = LayoutToolbar::build(
             builder.clone(),
             status_stack.clone(),
             sidebar_stack.clone(),
             pl_view.clone(),
             mapping_menus.clone(),
-            plot_notebook.clone(),
+            plot_popover.clone(),
             table_env.clone(),
             tbl_nb.clone(),
-            layout_path.clone()
-        );
-        let mapping_btns = Self::build_add_mapping_popover(
-            builder.clone(),
-            add_mapping_btn.clone(),
-            remove_mapping_btn.clone(),
-            table_env.clone(),
-            pl_view.clone(),
-            tbl_nb.clone(),
-            glade_def.clone(),
-            mapping_menus.clone(),
-            plot_notebook.clone(),
+            layout_path.clone(),
             plot_toggle.clone(),
-            status_stack.clone()
+            glade_def.clone(),
+            sel_mapping.clone()
+        );
+        layout_toolbar.connect_add_mapping_clicked(
+            plot_popover.clone(),
+            glade_def.clone(),
+            table_env.clone(),
+            tbl_nb.clone(),
+            pl_view.clone(),
+            mapping_menus.clone(),
+            status_stack.clone(),
+            sel_mapping.clone()
+        );
+        layout_toolbar.connect_edit_mapping_clicked(
+            plot_toggle.clone(),
+            plot_popover.clone(),
+            pl_view.clone(),
+            tbl_nb.clone()
+        );
+        layout_toolbar.connect_remove_mapping_clicked(
+            mapping_menus.clone(),
+            pl_view.clone(),
+            plot_popover.clone(),
+            status_stack.clone(),
+            table_env.clone(),
+            tbl_nb.clone(),
+            layout_toolbar.mapping_popover.clone(),
         );
         let new_layout_btn = Self::build_layout_new_btn(
             builder.clone(),
             sidebar_stack.clone(),
             status_stack.clone(),
-            clear_layout_btn.clone(),
+            layout_toolbar.clear_layout_btn.clone(),
             plot_toggle.clone(),
             layout_path.clone()
         );
@@ -493,11 +509,10 @@ impl PlotSidebar {
             builder.clone(),
             pl_view.clone(),
             table_env.clone(),
-            //sidebar.clone(),
             tbl_nb.clone(),
             status_stack.clone(),
-            clear_layout_btn.clone(),
-            plot_notebook.clone(),
+            layout_toolbar.clear_layout_btn.clone(),
+            plot_popover.clone(),
             mapping_menus.clone(),
             design_menu.clone(),
             (scale_menus.0.clone(), scale_menus.1.clone()),
@@ -507,273 +522,41 @@ impl PlotSidebar {
             layout_path.clone()
         );
         {
-            let remove_mapping_btn = remove_mapping_btn.clone();
-            plot_notebook.connect_switch_page(move |_nb, _wid, page| {
-                //let page = plot_notebook.get_property_page();
-                //println!("{}", page);
-                if page > 2 {
-                    remove_mapping_btn.set_sensitive(true);
-                } else {
-                    remove_mapping_btn.set_sensitive(false);
-                }
+
+            let mapping_menus = mapping_menus.clone();
+            let tbl_nb = tbl_nb.clone();
+            let plot_popover = plot_popover.clone();
+            let layout_toolbar = layout_toolbar.clone();
+            //let sel_mapping = plot_popover.sel_mapping.clone();
+            plot_popover.tbl_btn.clone().connect_clicked(move |btn| {
+                let mapping_ix = plot_popover.get_selected_mapping();
+                layout_toolbar.update_selected_mapping(tbl_nb.clone(), mapping_menus.clone(), mapping_ix);
+                table_toggle.set_active(true);
             });
+        }
+        if let Ok(pl_view) = pl_view.try_borrow() {
+            if !pl_view.parent.get_realized() {
+                pl_view.parent.realize();
+            }
+        } else {
+            println!("Failed acquiring reference to plot view");
         }
         Self {
             design_menu,
             scale_menus,
             mapping_menus,
-            notebook : plot_notebook.clone(),
+            //mapping_popover,
+            //notebook : plot_notebook.clone(),
             sidebar_stack : sidebar_stack.clone(),
             pl_view : pl_view.clone(),
-            mapping_btns,
-            add_mapping_btn,
-            edit_mapping_btn,
-            clear_layout_btn,
-            remove_mapping_btn,
+            layout_toolbar,
             glade_def,
             new_layout_btn,
             load_layout_btn,
             xml_load_dialog,
             group_toolbar,
-            layout_path
-        }
-    }
-
-    fn build_layout_toolbar(
-        builder : Builder,
-        status_stack : StatusStack,
-        sidebar_stack : Stack,
-        plot_view : Rc<RefCell<PlotView>>,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook,
-        table_env : Rc<RefCell<TableEnvironment>>,
-        tbl_nb : TableNotebook,
-        layout_path : Rc<RefCell<Option<String>>>
-    ) -> (ToolButton, ToolButton, ToolButton, ToolButton) {
-        let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
-        let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
-        let img_edit = Image::new_from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
-        let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
-        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
-        let clear_layout_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
-        let add_mapping_btn : ToolButton = ToolButton::new(Some(&img_add), None);
-        let edit_mapping_btn : ToolButton = ToolButton::new(Some(&img_edit), None);
-        let remove_mapping_btn : ToolButton = ToolButton::new(Some(&img_remove), None);
-        // TODO verify if there isn't already at least two columns selected. If there is, do not set
-        // add sensititve to false.
-        remove_mapping_btn.set_sensitive(false);
-        add_mapping_btn.set_sensitive(false);
-        edit_mapping_btn.set_sensitive(false);
-        clear_layout_btn.set_sensitive(false);
-        layout_toolbar.insert(&clear_layout_btn, 0);
-        layout_toolbar.insert(&add_mapping_btn, 1);
-        layout_toolbar.insert(&edit_mapping_btn, 2);
-        layout_toolbar.insert(&remove_mapping_btn, 3);
-        layout_toolbar.show_all();
-        {
-            let sidebar_stack = sidebar_stack.clone();
-            let plot_view = plot_view.clone();
-            let mapping_menus = mapping_menus.clone();
-            let notebook = plot_notebook.clone();
-            let status_stack = status_stack.clone();
-            let layout_path = layout_path.clone();
-            clear_layout_btn.connect_clicked(move |btn| {
-                //TODO toggle group toolbar to single
-                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
-                    sidebar_stack.set_visible_child_name("empty");
-                    *(layout_path.borrow_mut()) = None;
-                    status_stack.show_curr_status();
-                    if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
-                        mappings.clear();
-                    } else {
-                        println!("Error retrieving mapping menus");
-                    }
-                    let children = notebook.get_children();
-                    for i in 3..children.len() {
-                        if let Some(c) = children.get(i) {
-                            notebook.remove(c);
-                        } else {
-                            println!("Unable to clear notebook");
-                        }
-                    }
-                }
-                btn.set_sensitive(false);
-
-            });
-        }
-
-        {
-            let mapping_menus = mapping_menus.clone();
-            let plot_view = plot_view.clone();
-            let notebook = plot_notebook.clone();
-            let table_env = table_env.clone();
-            let status_stack = status_stack.clone();
-            edit_mapping_btn.connect_clicked(move |_| {
-                let selected_cols = tbl_nb.full_selected_cols();
-                let page = notebook.get_property_page() as usize;
-                if page <= 2 || selected_cols.len() == 0 {
-                    return;
-                }
-                match (plot_view.try_borrow_mut(), mapping_menus.try_borrow(), table_env.try_borrow()) {
-                    (Ok(mut pl_view), Ok(menus), Ok(t_env)) => {
-                        if let Some(m) = menus.get(page - 3) {
-                            if let Err(e) = m.reassign_data(selected_cols, &t_env, &mut pl_view) {
-                                status_stack.update(Status::SqlErr(e.to_string()));
-                            } else {
-                                pl_view.redraw();
-                            }
-                        } else {
-                            println!("No mapping at index {}", page - 3);
-                        }
-                    },
-                    _ => {
-                        println!("Unable to retrieve reference to menus or plotview");
-                    }
-                }
-            });
-        }
-
-        {
-            let mapping_menus = mapping_menus.clone();
-            let plot_view = plot_view.clone();
-            let plot_notebook = plot_notebook.clone();
-            let status_stack = status_stack.clone();
-            let table_env = table_env.clone();
-            remove_mapping_btn.connect_clicked(move |_| {
-                Self::remove_selected_mapping_page(
-                    &plot_notebook,
-                    mapping_menus.clone(),
-                    plot_view.clone()
-                );
-                if let Ok(mut pl) = plot_view.try_borrow_mut() {
-                    if let Ok(t_env) = table_env.try_borrow() {
-                        if let Ok(menus) = mapping_menus.try_borrow() {
-                            for m in menus.iter() {
-                                if let Err(e) = m.update_data(&t_env, &mut pl) {
-                                    status_stack.update(Status::SqlErr(format!("{}", e)));
-                                    return;
-                                }
-                            }
-                            status_stack.update(Status::Ok);
-                        } else {
-                            println!("Unable to retrieve mutable reference to mapping menus");
-                        }
-                    } else {
-                        println!("Unable to retrieve reference to table environment");
-                    }
-                } else {
-                    println!("Unable retrieve mutable reference to plot view");
-                }
-                plot_notebook.show_all();
-            });
-        }
-
-        (add_mapping_btn, edit_mapping_btn, clear_layout_btn, remove_mapping_btn)
-    }
-
-    fn build_add_mapping_popover(
-        builder : Builder,
-        add_mapping_btn : ToolButton,
-        remove_mapping_btn : ToolButton,
-        tbl_env : Rc<RefCell<TableEnvironment>>,
-        plot_view : Rc<RefCell<PlotView>>,
-        tbl_nb : TableNotebook,
-        glade_def : Rc<HashMap<String, String>>,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook,
-        plot_toggle : ToggleButton,
-        status_stack : StatusStack
-    ) -> HashMap<String, ToolButton> {
-        let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
-        add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
-        let upper_mapping_toolbar : Toolbar = builder.get_object("upper_mapping_toolbar").unwrap();
-        let lower_mapping_toolbar : Toolbar = builder.get_object("lower_mapping_toolbar").unwrap();
-        let toolbars = [upper_mapping_toolbar, lower_mapping_toolbar];
-        let mapping_names = vec![
-            String::from("bar"),
-            String::from("line"),
-            String::from("scatter"),
-            String::from("text"),
-            String::from("area"),
-            String::from("surface")
-        ];
-        let mut mapping_btns = HashMap::new();
-        let iter_names = mapping_names.iter();
-        for (i, mapping) in iter_names.enumerate() {
-            //let mut m_name = String::from(&mapping[0..1].to_uppercase());
-            //m_name += &mapping[1..];
-            let img = Image::new_from_file(&(String::from("assets/icons/") +  mapping + ".svg"));
-            let btn : ToolButton = ToolButton::new(Some(&img), None);
-            mapping_btns.insert(mapping.to_string(), btn.clone());
-            toolbars[i / 3].insert(&btn, (i % 3) as i32);
-            let m = mapping.clone();
-            let add_mapping_popover = add_mapping_popover.clone();
-            //let builder = builder.clone();
-            let tbl_env = tbl_env.clone();
-            let plot_view = plot_view.clone();
-            let remove_mapping_btn = remove_mapping_btn.clone();
-            let tbl_nb = tbl_nb.clone();
-            let glade_def = glade_def.clone();
-            let mapping_menus = mapping_menus.clone();
-            let plot_notebook = plot_notebook.clone();
-            let plot_toggle = plot_toggle.clone();
-            let status_stack = status_stack.clone();
-            btn.connect_clicked(move |_btn| {
-                Self::add_mapping_from_type(
-                    glade_def.clone(),
-                    &m[..],
-                    tbl_env.clone(),
-                    tbl_nb.clone(),
-                    plot_view.clone(),
-                    mapping_menus.clone(),
-                    //builder.clone(),
-                    plot_notebook.clone(),
-                    status_stack.clone()
-                );
-                add_mapping_popover.hide();
-                remove_mapping_btn.set_sensitive(true);
-                plot_toggle.set_active(true);
-            });
-        }
-        toolbars.iter().for_each(|t| t.show_all() );
-        add_mapping_btn.connect_clicked(move|_btn| {
-            add_mapping_popover.show();
-        });
-        mapping_btns
-    }
-
-    fn remove_selected_mapping_page(
-        plot_notebook : &Notebook,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_view : Rc<RefCell<PlotView>>
-    ) {
-        let page = plot_notebook.get_property_page() as usize;
-        let mapping_ix = page - 3;
-        let children = plot_notebook.get_children();
-        if let Some(c) = children.get(page) {
-            if let Ok(mut menus) = mapping_menus.try_borrow_mut() {
-                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    menus.remove(mapping_ix);
-                    plot_notebook.remove(c);
-                    let name = (mapping_ix).to_string();
-                    pl_view.update(&mut UpdateContent::RemoveMapping(name));
-                    for m in menus.iter_mut().skip(mapping_ix) {
-                        if let Some(Ok(old_ix)) = m.get_mapping_name().map(|n| n.parse::<usize>()) {
-                            println!("Old index: {} New index: {}", old_ix, old_ix - 1 );
-                            m.set_mapping_name((old_ix - 1).to_string());
-                        } else {
-                            println!("Unable to parse mapping menu name to usize");
-                        }
-                    }
-                } else {
-                    println!("Could not get mutable reference to PlotView")
-                }
-            } else {
-                println!("Unable to retrieve mutable reference to mapping_menus when removing page");
-            }
-        } else {
-            println!("Invalid child position");
+            layout_path,
+            plot_popover
         }
     }
 
@@ -787,8 +570,7 @@ impl PlotSidebar {
         tbl_nb : TableNotebook,
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        // builder_clone : Builder,
-        plot_notebook : Notebook,
+        plot_popover : PlotPopover,
         status_stack : StatusStack
     ) {
         let name = if let Ok(menus) = mapping_menus.try_borrow() {
@@ -818,11 +600,13 @@ impl PlotSidebar {
                 Self::append_mapping_menu(
                     m,
                     mapping_menus.clone(),
-                    plot_notebook.clone(),
+                    plot_popover.clone(),
+                    status_stack.clone(),
+                    //plot_notebook.clone(),
+                    // mapping_stack.clone(),
                     plot_view.clone(),
                     data_source.clone(),
                     tbl_nb.clone(),
-                    status_stack.clone(),
                     None,
                     true
                 );
@@ -851,7 +635,8 @@ impl PlotSidebar {
     fn update_mapping_widgets(
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook,
+        // plot_notebook : Notebook,
+        plot_popover : PlotPopover,
         glade_def : Rc<HashMap<String, String>>,
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
@@ -863,7 +648,8 @@ impl PlotSidebar {
         };
         Self::clear_mappings(
             mapping_menus.clone(),
-            plot_notebook.clone()
+            //plot_notebook.clone()
+            plot_popover.mapping_stack.clone()
         ).expect("Error clearing mappings");
         for m_info in new_info.iter() {
             let menu = Self::create_new_mapping_menu(
@@ -879,11 +665,12 @@ impl PlotSidebar {
                     Self::append_mapping_menu(
                         m,
                         mapping_menus.clone(),
-                        plot_notebook.clone(),
+                        //plot_notebook.clone(),
+                        plot_popover.clone(),
+                        status_stack.clone(),
                         plot_view.clone(),
                         data_source.clone(),
                         tbl_nb.clone(),
-                        status_stack.clone(),
                         None,
                         false
                     );
@@ -902,7 +689,8 @@ impl PlotSidebar {
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
         layout_clear_btn : ToolButton,
-        plot_notebook : Notebook,
+        //plot_notebook : Notebook,
+        plot_popover : PlotPopover,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
@@ -947,7 +735,8 @@ impl PlotSidebar {
                                 Self::update_mapping_widgets(
                                     plot_view.clone(),
                                     mapping_menus.clone(),
-                                    plot_notebook.clone(),
+                                    //plot_notebook.clone(),
+                                    plot_popover.clone(),
                                     glade_def.clone(),
                                     data_source.clone(),
                                     tbl_nb.clone(),
@@ -958,7 +747,7 @@ impl PlotSidebar {
                                     scale_menus.clone(),
                                     plot_view.clone()
                                 );
-                                plot_notebook.show_all();
+                                //plot_notebook.show_all();
                                 status_stack.try_show_alt();
                                 plot_toggle.set_active(true);
                                 sidebar_stack.set_visible_child_name("layout");
@@ -988,13 +777,9 @@ impl PlotSidebar {
         mapping_type : String,
         _tbl_env : Rc<RefCell<TableEnvironment>>,
         pl_view : Rc<RefCell<PlotView>>,
-        properties : Option<HashMap<String, String>>,
-        //sidebar : PlotSidebar
+        properties : Option<HashMap<String, String>>
     ) -> Result<MappingMenu, &'static str> {
-        //println!("{}", *glade_def);
-        //let builder = Builder::new_from_string(&glade_def[..]);
         let builder = Builder::new_from_string(&glade_def[&mapping_type][..]);
-        //println!("{:?}", builder);
         let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
         if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
             return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");
@@ -1002,7 +787,7 @@ impl PlotSidebar {
         let box_name = mapping_type.clone() + "_box";
         let mapping_box : Box = builder.get_object(&box_name).unwrap();
         let design_widgets = HashMap::new();
-        let ixs = Rc::new(RefCell::new(Vec::new()));
+        let source = Rc::new(RefCell::new(Default::default()));
         let plot_ix = pl_view.borrow().get_active_area();
         let tab_img = MappingMenu::create_tab_image(mapping_type.clone());
         let mut m = MappingMenu {
@@ -1010,15 +795,18 @@ impl PlotSidebar {
             mapping_type,
             mapping_box,
             design_widgets,
-            ixs,
+            source,
             plot_ix,
-            tab_img
+            tab_img,
+            column_labels : Vec::new()
         };
         m.build_mapping_design_widgets(
             &builder,
             pl_view.clone()
         );
-
+        m.build_column_labels(
+            &builder
+        );
         if let Some(prop) = properties {
             if let Err(e) = m.update_widget_values(prop) {
                 println!("{}", e);
@@ -1049,11 +837,11 @@ impl PlotSidebar {
     fn append_mapping_menu(
         m : MappingMenu,
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
-        notebook : Notebook,
+        plot_popover : PlotPopover,
+        status_stack : StatusStack,
         plot_view : Rc<RefCell<PlotView>>,
         tbl_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
-        status_stack : StatusStack,
         pos : Option<usize>,
         with_data : bool
     ) {
@@ -1064,11 +852,15 @@ impl PlotSidebar {
                     Some(p) => mappings.insert(p, m.clone()),
                     None => mappings.push(m.clone())
                 }
-                notebook.add(&m.get_parent());
+
+                plot_popover.add_mapping(&m);
+
+                /*notebook.add(&m.get_parent());
                 notebook.set_tab_label(&m.get_parent(), Some(&m.tab_img));
                 let npages = notebook.get_children().len() as i32;
                 notebook.set_property_page(npages-1);
-                notebook.show_all();
+                notebook.show_all();*/
+
                 if let Ok(name) = m.mapping_name.try_borrow() {
                     pl.update(&mut UpdateContent::NewMapping(
                         name.clone(),
@@ -1096,7 +888,7 @@ impl PlotSidebar {
     }
 
     pub fn clear(&self) {
-        if let Err(e) = Self::clear_mappings(self.mapping_menus.clone(), self.notebook.clone()) {
+        if let Err(e) = Self::clear_mappings(self.mapping_menus.clone(), self.plot_popover.mapping_stack.clone()) {
             println!("{}", e);
         }
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
@@ -1109,11 +901,12 @@ impl PlotSidebar {
 
     fn clear_mappings(
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_notebook : Notebook
+        mapping_stack : Stack,
     ) -> Result<(), &'static str> {
         if let Ok(mut mappings) = mappings.try_borrow_mut() {
             for m in mappings.iter() {
-                plot_notebook.remove(&m.get_parent());
+                //plot_notebook.remove(&m.get_parent());
+                mapping_stack.remove(&m.get_parent());
             }
             mappings.clear();
             Ok(())

@@ -17,9 +17,11 @@ use gtk::prelude::*;
 // use nlearn::table::Table;
 use std::fmt::Display;
 use std::io::{Read, Write};
-use super::cli_function::*;
-// use crate::table_list::*;
+use ::queries::*;
+use super::loader::*;
+use std::sync::{Arc, Mutex};
 
+// use crate::table_list::*;
 /*#[derive(Clone)]
 pub struct FunctionViewer<'a> {
     app_xml : &'a str,
@@ -98,34 +100,36 @@ pub struct FunctionViewer<'a> {
 }*/
 
 #[derive(Clone)]
-pub struct FunctionSearch {
+pub struct FunctionRegistry {
     search_entry : Entry,
     // completion_list_store : ListStore,
-    list_box : ListBox,
-    reg : Rc<FuncRegistry>,
-    fn_update_btn : Button,
-    fn_remove_btn : Button,
-    fn_add_btn : Button,
+    lib_list_box : ListBox,
+    fn_list_box : ListBox,
+    loader : Arc<Mutex<FunctionLoader>>,
+    lib_update_btn : Button,
+    lib_remove_btn : Button,
+    lib_add_btn : Button,
     fn_name_label : Label,
     fn_doc_label : Label,
+    so_file_chooser : FileChooserDialog
     // fn_arg_box : Box,
     // src_entry : Entry,
     // dst_entry : Entry
 }
 
-impl FunctionSearch {
+impl FunctionRegistry {
 
     /*pub fn connect_with_tbl_list(&self, table_list : TableList) {
         {
             let search_entry = self.search_entry.clone();
-            let reg = self.reg.clone();
+            let loader = self.loader.clone();
             let table_list = table_list.clone();
             let src_entry = self.src_entry.clone();
             let dst_entry = self.dst_entry.clone();
             let func_search = self.clone();
-            self.fn_update_btn.connect_clicked(move |_| {
+            self.lib_update_btn.connect_clicked(move |_| {
                 if let Some(name) = search_entry.get_text().map(|n| n.to_string()) {
-                    if reg.has_func_name(&name[..]) {
+                    if loader.has_func_name(&name[..]) {
                         let src_txt = src_entry.get_text().map(|t| t.to_string());
                         let dst_txt = dst_entry.get_text().map(|t| t.to_string());
                         match (src_txt, dst_txt) {
@@ -134,7 +138,7 @@ impl FunctionSearch {
                                 match func_search.read_args() {
                                     Ok(args) => {
                                         let args : Vec<&str> = args.iter().map(|a| &a[..]).collect();
-                                        if let Some(func) = reg.retrieve_func(&name[..]) {
+                                        if let Some(func) = loader.retrieve_func(&name[..]) {
                                             let ans = table_list.apply_func(
                                                 &src[..],
                                                 &dst[..],
@@ -167,13 +171,13 @@ impl FunctionSearch {
             let func_search = self.clone();
             let list_box = table_list.list_box.clone();
             let search_entry = self.search_entry.clone();
-            let fn_update_btn = self.fn_update_btn.clone();
-            let fn_remove_btn = self.fn_remove_btn.clone();
+            let lib_update_btn = self.lib_update_btn.clone();
+            let lib_remove_btn = self.lib_remove_btn.clone();
             let fn_calls = table_list.fn_calls.clone();
             let fn_name_label = self.fn_name_label.clone();
             let fn_doc_label = self.fn_doc_label.clone();
             //let fn_arg_box = self.fn_arg_box.clone();
-            let reg = self.reg.clone();
+            let loader = self.loader.clone();
             list_box.connect_row_selected(move |ls_bx, opt_row| {
                 if let Some(row) = opt_row {
                     if let Ok(fns) = fn_calls.try_borrow() {
@@ -182,10 +186,10 @@ impl FunctionSearch {
                                 Some(f) =>  {
                                     search_entry.set_text(&f.name[..]);
                                     fn_name_label.set_text(&f.name[..]);
-                                    if let Some(d) = reg.get_doc(&f.name[..]) {
+                                    if let Some(d) = loader.get_doc(&f.name[..]) {
                                         fn_doc_label.set_text(&d[..]);
                                     }
-                                    if let Some(params) = reg.get_args(&f.name[..]) {
+                                    if let Some(params) = loader.get_args(&f.name[..]) {
                                         func_search.update_param_box(&params[..])
                                     }
                                     func_search.update_args(&f.args[..]);
@@ -197,8 +201,8 @@ impl FunctionSearch {
                                     func_search.update_param_box(&[]);
                                 }
                             }
-                            fn_remove_btn.set_sensitive(true);
-                            fn_update_btn.set_sensitive(true);
+                            lib_remove_btn.set_sensitive(true);
+                            lib_update_btn.set_sensitive(true);
                         } else {
                             println!("Unable to retrieve function name");
                         }
@@ -266,40 +270,97 @@ impl FunctionSearch {
     }*/
 
     fn update_fn_info(&self, name : Option<&str>) {
-        if let Some(name) = name {
-            if self.reg.has_func_name(&name[..]) {
-                self.fn_name_label.set_text(name);
-                if let Some(doc) = self.reg.get_doc(name) {
-                    self.fn_doc_label.set_text(&doc[..]);
+        if let Ok(loader) = self.loader.lock() {
+            if let Some(name) = name {
+                if loader.has_func_name(&name[..]) {
+                    self.fn_name_label.set_text(name);
+                    if let Some(doc) = loader.get_doc(name) {
+                        self.fn_doc_label.set_text(&doc[..]);
+                    } else {
+                        println!("No doc available");
+                    }
+                    //if let Some(args) = self.loader.get_args(name) {
+                    //    self.update_param_box(&args[..]);
+                    //} else {
+                    //    println!("No args available");
+                    //}
                 } else {
-                    println!("No doc available");
+                    println!("{} not in function Registry", name);
                 }
-                //if let Some(args) = self.reg.get_args(name) {
-                //    self.update_param_box(&args[..]);
-                //} else {
-                //    println!("No args available");
-                //}
             } else {
-                println!("{} not in function registry", name);
+                self.fn_name_label.set_text("(No function selected)");
+                self.fn_doc_label.set_text("");
             }
         } else {
-            self.fn_name_label.set_text("(No function selected)");
-            self.fn_doc_label.set_text("");
+            println!("Unable to borrow loader");
         }
     }
 
-    pub fn reload_from_env(&self, prefix : Option<&str>) {
-        for child in self.list_box.get_children() {
-            self.list_box.remove(&child);
+    fn reload_lib_list(list_box : &ListBox, loader : &Arc<Mutex<FunctionLoader>>, prefix : Option<&str>) {
+        for child in list_box.get_children() {
+            list_box.remove(&child);
         }
-        for (i, f) in self.reg.function_list().iter().enumerate() {
-            if prefix.map(|p| f.name.starts_with(p) ).unwrap_or(true) {
-                println!("Must add: {}", f.name);
-                let n = self.list_box.get_children().len();
-                self.list_box.insert(&Label::new(Some(&f.name[..])), n as i32);
-                self.list_box.show_all();
+        let lib_list : Vec<(String, bool)> = if let Ok(loader) = loader.lock() {
+            loader.lib_list()
+                .iter()
+                .map(|lib| (lib.name.to_string(), lib.active) )
+                .collect()
+        } else {
+            println!("Failed acquiring lock over function loader");
+            Vec::new()
+        };
+        for (i, (lib, active)) in lib_list.iter().enumerate() {
+            if prefix.map(|p| lib.starts_with(p) ).unwrap_or(true) {
+                println!("Must add: {}", lib);
+                let n = list_box.get_children().len();
+                list_box.insert(&Self::build_lib_item(lib, &loader, *active), n as i32);
             }
         }
+        list_box.show_all();
+    }
+
+    fn build_lib_item(name : &str, loader : &Arc<Mutex<FunctionLoader>>, active : bool) -> ListBoxRow {
+        let bx = Box::new(Orientation::Horizontal, 0);
+        let check = CheckButton::new();
+        check.set_active(active);
+        let loader = loader.clone();
+        let name_string = name.to_string();
+        check.connect_toggled(move |btn| {
+            if let Ok(mut loader) = loader.lock() {
+                if let Err(e) = loader.set_active_status(&name_string[..], btn.get_active()) {
+                    println!("{}", e);
+                }
+            } else {
+                println!("Not possible to lock loader");
+            }
+        });
+        let lbl = Label::new(Some(name));
+        bx.pack_start(&check, false, false, 0);
+        bx.pack_start(&lbl, false, false, 0);
+        let row = ListBoxRow::new();
+        row.add(&bx);
+        row.set_selectable(true);
+        row
+    }
+
+    fn get_row_name(row : &ListBoxRow, label_ix : usize) -> Option<String> {
+        let child = row.get_child()?;
+        let child_box = child.downcast::<Box>().unwrap();
+        let label = child_box.get_children().get(label_ix)?.clone()
+            .downcast::<Label>().ok()?;
+        label.get_text().as_ref().map(|txt| txt.as_str().to_string())
+    }
+
+    fn reload_fn_list(list_box : &ListBox, funcs : &[&Function]) {
+        for child in list_box.get_children() {
+            list_box.remove(&child);
+        }
+        for (i, f) in funcs.iter().enumerate() {
+            println!("Must add: {:?}", f);
+            let n = list_box.get_children().len();
+            list_box.insert(&Label::new(Some(&f.name[..])), n as i32);
+        }
+        list_box.show_all();
     }
 
     //pub fn append_new_item(&self, tbl_name : &str, sz : (usize, usize)) {
@@ -322,9 +383,10 @@ impl FunctionSearch {
         bx
     }*/
 
-    pub fn new(builder : Builder, reg : Rc<FuncRegistry>) -> Self {
+    pub fn new(builder : &Builder) -> (Self, Arc<Mutex<FunctionLoader>>) {
         let search_entry : Entry =
             builder.get_object("function_search_entry").unwrap();
+        let loader = Arc::new(Mutex::new(FunctionLoader::load().map_err(|e| { println!("{}", e); e }).unwrap()));
         //let provider = utils::provider_from_path("entry.css").unwrap();
         //let ctx = search_entry.get_style_context();
         //ctx.add_provider(&provider,800);
@@ -335,127 +397,191 @@ impl FunctionSearch {
         //completion.set_popup_completion(true);
         //let completion_list_store : ListStore =
         //    builder.get_object("fn_list_store").unwrap();
-        let list_box : ListBox = builder.get_object("fn_list_box").unwrap();
+        let lib_list_box : ListBox = builder.get_object("lib_list_box").unwrap();
+        let fn_list_box : ListBox = builder.get_object("fn_list_box").unwrap();
         //let fn_tree_model_filter : TreeModelFilter =
         //    builder.get_object("treemodelfilter1").unwrap();
-        let fn_add_btn : Button = builder.get_object("fn_add_btn").unwrap();
-        let fn_remove_btn : Button = builder.get_object("fn_remove_btn").unwrap();
-        let fn_update_btn : Button = builder.get_object("fn_update_btn").unwrap();
+        let lib_add_btn : Button = builder.get_object("lib_add_btn").unwrap();
+        let lib_remove_btn : Button = builder.get_object("lib_remove_btn").unwrap();
+        let lib_update_btn : Button = builder.get_object("lib_update_btn").unwrap();
         //let fn_arg_box : Box = builder.get_object("fn_arg_box").unwrap();
         let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
-        //let src_entry : Entry = builder.get_object("src_entry").unwrap();
-        //let dst_entry : Entry = builder.get_object("dst_entry").unwrap();
+        let so_file_chooser : FileChooserDialog = builder.get_object("so_file_chooser").unwrap();
 
         {
-            fn_remove_btn.connect_clicked(move |_| {
-                // removing a function position means removing
-                // all tables after it. We should iterate over widgets,
-                // table names and function calls and erase everything.
-            });
-        }
-
-        {
-            let fn_update_btn : Button = fn_update_btn.clone();
-            let fn_remove_btn : Button = fn_remove_btn.clone();
-            search_entry.connect_focus(move |_entry, _focus_type| {
-                // fn_update_btn.set_sensitive(false);
-                // fn_remove_btn.set_sensitive(false);
-                glib::signal::Inhibit(false)
-            });
-        }
-
-        list_box.connect_row_selected(move|ls_bx, opt_row| {
-            if let Some(row) = opt_row {
-                if let Some(child) = row.get_child() {
-                    println!("child selected");
-                } else {
-                    println!("No child at row");
+            let loader = loader.clone();
+            let lib_list_box = lib_list_box.clone();
+            let search_entry = search_entry.clone();
+            so_file_chooser.connect_response(move |dialog, resp|{
+                match resp {
+                    ResponseType::Other(1) => {
+                        if let Some(path) = dialog.get_filename().as_ref().and_then(|p| p.to_str() ) {
+                            if let Ok(mut loader) = loader.lock() {
+                                if let Err(e) = loader.add_crate(&path[..]) {
+                                    println!("{}", e);
+                                }
+                            } else {
+                                println!("Could not lock function loader");
+                            }
+                            search_entry.set_text("");
+                            Self::reload_lib_list(&lib_list_box, &loader, None);
+                        } else {
+                            println!("Could not retrieve file path");
+                        }
+                    },
+                    _ => { }
                 }
-            } else {
-                println!("No row selected");
-            }
-        });
-
-        let fn_search = Self {
-            search_entry : search_entry.clone(),
-            //completion_list_store,
-            reg : reg.clone(),
-            list_box,
-            fn_add_btn,
-            fn_update_btn : fn_update_btn.clone(),
-            fn_remove_btn,
-            fn_name_label,
-            fn_doc_label,
-            // fn_arg_box,
-            // src_entry,
-            // dst_entry
-        };
-        fn_search.reload_from_env(None);
-
-        {
-            let fn_update_btn = fn_update_btn.clone();
-            let reg = reg.clone();
-            let fn_search = fn_search.clone();
-            search_entry.connect_key_release_event(move |entry, _ev_key| {
-                if let Some(name) = entry.get_text().map(|n| n.to_string()) {
-                    // if reg.has_func_name(&name[..]) {
-                    //    fn_update_btn.set_sensitive(true);
-                    // } else {
-                    //    fn_update_btn.set_sensitive(false);
-                    // }
-                    fn_search.reload_from_env(Some(&name[..]));
-                } else {
-                    fn_search.reload_from_env(None);
-                }
-                glib::signal::Inhibit(false)
             });
         }
 
         {
-            let fn_search = fn_search.clone();
-            let search_entry = fn_search.search_entry.clone();
-            search_entry.connect_key_press_event(move |entry, key_ev| {
-                match key_ev.get_keyval() {
-                    key::Return => {
-                        match entry.get_text().map(|txt| txt.to_string()) {
-                            Some(text) =>  {
-                                fn_search.update_fn_info(Some(&text[..]));
-                            },
-                            _ => {
-                                fn_search.update_fn_info(None);
+            let so_file_chooser = so_file_chooser.clone();
+            lib_add_btn.connect_clicked(move |_| {
+                so_file_chooser.run();
+                so_file_chooser.hide();
+            });
+        }
+
+        {
+            let loader = loader.clone();
+            lib_update_btn.connect_clicked(move |_| {
+                if let Ok(mut loader) = loader.lock() {
+                    println!("Should update library now");
+                } else {
+                    println!("Could not lock function loader");
+                }
+            });
+        }
+
+        {
+            let loader = loader.clone();
+            let lib_list_box = lib_list_box.clone();
+            lib_remove_btn.connect_clicked(move |_| {
+                match (loader.lock(), lib_list_box.get_selected_row()) {
+                    (Ok(mut loader), Some(row)) => {
+                        if let Some(name) = Self::get_row_name(&row, 1) {
+                            if let Err(e) = loader.remove_crate(&name[..]) {
+                                println!("{}", e);
                             }
                         }
-                        glib::signal::Inhibit(true)
-                    }
+                    },
                     _ => {
-                        glib::signal::Inhibit(false)
+                        println!("Error removing function");
                     }
                 }
             });
         }
 
         {
-            //let fn_search = fn_search.clone();
-            //completion.set_match_func(move |_compl, txt, _iter| {
-            //    println!("{}", txt);
-            //    true
-            //});
-            //completion.connect_match_selected(move |compl, _model, _iter|{
-            //    println!("{:?}", compl.get_completion_prefix());
-            //    glib::signal::Inhibit(false)
-            //});
-            //completion.connect_cursor_on_match(move |compl, _model, _iter|{
-            //    if let Some(prefix) = compl.get_completion_prefix().map(|p| p.to_string()) {
-            //        println!("{}", prefix);
-            //    }
-            //    glib::signal::Inhibit(false)
-            //});
+            let lib_update_btn : Button = lib_update_btn.clone();
+            let lib_remove_btn : Button = lib_remove_btn.clone();
+            search_entry.connect_focus(move |_entry, _focus_type| {
+                // lib_update_btn.set_sensitive(false);
+                // lib_remove_btn.set_sensitive(false);
+                glib::signal::Inhibit(false)
+            });
         }
-        fn_search
+
+        {
+            let fn_list_box = fn_list_box.clone();
+            let loader = loader.clone();
+            let (lib_remove_btn, lib_update_btn) = (lib_remove_btn.clone(), lib_update_btn.clone());
+            lib_list_box.connect_row_selected(move|ls_bx, opt_row| {
+                lib_remove_btn.set_sensitive(true);
+                lib_update_btn.set_sensitive(true);
+                if let Ok(loader) = loader.lock() {
+                    if let Some(row) = opt_row {
+                        if let Some(child) = row.get_child() {
+                            let rbox = child.downcast::<Box>().unwrap();
+                            let label = rbox.get_children().get(1).map(|w| w.clone() ).unwrap().downcast::<Label>().unwrap();
+                            //if let Ok(child) =  {
+                            if let Some(text) = label.get_text().as_ref().map(|txt| txt.as_str()) {
+                                let funcs = loader.fn_list_for_lib(&text[..]);
+                                Self::reload_fn_list(&fn_list_box, &funcs[..]);
+                            } else {
+                                println!("No label at function name");
+                            }
+                            //else {
+                            //    Self::reload_fn_list(&fn_list_box, &[]);
+                            //}
+                            //} else {
+                            //    println!("No child at row");
+                            //}
+                        } else {
+                            println!("Selected row does not have header");
+                        }
+                    } else {
+                        println!("No row selected");
+                    }
+                } else {
+                    println!("Could not lock function loader");
+                }
+            });
+        }
+
+        {
+            let fn_list_box = fn_list_box.clone();
+            let (lib_remove_btn, lib_update_btn) = (lib_remove_btn.clone(), lib_update_btn.clone());
+            lib_list_box.connect_unselect_all(move |_| {
+                lib_remove_btn.set_sensitive(false);
+                lib_update_btn.set_sensitive(false);
+                Self::reload_fn_list(&fn_list_box, &[]);
+            });
+        }
+
+        let fn_reg = Self {
+            search_entry : search_entry.clone(),
+            loader : loader.clone(),
+            lib_list_box,
+            fn_list_box,
+            lib_add_btn,
+            lib_update_btn : lib_update_btn.clone(),
+            lib_remove_btn,
+            fn_name_label,
+            fn_doc_label,
+            so_file_chooser
+        };
+        Self::reload_lib_list(&fn_reg.lib_list_box, &fn_reg.loader, None);
+
+        {
+            let fn_reg = fn_reg.clone();
+            let lib_list_box = fn_reg.lib_list_box.clone();
+            lib_list_box.connect_row_selected(move |ls_bx, opt_row| {
+                if let Some(row) = opt_row {
+                    if let Some(child) = row.get_child().and_then(|child| child.downcast::<gtk::Box>().ok() ) {
+                        let label = child.get_children()[1].clone().downcast::<Label>().unwrap();
+                        if let Some(text) = label.get_text().as_ref().map(|txt| txt.as_str()) {
+                            fn_reg.update_fn_info(Some(&text[..]));
+                        } else {
+                            fn_reg.update_fn_info(None);
+                        }
+                    } else {
+                        println!("Row does not have child");
+                    }
+                } else {
+                    fn_reg.update_fn_info(None);
+                }
+            });
+        }
+
+        {
+            let lib_update_btn = lib_update_btn.clone();
+            let loader = fn_reg.loader.clone();
+            let lib_list_box = fn_reg.lib_list_box.clone();
+            search_entry.connect_key_release_event(move |entry, _ev_key| {
+                if let Some(name) = entry.get_text().map(|n| n.to_string()) {
+                    Self::reload_lib_list(&lib_list_box, &loader, Some(&name[..]));
+                } else {
+                    Self::reload_lib_list(&lib_list_box, &loader, None);
+                }
+                glib::signal::Inhibit(false)
+            });
+        }
+        (fn_reg, loader)
     }
 
-    pub fn populate_search(&self, names : Vec<String>) -> Result<(), &'static str> {
+    /*pub fn populate_search(&self, names : Vec<String>) -> Result<(), &'static str> {
         //let name1 = "summary".to_string();
         //let name2 = "fit".to_string();
         //let name3 = "eval".to_string();
@@ -473,7 +599,7 @@ impl FunctionSearch {
             //);
         }
         Ok(())
-    }
+    }*/
 
 }
 
