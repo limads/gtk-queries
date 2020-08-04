@@ -35,6 +35,12 @@ pub struct DataSource {
     /// Linear index, from first column of first table to last column of last table
     pub ixs : Vec<usize>,
 
+    /// Point in the table environment index history at which the data was fetch.
+    pub hist_ix : usize,
+
+    /// If environment source was updated and data is no longer present, set this to false.
+    pub valid : bool,
+
     /// Table index, from first column of the current table.
     pub tbl_ixs : Vec<usize>,
     pub col_names : Vec<String>,
@@ -63,6 +69,59 @@ impl MappingMenu {
     pub fn create_tab_image(m_type : String) -> Image {
         let tab_img_path = String::from("assets/icons/") + &m_type + ".svg";
         Image::new_from_file(&tab_img_path[..])
+    }
+
+    /// The creation of a mapping menu is based on an id naming convention
+    /// of passing a prefix identifying the mappping (line, scatter, box, etc)
+    /// followed by an element identifier. This convention applies to the enclosing box
+    /// (line_box, scatter_box ...) and its constituint widgets (scatter_color_button,
+    /// line_color_button) and so on. The builder for each mapping menu must be unique
+    /// to avoid aliasing.
+    /// Make this mapping_menu::create(.)
+    pub fn create(
+        glade_def : Rc<HashMap<String, String>>,
+        mapping_name : Rc<RefCell<String>>,
+        mapping_type : String,
+        tbl_env : Rc<RefCell<TableEnvironment>>,
+        pl_view : Rc<RefCell<PlotView>>,
+        properties : Option<HashMap<String, String>>
+    ) -> Result<MappingMenu, &'static str> {
+        let builder = Builder::new_from_string(&glade_def[&mapping_type][..]);
+        let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
+        if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
+            return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");
+        }
+        let box_name = mapping_type.clone() + "_box";
+        let mapping_box : Box = builder.get_object(&box_name).unwrap();
+        let design_widgets = HashMap::new();
+        let mut source_content : DataSource = Default::default();
+        source_content.hist_ix = tbl_env.borrow().current_hist_index();
+        let source = Rc::new(RefCell::new(source_content));
+        let plot_ix = pl_view.borrow().get_active_area();
+        let tab_img = MappingMenu::create_tab_image(mapping_type.clone());
+        let mut m = MappingMenu {
+            mapping_name,
+            mapping_type,
+            mapping_box,
+            design_widgets,
+            source,
+            plot_ix,
+            tab_img,
+            column_labels : Vec::new()
+        };
+        m.build_mapping_design_widgets(
+            &builder,
+            pl_view.clone()
+        );
+        m.build_column_labels(
+            &builder
+        );
+        if let Some(prop) = properties {
+            if let Err(e) = m.update_widget_values(prop) {
+                println!("{}", e);
+            }
+        }
+        Ok(m)
     }
 
     /*pub fn get_selected_cols(&self) -> Option<Vec<String>> {
@@ -523,6 +582,11 @@ impl MappingMenu {
 
     pub fn update_source(&self, new_ixs : Vec<usize>, t_env : &TableEnvironment) -> Result<(), &'static str> {
         if let Ok(mut source) = self.source.try_borrow_mut() {
+            if !t_env.preserved_since(source.hist_ix) {
+                source.valid = false;
+                println!("History index for current mapping: {}", source.hist_ix);
+                return Err("Environment was updated and data is no longer available");
+            }
             source.ixs.clear();
             source.ixs.extend(new_ixs.clone());
             let (col_names, tbl_ix, query) = t_env.get_column_names(&new_ixs[..])
@@ -533,6 +597,8 @@ impl MappingMenu {
             source.col_names = col_names;
             source.query = query;
             source.tbl_pos = Some(tbl_ix);
+            source.hist_ix = t_env.current_hist_index();
+            source.valid = true;
             if let Some((_, new_tbl_ixs)) = t_env.global_to_tbl_ix(&new_ixs[..]) {
                 source.tbl_ixs.clear();
                 source.tbl_ixs.extend(new_tbl_ixs);
@@ -542,6 +608,7 @@ impl MappingMenu {
             println!("Column names : {:?}", source.col_names);
             println!("Linear indices : {:?}", source.ixs);
             println!("Table indices : {:?}", source.tbl_ixs);
+            println!("History index : {:?}", source.hist_ix);
             Ok(())
         } else {
             Err("Failed to get mutable reference to table source")

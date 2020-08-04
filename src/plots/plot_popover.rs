@@ -2,7 +2,7 @@ use gtk::*;
 use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
+use crate::tables::{environment::TableEnvironment};
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 use std::fs::File;
@@ -224,7 +224,7 @@ impl PlotPopover {
                     }
                 }
             }
-            println!("Current size: {}", curr_sz);
+            println!("Current size (update_nav_sensitive): {}", curr_sz);
         } else {
             println!("Unable to acquire reference to selected mapping");
         }
@@ -265,36 +265,42 @@ impl PlotPopover {
             println!("n_children: {}", n_mappings);
             mapping_stack.set_visible_child(children.get(children.len() - 1).unwrap());
             println!("Current selection (add_mapping): {:?}", sel_mapping);
-            self.update_stack();
-            self.update_nav_sensitive();
         } else {
             println!("Failed acquiring mutable reference to selected mapping");
         }
+        self.update_stack();
+        self.update_nav_sensitive();
     }
 
     /// Removes the selected mapping and returns its old index.
-    pub fn remove_selected_mapping(&self) -> usize {
+    pub fn remove_mapping_at_ix(&self, ix : usize) {
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
-            let pl_ix = sel_mapping.plot_ix;
-            let curr_ix = sel_mapping.curr_ix;
-            let mapping_ix = sel_mapping.valid_ix[pl_ix][curr_ix];
-            println!("Removing at plot {} at plot index {}", pl_ix, curr_ix);
+            // let offset_mapping_ix = sel_mapping.valid_ix[pl_ix][curr_ix];
+            // println!("Removing at plot {} at plot index {}", pl_ix, curr_ix);
             let children = self.mapping_stack.get_children();
-            if let Some(c) = children.get(mapping_ix) {
+            if let Some(c) = children.get(ix + 1) {
                 self.mapping_stack.remove(c);
                 self.data_popover.hide();
             } else {
-                panic!("Invalid child position: {}", mapping_ix);
+                panic!("Invalid child position: {}", ix);
             }
-            sel_mapping.valid_ix[pl_ix].remove(curr_ix);
+            let pl_ix = sel_mapping.valid_ix
+                .iter()
+                .position(|v| v.iter().position(|i| *i == ix+1 ).is_some() )
+                .unwrap();
+            let m_ix = sel_mapping.valid_ix[pl_ix]
+                .iter()
+                .position(|i| *i == ix+1 )
+                .unwrap();
+            sel_mapping.valid_ix[pl_ix].remove(m_ix);
             sel_mapping.curr_ix = 0;
-            self.update_stack();
-            self.update_nav_sensitive();
+            sel_mapping.plot_ix = 0;
             println!("Current selection (remove_selected_mapping): {:?}", sel_mapping);
-            mapping_ix - 1
         } else {
             panic!("Unable to retrieve mutable reference to selected mapping");
         }
+        self.update_stack();
+        self.update_nav_sensitive();
     }
 
     /// Show the data popover exclusively at an arbitrary position.
@@ -353,6 +359,10 @@ impl PlotPopover {
         }
     }
 
+    /// Gets the currently selected mapping, with respect to the global mapping
+    /// vector. Since all mapping indices are offset by +1 (due to a first stack
+    /// element being the empty plot label), subtract one from the valid index
+    /// to get the global mapping index.
     pub fn get_selected_mapping(&self) -> usize {
         if let Ok(sel) = self.sel_mapping.try_borrow() {
             sel.valid_ix[sel.plot_ix][sel.curr_ix] - 1

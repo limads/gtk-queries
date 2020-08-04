@@ -1,23 +1,8 @@
 use gtk::*;
-// use gio::prelude::*;
-// use std::env::args;
 use std::rc::Rc;
 use std::cell::{RefCell /*, RefMut*/ };
-// use std::fs::File;
-// use std::io::Write;
-// use std::io::Read;
-// use std::collections::HashMap;
-// use gtk_plots::conn_popover::{ConnPopover, TableDataSource};
-// use std::path::PathBuf;
-// use sourceview::*;
-// use std::ffi::OsStr;
-// use gdk::ModifierType;
-// use crate::tables::{ source::EnvironmentSource, environment::TableEnvironment, /*button::TableChooser*/ };
 use crate::table_widget::*;
-//use gtk::builder::BuilderExtManual;
 use gtk::prelude::*;
-// use crate::tables::table::*;
-// use crate::functions::function_search::*;
 use crate::plots::layout_menu::*;
 use crate::plots::layout_toolbar::LayoutToolbar;
 
@@ -53,6 +38,10 @@ impl TableNotebook {
         } else {
             println!("Unable to get mutable reference to table vector");
         }
+    }
+
+    pub fn set_page_index(&self, page : usize) {
+        self.nb.set_property_page(page as i32);
     }
 
     pub fn get_page_index(&self) -> usize {
@@ -112,7 +101,7 @@ impl TableNotebook {
                     if selected.iter().find(|s| **s == curr).is_some() {
                         mapping_popover.set_relative_to(Some(ev_bx));
                         layout_toolbar.set_add_or_edit_mapping_sensitive(
-                            &mapping_menus,
+                            mapping_menus.clone(),
                             &plot_popover,
                             &selected,
                         );

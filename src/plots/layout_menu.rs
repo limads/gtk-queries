@@ -10,7 +10,7 @@ use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
-use super::mapping_menu::*;
+use super::mapping_menu::{*, MappingMenu};
 use super::plot_popover::*;
 use std::collections::HashMap;
 use crate::utils;
@@ -586,7 +586,7 @@ impl PlotSidebar {
             println!("Unable to get reference to mapping menus");
             return;
         };
-        let menu = Self::create_new_mapping_menu(
+        let menu = MappingMenu::create(
             glade_def.clone(),
             Rc::new(RefCell::new(name)),
             mapping_type.to_string(),
@@ -652,7 +652,7 @@ impl PlotSidebar {
             plot_popover.mapping_stack.clone()
         ).expect("Error clearing mappings");
         for m_info in new_info.iter() {
-            let menu = Self::create_new_mapping_menu(
+            let menu = MappingMenu::create(
                 glade_def.clone(),
                 Rc::new(RefCell::new(m_info.0.clone())),
                 m_info.1.clone(),
@@ -762,57 +762,6 @@ impl PlotSidebar {
             });
         }
         (load_btn, xml_load_dialog)
-    }
-
-    /// The creation of a mapping menu is based on an id naming convention
-    /// of passing a prefix identifying the mappping (line, scatter, box, etc)
-    /// followed by an element identifier. This convention applies to the enclosing box
-    /// (line_box, scatter_box ...) and its constituint widgets (scatter_color_button,
-    /// line_color_button) and so on. The builder for each mapping menu must be unique
-    /// to avoid aliasing.
-    /// Make this mapping_menu::create(.)
-    fn create_new_mapping_menu(
-        glade_def : Rc<HashMap<String, String>>,
-        mapping_name : Rc<RefCell<String>>,
-        mapping_type : String,
-        _tbl_env : Rc<RefCell<TableEnvironment>>,
-        pl_view : Rc<RefCell<PlotView>>,
-        properties : Option<HashMap<String, String>>
-    ) -> Result<MappingMenu, &'static str> {
-        let builder = Builder::new_from_string(&glade_def[&mapping_type][..]);
-        let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
-        if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
-            return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");
-        }
-        let box_name = mapping_type.clone() + "_box";
-        let mapping_box : Box = builder.get_object(&box_name).unwrap();
-        let design_widgets = HashMap::new();
-        let source = Rc::new(RefCell::new(Default::default()));
-        let plot_ix = pl_view.borrow().get_active_area();
-        let tab_img = MappingMenu::create_tab_image(mapping_type.clone());
-        let mut m = MappingMenu {
-            mapping_name,
-            mapping_type,
-            mapping_box,
-            design_widgets,
-            source,
-            plot_ix,
-            tab_img,
-            column_labels : Vec::new()
-        };
-        m.build_mapping_design_widgets(
-            &builder,
-            pl_view.clone()
-        );
-        m.build_column_labels(
-            &builder
-        );
-        if let Some(prop) = properties {
-            if let Err(e) = m.update_widget_values(prop) {
-                println!("{}", e);
-            }
-        }
-        Ok(m)
     }
 
     pub fn update_all_mappings(

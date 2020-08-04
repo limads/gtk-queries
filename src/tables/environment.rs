@@ -1,22 +1,11 @@
-// use nalgebra::DVector;
-// use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, /*BufReader*/ };
 use std::path::PathBuf;
-// use nalgebra::*;
-// use nalgebra::base::storage::Storage;
-// use super::csv::*;
 use crate::tables::sql::*;
-// use chrono;
 use super::source::*;
-// use super::stdin::*;
 use std::path::Path;
-// use super::sql::*;
 use super::table::*;
-// use crate::functions::cli_function::*;
-// use crate::functions::function_registry::*;
 use std::rc::Rc;
-// use super::column::*;
 use std::sync::{Arc, Mutex};
 use crate::functions::loader::*;
 
@@ -25,16 +14,12 @@ pub enum EnvironmentUpdate {
 
     Clear,
 
+    /// Environment has completely new set of tables.
     /// One outer vector per table; Inner vectors hold column names.
     NewTables(Vec<Vec<String>>),
 
-    /// Preserve last column sequence and/or function call sequence;
-    /// Just update the data.
+    /// Preserve last column sequence, just update the data.
     Refresh,
-
-    /*/// Push a new, single table from the given function call
-    /// signature, generating the informed column names.
-    Function(FunctionCall, Vec<String>)*/
 
 }
 
@@ -88,6 +73,32 @@ impl TableEnvironment {
             *engine = SqlEngine::Inactive;
         } else {
             println!("Could not acquire lock over SQL engine");
+        }
+    }
+
+    pub fn current_hist_index(&self) -> usize {
+        self.history.len() - 1
+    }
+
+    pub fn full_history(&self) -> &[EnvironmentUpdate] {
+        &self.history[..]
+    }
+
+    /// Check if there were any data changes since the last informed position.
+    pub fn preserved_since(&self, pos : usize) -> bool {
+        println!("Current history: {:?}", self.history);
+        if pos == self.history.len() - 1 {
+            true
+        } else {
+            let changed = self.history.iter()
+                .skip(pos)
+                .any(|h|
+                    match h {
+                        EnvironmentUpdate::Refresh => false,
+                        _ => true
+                    }
+                );
+            !changed
         }
     }
 
@@ -224,6 +235,9 @@ impl TableEnvironment {
             _ => None
         };
         if let Some(q) = query {
+            if q.chars().all(|c| c.is_whitespace() ) {
+                return Err(String::from("Empty query sequence"));
+            }
             self.listener.send_command(q)
         } else {
             Err(format!("No query available to send."))

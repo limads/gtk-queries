@@ -19,6 +19,7 @@ use gtk_queries::plots::save_widgets;
 use gtk_queries::plots::layout_menu::PlotSidebar;
 use gtk_queries::query_sidebar::QuerySidebar;
 use gtk_queries::main_menu::MainMenu;
+use gtk_queries::plots::layout_toolbar::*;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -426,6 +427,11 @@ impl QueriesApp {
                 if query_toggle.get_active() {
                     table_toggle.set_active(true);
                 }
+                LayoutToolbar::clear_invalid_mappings(
+                    sidebar.plot_popover.clone(),
+                    sidebar.mapping_menus.clone(),
+                    sidebar.pl_view.clone()
+                );
                 Ok(())
                 //} else {
                 //    Err(String::from("Error retrieving reference to table environment"))
