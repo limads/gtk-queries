@@ -317,8 +317,8 @@ impl ConnPopover {
                                                     Self::disconnect_with_delay(switch.clone());
                                                 }
                                             }
-                                            Self::upload_csv(db_path[0].clone(), &mut t_env, status.clone(), switch.clone());
-                                            // Self::select_all_tables(&mut t_env);
+                                            // Self::upload_csv(db_path[0].clone(), &mut t_env, status.clone(), switch.clone());
+                                            Self::create_csv_vtab(db_path[0].clone(), &mut t_env, status.clone(), switch.clone());
                                         },
                                         _ => {
                                             match Self::try_local_connection(&conn_popover, Some(db_path[0].clone()), &mut t_env) {
@@ -349,7 +349,8 @@ impl ConnPopover {
                                     }
                                 }
                                 for p in db_path.iter() {
-                                    Self::upload_csv(p.clone(), &mut t_env, status.clone(), switch.clone());
+                                    // Self::upload_csv(p.clone(), &mut t_env, status.clone(), switch.clone());
+                                    Self::create_csv_vtab(p.clone(), &mut t_env, status.clone(), switch.clone());
                                 }
                                 // Self::select_all_tables(&mut t_env);
                             },
@@ -477,6 +478,23 @@ impl ConnPopover {
         }*/
     }*/
 
+    fn create_csv_vtab(path : PathBuf, t_env : &mut TableEnvironment, status_stack : StatusStack, switch : Switch) {
+        let opt_name = path.clone().file_name()
+            .and_then(|n| n.to_str() )
+            .map(|n| n.to_string() )
+            .and_then(|name| name.split('.').next().map(|n| n.to_string()) );
+        match opt_name {
+            Some(name) => {
+                let sql = format!("create virtual table temp.{} using csv(filename='{}', header='YES');", name, path.to_str().unwrap());
+                if let Err(e) = t_env.prepare_and_send_query(sql, false) {
+                    status_stack.update(Status::SqlErr(e));
+                    Self::disconnect_with_delay(switch.clone());
+                }
+            },
+            None => return
+        }
+    }
+
     fn upload_csv(path : PathBuf, t_env : &mut TableEnvironment, status_stack : StatusStack, switch : Switch) {
         if let Some(name) = path.clone().file_name().map(|n| n.to_str()) {
             if let Some(name) = name.map(|n| n.split('.').next()) {
@@ -492,7 +510,7 @@ impl ConnPopover {
                                             // TODO there is a bug here when the user executes the first query, because
                                             // the first call to indle callback will retrieve the create/insert statements,
                                             // not the actual user query.
-                                            if let Err(e) = t_env.prepare_and_send_query(sql) {
+                                            if let Err(e) = t_env.prepare_and_send_query(sql, false) {
                                                 status_stack.update(Status::SqlErr(e));
                                             }
                                         },

@@ -223,7 +223,7 @@ impl TableEnvironment {
         Ok(&self.tables[(self.tables.len() - n_funcs)..self.tables.len()])
     }*/
 
-    pub fn send_current_query(&mut self) -> Result<(), String> {
+    pub fn send_current_query(&mut self, parse : bool) -> Result<(), String> {
         //println!("{:?}", self.source);
         let query = match self.source {
             EnvironmentSource::PostgreSQL(ref db_pair) =>{
@@ -238,7 +238,7 @@ impl TableEnvironment {
             if q.chars().all(|c| c.is_whitespace() ) {
                 return Err(String::from("Empty query sequence"));
             }
-            self.listener.send_command(q)
+            self.listener.send_command(q, parse)
         } else {
             Err(format!("No query available to send."))
         }
@@ -261,10 +261,10 @@ impl TableEnvironment {
         }
     }
 
-    pub fn prepare_and_send_query(&mut self, sql : String) -> Result<(), String> {
+    pub fn prepare_and_send_query(&mut self, sql : String, parse : bool) -> Result<(), String> {
         //self.listener.send_command(sql.clone());
         self.prepare_query(sql);
-        self.send_current_query()
+        self.send_current_query(parse)
     }
 
     /// Searches update history retroactively, returning the last
@@ -385,7 +385,7 @@ impl TableEnvironment {
                 self.set_new_postgre_engine(conn)
                     .map_err(|e| { format!("{}", e) })?;
                 if !q.is_empty() {
-                    if let Err(e) = self.prepare_and_send_query(q) {
+                    if let Err(e) = self.prepare_and_send_query(q, true) {
                         println!("{}", e);
                     }
                 }
@@ -394,7 +394,7 @@ impl TableEnvironment {
                 self.set_new_sqlite3_engine(conn)
                     .map_err(|e|{ format!("{}", e) })?;
                 if !q.is_empty() {
-                    if let Err(e) = self.prepare_and_send_query(q) {
+                    if let Err(e) = self.prepare_and_send_query(q, true) {
                         println!("{}", e);
                     }
                 }
@@ -592,7 +592,7 @@ impl TableEnvironment {
                 }
             },
             EnvironmentSource::SQLite3(_) | EnvironmentSource::PostgreSQL(_) => {
-                self.send_current_query().map_err(|e| println!("{}", e) ).ok();
+                self.send_current_query(true).map_err(|e| println!("{}", e) ).ok();
             },
             _ => { }
         }

@@ -1,6 +1,6 @@
 use gtk::*;
 use std::rc::Rc;
-use std::cell::{RefCell /*, RefMut*/ };
+use std::cell::{RefCell};
 use crate::table_widget::*;
 use gtk::prelude::*;
 use crate::plots::layout_menu::*;

@@ -97,7 +97,7 @@ impl SqlEditor {
     ) -> Result<(), String> {
         if let Ok(loaded) = file_loaded.try_borrow() {
             if *loaded {
-                tbl_env.send_current_query()?;
+                tbl_env.send_current_query(true)?;
                 view.set_sensitive(false);
                 //nb.nb.set_sensitive(false);
             } else {
@@ -116,7 +116,7 @@ impl SqlEditor {
                     };
                     if let Some(txt) = text {
                         // println!("{}", txt);
-                        tbl_env.prepare_and_send_query(txt)?;
+                        tbl_env.prepare_and_send_query(txt, true)?;
                         view.set_sensitive(false);
                         // nb.nb.set_sensitive(false);
                     } else {

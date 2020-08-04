@@ -178,8 +178,8 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
         let nc : NullableColumn = sq_c.into();
         nc.to_column()
     }).collect();
-    //println!("names: {:?}", col_names);
-    //let col_types : Vec<Option<&str>> = cols.iter().map(|c| c.decl_type()).collect();
+    // println!("names: {:?}", col_names);
+    // let col_types : Vec<Option<&str>> = cols.iter().map(|c| c.decl_type()).collect();
     let names : Vec<_> = col_names.iter().map(|c| c.to_string()).collect();
     if names.len() == 0 {
         return Err("No columns available");

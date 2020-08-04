@@ -224,6 +224,14 @@ impl Table {
         self.cols
     }
 
+    /// If self has more rows than n, trim it. Pass self unchanged otherwise
+    pub fn truncate(mut self, n : usize) -> Self {
+        for col in self.cols.iter_mut() {
+            col.truncate(n);
+        }
+        self
+    }
+
 }
 
 impl Display for Table {

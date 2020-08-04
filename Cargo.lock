@@ -526,7 +526,7 @@ dependencies = [
  "rusqlite 0.23.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_decimal 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sourceview 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "sqlparser 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sqlparser 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.34 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1269,6 +1269,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlparser"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "stringprep"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1585,6 +1593,7 @@ dependencies = [
 "checksum smallvec 1.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
 "checksum sourceview 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "943e03b1e31faa1874acb2c33c39ce202996265f8f51c57ed75f6c2e23e4d959"
 "checksum sqlparser 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "282582bbdc83341c48575fad4906bc1fcc317f042c98bbb5abc270c972f4c2b8"
+"checksum sqlparser 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "53fa7478852b3ea28f0d21a42b2d7dade24ba4aa72e22bf66982e4b587a7f608"
 "checksum stringprep 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8ee348cb74b87454fff4b551cbf727025810a004f88aeacae7f85b87f4e9a1c1"
 "checksum subtle 2.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 "checksum syn 1.0.34 (registry+https://github.com/rust-lang/crates.io-index)" = "936cae2873c940d92e697597c5eee105fb570cd5689c695806f672883653349b"

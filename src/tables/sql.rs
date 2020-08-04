@@ -1,29 +1,15 @@
 use postgres::{self, Client, tls::NoTls};
-// use postgres::row::Row;
-// use postgres::types::Type;
-// use std::collections::HashMap;
-// use std::rc::Rc;
-// use std::cell::RefCell;
-// use std::fs::File;
 use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
 use sqlparser::ast::{Statement, Function, Select, Value, Expr, SetExpr, SelectItem, Ident};
 use sqlparser::parser::{Parser, ParserError};
-// use std::process::{Command, Stdio};
-// use std::io::{ /*BufWriter,*/ Write /*, BufReader, Read */ };
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use rusqlite;
-// use std::path::Path;
-//use crate::decoding;
 use std::fmt::Display;
 use std::fmt;
 use std::error::Error;
 use super::table::*;
-// use libloading;
-// use rusqlite::functions::*;
-// use chrono::NaiveDateTime;
-//use serde_json::value::Value;
 use std::path::PathBuf;
 use super::postgre;
 use super::sqlite;
@@ -372,13 +358,15 @@ pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
         })
 }
 
-
 /// Parse a SQL String, separating the queries.
 /// Use this if no client-side parsing is desired.
-pub fn split_sql(sql_text : String) -> Vec<String> {
-    sql_text.split(";")
+/// TODO remove ; from text literals "" and $$ $$ when doing the
+/// analysis.
+pub fn split_sql(sql_text : String) -> Result<Vec<String>, String> {
+    let stmts_strings = sql_text.split(";")
         .filter(|c| c.len() > 0 && *c != "\n" && *c != " " && *c != "\t")
-        .map(|c| c.to_string()).collect()
+        .map(|c| c.trim_start().trim_end().to_string()).collect();
+    Ok(stmts_strings)
 }
 
 pub fn sql2table(result : Result<Vec<Statement>, String>) -> String {
@@ -529,7 +517,15 @@ impl SqlEngine {
     pub fn try_new_sqlite3(path : Option<PathBuf>) -> Result<Self, String> {
         let res_conn = match &path {
             Some(ref path) => rusqlite::Connection::open(path),
-            None => rusqlite::Connection::open_in_memory()
+            None => {
+                let conn = rusqlite::Connection::open_in_memory()
+                    .and_then(|conn| {
+                        rusqlite::vtab::csvtab::load_module(&conn)
+                            .map_err(|e| format!("{}", e));
+                        Ok(conn)
+                    });
+                conn
+            }
         };
         match res_conn {
             Ok(conn) => {
@@ -562,7 +558,7 @@ impl SqlEngine {
                     None => {
                         if let Ok(q) = tbl.sql_string("transf_table") {
                             println!("{}", q);
-                            if let Err(e) = self.try_run(q, None) {
+                            if let Err(e) = self.try_run(q, true, None) {
                                 println!("{}", e);
                             }
                         } else {
@@ -643,12 +639,98 @@ impl SqlEngine {
         }
     }
 
+    fn query_postgre(conn : &mut postgres::Client, q : &str) -> QueryResult {
+        match conn.query(q, &[]) {
+            Ok(rows) => {
+                match postgre::build_table_from_postgre(&rows[..]) {
+                    Ok(tbl) => {
+                        QueryResult::Valid(q.to_string(), tbl.truncate(200))
+                    },
+                    Err(e) => QueryResult::Invalid(e.to_string())
+                }
+            },
+            Err(e) => {
+                QueryResult::Invalid(e.to_string())
+            }
+        }
+    }
+
+    fn query_sqlite(conn : &mut rusqlite::Connection, q : &str) -> QueryResult {
+        match conn.prepare(q) {
+            Ok(mut prep_stmt) => {
+                match prep_stmt.query(rusqlite::NO_PARAMS) {
+                    Ok(rows) => {
+                        match sqlite::build_table_from_sqlite(rows) {
+                            Ok(tbl) => {
+                                QueryResult::Valid(q.to_string(), tbl.truncate(200))
+                            },
+                            Err(e) => {
+                                println!("Error building table: {}", e);
+                                QueryResult::Invalid(e.to_string())
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        QueryResult::Invalid(e.to_string())
+                    }
+                }
+            },
+            Err(e) => {
+                QueryResult::Invalid(e.to_string())
+            }
+        }
+    }
+
+    fn exec_postgre(conn : &mut postgres::Client, e : &str) -> QueryResult {
+        match conn.execute(e, &[]) {
+            Ok(n) => QueryResult::Statement(format!("{} row(s) modified", n)),
+            Err(e) => QueryResult::Invalid(e.to_string())
+        }
+    }
+
+    fn exec_sqlite(conn : &mut rusqlite::Connection, e : &str) -> QueryResult {
+        match conn.execute(e, rusqlite::NO_PARAMS) {
+            Ok(n) => QueryResult::Statement(format!("{} row(s) modified", n)),
+            Err(e) => QueryResult::Invalid(e.to_string())
+        }
+    }
+
+    /// Runs the informed query sequence without client-side parsing.
+    pub fn run_any(&mut self, query_seq : String) -> Result<Vec<QueryResult>, String> {
+        let stmts = split_sql(query_seq).map_err(|e| format!("{}", e) )?;
+        let mut results = Vec::new();
+        for stmt in stmts {
+            match self {
+                SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
+                SqlEngine::PostgreSql{ conn_str : _ , conn } => {
+                    if stmt.starts_with("select") || stmt.starts_with("SELECT") {
+                        results.push(Self::query_postgre(conn, &format!("{}", stmt)));
+                    } else {
+                        results.push(Self::exec_postgre(conn, &format!("{}", stmt)));
+                    }
+                },
+                SqlEngine::Sqlite3{ path : _, conn} | SqlEngine::Local{ conn } => {
+                    if stmt.starts_with("select") || stmt.starts_with("SELECT") {
+                        results.push(Self::query_sqlite(conn, &format!("{}", stmt)));
+                    } else {
+                        results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
+                    }
+                }
+            }
+        }
+        Ok(results)
+    }
+
     pub fn try_run(
         &mut self,
         query_seq : String,
+        parse : bool,
         loader : Option<&FunctionLoader>
     ) -> Result<Vec<QueryResult>, String> {
-        let stmts = parse_sql(&query_seq).map_err(|e| format!("{}", e) )?;
+        let stmts = match parse {
+            true => parse_sql(&query_seq).map_err(|e| format!("{}", e) )?,
+            false => return self.run_any(query_seq)
+        };
         // println!("Split query: {:?}", stmts);
         let mut results = Vec::new();
         if stmts.len() == 0 {
@@ -662,35 +744,15 @@ impl SqlEngine {
                     let stmt_string = stmt.to_string();
                     match stmt {
                         Statement::Query(q) => {
-                            match conn.query(&format!("{}", q)[..], &[]) {
-                                Ok(rows) => {
-                                    // let vec_rows : Vec<&Row> = rows.iter().collect();
-                                    match postgre::build_table_from_postgre(&rows[..]) {
-                                        Ok(tbl) => {
-                                            //if let (Some(sub), Some(loader)) = (opt_sub, loader) {
-                                            //    results.push(Self::try_client_function(sub, tbl, loader));
-                                            //} else {
-                                            results.push(QueryResult::Valid(stmt_string, tbl));
-                                            //}
-                                        },
-                                        Err(e) => results.push(QueryResult::Invalid(e.to_string()))
-                                    }
-                                },
-                                Err(e) => {
-                                    results.push(QueryResult::Invalid(e.to_string()));
-                                }
-                            }
+                            results.push(Self::query_postgre(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            match conn.execute(&format!("{}", stmt)[..], &[]) {
-                                Ok(n) => results.push(QueryResult::Statement(format!("{} row(s) modified", n))),
-                                Err(e) => results.push(QueryResult::Invalid(e.to_string()))
-                            }
+                            results.push(Self::exec_postgre(conn, &format!("{}", stmt)));
                         }
                     }
                 }
             },
-            SqlEngine::Sqlite3{ path : _, conn} => {
+            SqlEngine::Sqlite3{ path : _, conn} | SqlEngine::Local{ conn } => {
                 // conn.execute() for insert/update/delete
                 for stmt in stmts {
                     //let (stmt, opt_sub) = filter_single_function_out(&stmt);
@@ -698,44 +760,14 @@ impl SqlEngine {
                     match stmt {
                         Statement::Query(q) => {
                             // println!("Sending query: {}", q);
-                            match conn.prepare(&format!("{}",q)[..]) {
-                                Ok(mut prep_stmt) => {
-                                    match prep_stmt.query(rusqlite::NO_PARAMS) {
-                                        Ok(rows) => {
-                                            match sqlite::build_table_from_sqlite(rows) {
-                                                Ok(tbl) => {
-                                                    //if let (Some(sub), Some(loader)) = (opt_sub, loader) {
-                                                    //    results.push(Self::try_client_function(sub, tbl, loader));
-                                                    //} else {
-                                                    results.push(QueryResult::Valid(stmt_string, tbl));
-                                                    //}
-                                                },
-                                                Err(e) => {
-                                                    println!("Error building table: {}", e);
-                                                    results.push(QueryResult::Invalid(e.to_string()));
-                                                }
-                                            }
-                                        },
-                                        Err(e) => {
-                                            results.push(QueryResult::Invalid(e.to_string()));
-                                        }
-                                    }
-                                },
-                                Err(e) => {
-                                    results.push(QueryResult::Invalid(e.to_string()));
-                                }
-                            }
+                            results.push(Self::query_sqlite(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            match conn.execute(&format!("{}", stmt)[..], rusqlite::NO_PARAMS) {
-                                Ok(n) => results.push(QueryResult::Statement(format!("{} row(s) modified", n))),
-                                Err(e) => results.push(QueryResult::Invalid(e.to_string()))
-                            }
+                            results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
                         }
                     }
                 }
-            },
-            _ => { return Err(String::from("Current SQL Engine does not support queries.")); }
+            }
         }
         Ok(results)
     }
@@ -829,7 +861,9 @@ pub fn get_subset_valid_queries(
 pub struct SqlListener {
     _handle : JoinHandle<()>,
     ans_receiver : Receiver<Vec<QueryResult>>,
-    cmd_sender : Sender<String>,
+
+    /// Carries a query sequence and whether this query should be parsed at the client
+    cmd_sender : Sender<(String, bool)>,
     pub engine : Arc<Mutex<SqlEngine>>,
     pub last_cmd : Arc<Mutex<Vec<String>>>,
     //loader : Arc<Mutex<FunctionLoader>>
@@ -838,7 +872,7 @@ pub struct SqlListener {
 impl SqlListener {
 
     pub fn launch(loader : Arc<Mutex<FunctionLoader>>) -> Self {
-        let (cmd_tx, cmd_rx) = mpsc::channel::<String>();
+        let (cmd_tx, cmd_rx) = mpsc::channel::<(String, bool)>();
         let (ans_tx, ans_rx) = mpsc::channel::<Vec<QueryResult>>();
 
         let engine = Arc::new(Mutex::new(SqlEngine::Inactive));
@@ -851,8 +885,8 @@ impl SqlListener {
                 // TODO perhaps move SQL parsing to here so loader is passed to
                 // try_run iff there are local functions matching the query.
                 match (cmd_rx.recv(), engine_c.lock(), loader.lock()) {
-                    (Ok(cmd), Ok(mut eng), Ok(loader)) => {
-                        let result = eng.try_run(cmd, Some(&loader));
+                    (Ok((cmd, parse)), Ok(mut eng), Ok(loader)) => {
+                        let result = eng.try_run(cmd, parse, Some(&loader));
                         match result {
                             Ok(ans) => {
                                 if let Err(e) = ans_tx.send(ans) {
@@ -887,27 +921,34 @@ impl SqlListener {
     /// are correctly parsed, send the SQL to the server. If sequence is not
     /// correctly parsed, do not send anything to the server, and return the
     /// error to the user.
-    pub fn send_command(&self, sql : String) -> Result<(), String> {
+    pub fn send_command(&self, sql : String, parse : bool) -> Result<(), String> {
         if let Ok(mut last_cmd) = self.last_cmd.lock() {
             last_cmd.clear();
-            match parse_sql(&sql[..]) {
-                Ok(stmts) => {
-                    for stmt in stmts.iter() {
-                        let stmt_txt = match stmt {
-                            Statement::Query(_) => String::from("select"),
-                            _ => String::from("other")
-                        };
-                        last_cmd.push(stmt_txt);
+            match parse {
+                true => {
+                    match parse_sql(&sql[..]) {
+                        Ok(stmts) => {
+                            for stmt in stmts.iter() {
+                                let stmt_txt = match stmt {
+                                    Statement::Query(_) => String::from("select"),
+                                    _ => String::from("other")
+                                };
+                                last_cmd.push(stmt_txt);
+                            }
+                        },
+                        Err(e) => {
+                            return Err(e.to_string());
+                        }
                     }
                 },
-                Err(e) => {
-                    return Err(e.to_string());
+                false => {
+                    last_cmd.push(String::from("other"));
                 }
             }
         } else {
             return Err(format!("Unable to acquire lock over last commands"));
         }
-        self.cmd_sender.send(sql.clone())
+        self.cmd_sender.send((sql.clone(), parse))
             .expect("Error sending SQL command over channel");
         Ok(())
     }
