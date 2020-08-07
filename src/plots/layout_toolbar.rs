@@ -452,24 +452,26 @@ impl LayoutToolbar {
                     }
                     // Will always return zero or one, because we require that a single
                     // mapping type exists for any set of selected columns.
-                    println!("this_mapped");
+
                     let this_mapped = Self::check_mapped(
                         &selected[..],
                         mapping_menus.clone(),
                         Some(&mapping_name)
                     );
+                    Self::config_toggles_sensitive(
+                        &add_mapping_btn,
+                        &mapping_btns,
+                        selected.len()
+                    );
                     if btn.get_active() {
+                        println!("This mapped: {:?}", this_mapped);
+                        println!("Left toggled: {:?}", toggled_btns);
                         if let Ok(mut sel_mapping) = sel_mapping.try_borrow_mut() {
                             *sel_mapping = mapping_name.clone();
                         } else {
                             println!("Failed to acquire mutable reference to selected mapping");
                         }
                         //println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
-                        Self::config_toggles_sensitive(
-                            &add_mapping_btn,
-                            &mapping_btns,
-                            selected.len()
-                        );
                         match (this_mapped.len(), selected.len()) {
                             (0, n) => {
                                 add_mapping_btn.set_sensitive(true);
@@ -501,6 +503,8 @@ impl LayoutToolbar {
                             mapping_menus.clone(),
                             None
                         );
+                        println!("This mapped: {:?}", this_mapped);
+                        println!("Any mapped: {:?}", any_mapped);
                         println!("Left toggled: {:?}", toggled_btns);
                         if toggled_btns.len() == 1 && any_mapped.len() >= 1 {
                             let found_mapped = any_mapped.iter()
@@ -512,7 +516,11 @@ impl LayoutToolbar {
                                 edit_mapping_btn.set_sensitive(true);
                                 remove_mapping_btn.set_sensitive(true);
                             } else {
-                                println!("No mapped data found to set as active plot mapping");
+                                let add_on = toggled_btns.len() == 1 &&
+                                    (this_mapped.len() == 0 || &any_mapped[0].0 != &toggled_btns[0]);
+                                add_mapping_btn.set_sensitive(add_on);
+                                edit_mapping_btn.set_sensitive(false);
+                                remove_mapping_btn.set_sensitive(false);
                             }
                         } else {
                             add_mapping_btn.set_sensitive(false);
@@ -713,16 +721,16 @@ impl LayoutToolbar {
             3 => vec!["area", "text", "surface"],
             _ => vec![]
         };
-        println!("mapping_btns : {:?}", mapping_btns);
-        println!("should be sensitive: {:?}", sensitive);
+        // println!("mapping_btns : {:?}", mapping_btns);
+        // println!("should be sensitive: {:?}", sensitive);
         for (mapping, btn) in mapping_btns.iter() {
             if sensitive.iter().find(|n| *n == mapping).is_some() {
-                println!("{} set to sensitive=true", mapping);
+                // println!("{} set to sensitive=true", mapping);
                 if !btn.get_sensitive() {
                     btn.set_sensitive(true);
                 }
             } else {
-                println!("{} set to sensitive=false", mapping);
+                // println!("{} set to sensitive=false", mapping);
                 if btn.get_sensitive() {
                     btn.set_sensitive(false);
                 }
@@ -742,7 +750,12 @@ impl LayoutToolbar {
                 let source = mapping.source.borrow();
                 let ixs = &source.ixs[..];
                 let tbl_ixs = &source.tbl_ixs[..];
-                let tbl_pos = source.tbl_pos.unwrap();
+                let tbl_pos = if let Some(pos) = source.tbl_pos {
+                    pos
+                } else {
+                    println!("Error recovering table position (value is None)");
+                    return;
+                };
                 tbl_nb.unselect_all_tables();
                 tbl_nb.set_page_index(tbl_pos);
                 if let Some(tbl) = tbl_nb.expose_table(tbl_pos) {

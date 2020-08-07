@@ -9,16 +9,14 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
 use gdk::{self, enums::key};
-// use tables::{self, environment_source::EnvironmentSource, TableEnvironment, button::TableChooser, sql::SqlListener};
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
-// use gtk_queries::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
-// use nlearn::table::Table;
 use std::fmt::Display;
 use std::io::{Read, Write};
-use ::queries::*;
+use super::sql_type::*;
 use super::loader::*;
+use super::function::*;
 use std::sync::{Arc, Mutex};
 
 // use crate::table_list::*;

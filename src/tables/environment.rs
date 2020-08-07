@@ -301,44 +301,55 @@ impl TableEnvironment {
             return Some(Ok(EnvironmentUpdate::Clear));
         }
         let mut new_cols : Vec<Vec<String>> = Vec::new();
+        let mut opt_err = None;
+        let mut any_valid = false;
         for r in results {
             match r {
                 QueryResult::Valid(query, tbl) => {
                     new_cols.push(tbl.names());
                     self.tables.push(tbl);
                     self.queries.push(query);
+                    any_valid = true;
                 },
                 QueryResult::Invalid(msg) => {
                     self.tables.clear();
                     self.history.push(EnvironmentUpdate::Clear);
-                    return Some(Err(msg));
+                    opt_err = Some(msg.clone());
                 },
                 QueryResult::Statement(_) => {
                     self.tables.clear();
                     self.history.push(EnvironmentUpdate::Clear);
-                    return Some(Ok(EnvironmentUpdate::Clear));
                 }
             }
         }
-        let last_update = if let Some(last_cols) = self.last_table_columns() {
-            if last_cols.len() == new_cols.len() {
-                let all_equal = last_cols.iter().flatten()
-                    .zip(new_cols.iter().flatten())
-                    .all(|(last, new)| last == new );
-                if all_equal {
-                    EnvironmentUpdate::Refresh
+        if let Some(msg) = opt_err {
+            self.history.push(EnvironmentUpdate::Clear);
+            Some(Err(msg))
+        } else {
+            if any_valid {
+                let last_update = if let Some(last_cols) = self.last_table_columns() {
+                    if last_cols.len() == new_cols.len() {
+                        let all_equal = last_cols.iter().flatten()
+                            .zip(new_cols.iter().flatten())
+                            .all(|(last, new)| last == new );
+                        if all_equal {
+                            EnvironmentUpdate::Refresh
+                        } else {
+                            EnvironmentUpdate::NewTables(new_cols)
+                        }
+                    } else {
+                        EnvironmentUpdate::NewTables(new_cols)
+                    }
                 } else {
                     EnvironmentUpdate::NewTables(new_cols)
-                }
+                };
+                self.history.push(last_update.clone());
+                println!("History: {:?}", self.history);
+                Some(Ok(last_update))
             } else {
-                EnvironmentUpdate::NewTables(new_cols)
+                Some(Ok(EnvironmentUpdate::Clear))
             }
-        } else {
-            EnvironmentUpdate::NewTables(new_cols)
-        };
-        self.history.push(last_update.clone());
-        println!("History: {:?}", self.history);
-        Some(Ok(last_update))
+        }
     }
 
     pub fn result_last_statement(&self) -> Option<Result<String,String>> {

@@ -241,7 +241,12 @@ impl PlotPopover {
                 if valid_ixs.len() == 0 {
                     children.get(0).unwrap()
                 } else {
-                    children.get(valid_ixs[sel.curr_ix]).unwrap()
+                    if let Some(child) = children.get(valid_ixs[sel.curr_ix]) {
+                        child
+                    } else {
+                        println!("No child at index {} to update stack", valid_ixs[sel.curr_ix]);
+                        return;
+                    }
                 }
             };
             println!("Current selection (update_stack): {:?}", sel);
@@ -276,7 +281,7 @@ impl PlotPopover {
     pub fn remove_mapping_at_ix(&self, ix : usize) {
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             // let offset_mapping_ix = sel_mapping.valid_ix[pl_ix][curr_ix];
-            // println!("Removing at plot {} at plot index {}", pl_ix, curr_ix);
+
             let children = self.mapping_stack.get_children();
             if let Some(c) = children.get(ix + 1) {
                 self.mapping_stack.remove(c);
@@ -287,14 +292,22 @@ impl PlotPopover {
             let pl_ix = sel_mapping.valid_ix
                 .iter()
                 .position(|v| v.iter().position(|i| *i == ix+1 ).is_some() )
+                //.position(|v| v.iter().position(|i| *i == ix ).is_some() )
                 .unwrap();
             let m_ix = sel_mapping.valid_ix[pl_ix]
                 .iter()
                 .position(|i| *i == ix+1 )
+                //.position(|i| *i == ix )
                 .unwrap();
+            println!("Removing at plot {} at plot index {}", pl_ix, m_ix);
             sel_mapping.valid_ix[pl_ix].remove(m_ix);
+            for m in sel_mapping.valid_ix[pl_ix].iter_mut().skip(m_ix) {
+                *m -= 1;
+            }
             sel_mapping.curr_ix = 0;
-            sel_mapping.plot_ix = 0;
+            if sel_mapping.valid_ix[pl_ix].len() == 0 {
+                sel_mapping.plot_ix = 0;
+            }
             println!("Current selection (remove_selected_mapping): {:?}", sel_mapping);
         } else {
             panic!("Unable to retrieve mutable reference to selected mapping");

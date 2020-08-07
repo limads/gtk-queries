@@ -7,18 +7,19 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::fs::File;
 use std::io::Read;
-//use super::parser::{self, *};
 use std::convert::TryInto;
 use rusqlite::types::ToSql;
-use ::queries::column::*;
-use ::queries::*;
+use crate::tables::column::*;
+use super::sql_type::*;
+use super::function::*;
 use crate::tables::table::*;
+use toml;
 
 // use std::rc::Rc;
 // use std::cell::RefCell;
 // (1) Examine sources and update database with library/function names
 // (2) Call libloading to load all functions that were parsed.
-/*pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns, &[&str])->Result<Table,String>>;*/
+// *pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns, &[&str])->Result<Table,String>>;*/
 
 #[derive(Debug)]
 pub struct FunctionLoader {
@@ -35,6 +36,32 @@ pub enum FunctionErr {
 }
 
 impl FunctionLoader {
+
+    fn parse_toml(path : &Path) -> Result<Vec<Function>, String> {
+        let mut content = String::new();
+        let mut f = File::open(path)
+            .map_err(|e| format!("Could not read toml file: {}", e) )?;
+        f.read_to_string(&mut content);
+        let v : toml::Value = content.parse()
+            .map_err(|e| format!("Could not parse toml file: {}", e) )?;
+        if let Some(pkg) = v.get("package") {
+            if let Some(name) = pkg.get("name") {
+                println!("name = {}", name);
+            } else {
+                return Err(String::from("Could not get crate name"));
+            }
+            let funcs = pkg.get("metadata")
+                .and_then(|meta| meta.get("sql"))
+                .and_then(|sql| sql.as_array())
+                .ok_or(String::from("Cargo does not have 'sql' metadata field"))?;
+            for f in funcs.iter() {
+                println!("func = {}", f);
+            }
+        } else {
+            return Err(String::from("Could not get package table"));
+        }
+        Ok(Vec::new())
+    }
 
     /// Returns (source path, parsed_functions) if successful.
     fn parse_lib_source(path : &Path) -> Result<(String, Vec<Function>), String> {
@@ -427,7 +454,13 @@ impl FunctionLibrary {
 
 }
 
-/*#[derive(Clone, Debug)]
+#[test]
+fn load_toml() {
+    let toml_path = Path::new("/home/diego/Downloads/mylib/Cargo.toml");
+    println!("{:?}", FunctionLoader::parse_toml(toml_path));
+}
+
+/*#[derive(Clone, Debug/)]
 pub struct ClientFunction {
     pub name : String,
     pub args : Vec<String>,

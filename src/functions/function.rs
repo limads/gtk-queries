@@ -4,57 +4,22 @@ use quote::{ToTokens};
 use proc_macro2::TokenStream;
 use std::env;
 use toml::Value;
-use chrono::{DateTime, offset::Utc};
 use std::io::Read;
 use std::fs;
 use std::path::Path;
 use std::fmt::{self, Debug, Display};
 use std::any::{Any, TypeId};
 use std::default::Default;
-use crate::tables::sqlite::SqliteColumn;
 use std::convert::{TryFrom, TryInto};
 use super::sql_type::*;
-use crate::tables::column::*;
-use libloading::{Library, Symbol};
-use super::loader::*;
-use crate::tables::column::*;
+use std::error::Error;
+use std::cmp::PartialEq;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionMode {
     Simple,
     Aggregate,
-    Window,
-    Invalid
-}
-
-impl TryFrom<String> for FunctionMode {
-
-    type Error = ();
-
-    fn try_from(s : String) -> Result<FunctionMode, ()> {
-        match &s[..] {
-            "Simple" => Ok(FunctionMode::Simple),
-            "Aggregate" => Ok(FunctionMode::Aggregate),
-            "Window" => Ok(FunctionMode::Window),
-            "Invalid" => Ok(FunctionMode::Invalid),
-            _ => Err(())
-        }
-    }
-
-}
-
-impl fmt::Display for FunctionMode {
-
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            FunctionMode::Simple => "Simple",
-            FunctionMode::Aggregate => "Aggregate",
-            FunctionMode::Window => "Window",
-            FunctionMode::Invalid => "Invalid"
-        };
-        write!(f, "{}", name)
-    }
-
+    Window
 }
 
 #[derive(Debug, Clone)]
@@ -68,19 +33,78 @@ pub struct Function {
     pub var_ret : bool
 }
 
-impl Function {
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    Arg(usize, String),
+    Ret(usize, String),
+    Attr,
+    VarArg(usize),
+    VarRet(usize),
+    Other
+}
 
-    pub fn call<'a>(&'a self, lib : &'a Library, cols : Vec<Column>) -> Result<Vec<Column>, FunctionErr> {
-        unsafe {
-            let f : Symbol<'a, unsafe extern fn(Vec<Column>)->Result<Vec<Column>,String>> =
-                lib.get(self.name.as_bytes()).map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
-            let ans = f(cols).map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
-            Ok(ans)
+impl fmt::Display for ParseError {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            ParseError::Arg(pos, which) => {
+                format!("Argument at position {} is a {}, which is not a valid SQL type", pos, which)
+            },
+            ParseError::Ret(pos, which) => {
+                format!("Return value at position {} is a {}, which is not a valid SQL type", pos, which)
+            },
+            ParseError::Attr => {
+                format!("Function does not have #[sql], #[sql_agg] or #[sql_win] attribute")
+            },
+            ParseError::VarArg(pos) => {
+                format!("Variadic argument at non-final position {}", pos)
+            },
+            ParseError::VarRet(pos) => {
+                format!("Variadic return at non-final position {}", pos)
+            },
+            ParseError::Other => {
+                format!("Failed at parsing function")
+            }
+        };
+        write!(f, "{}", msg)
+    }
+
+}
+
+impl Error for ParseError { }
+
+impl TryFrom<String> for FunctionMode {
+
+    type Error = ();
+
+    fn try_from(s : String) -> Result<FunctionMode, ()> {
+        match &s[..] {
+            "Simple" => Ok(FunctionMode::Simple),
+            "Aggregate" => Ok(FunctionMode::Aggregate),
+            "Window" => Ok(FunctionMode::Window),
+            _ => Err(())
         }
     }
 
+}
+
+impl fmt::Display for FunctionMode {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            FunctionMode::Simple => "Simple",
+            FunctionMode::Aggregate => "Aggregate",
+            FunctionMode::Window => "Window"
+        };
+        write!(f, "{}", name)
+    }
+
+}
+
+impl Function {
+
     /// Hints which columns could not have its name retrieved on error.
-    pub fn get_col_names(&self, arg_names : Vec<String>) -> Result<Vec<String>, FunctionErr> {
+    pub fn get_col_names(&self, arg_names : Vec<String>) -> Result<Vec<String>, usize> {
         // Match column name to pattern informed by user.
         unimplemented!()
     }
@@ -89,75 +113,137 @@ impl Function {
 }
 
 /// Gets type and return whether the type was nested into Vec<Vec<T>>
-fn get_simple_type(ts : TokenStream) -> Option<(SqlType, bool)> {
+/// Return type string if type could not be converted into Sqltype.
+fn get_simple_type(ts : TokenStream) -> Result<(SqlType, bool), String> {
     let ty_str : String = format!("{}", ts)
         .chars().filter(|c| !c.is_whitespace()).collect();
-    let agg_ty : SqlAggType = (&ty_str[..]).try_into().ok()?;
-    let nested = match agg_ty {
-        SqlAggType::NestedVec(_) => true,
-        SqlAggType::Vec(_) => false
-    };
-    Some((agg_ty.inner(), nested))
+    let res_agg_ty : Result<SqlAggType,_> = (&ty_str[..]).try_into();
+    match res_agg_ty {
+        Ok(agg_ty) => {
+            let nested = match agg_ty {
+                SqlAggType::Nested(_) => true,
+                SqlAggType::Simple(_) | SqlAggType::Owned(_) => false
+            };
+            Ok((agg_ty.inner(), nested))
+        },
+        Err(_) => {
+            let simpl : SqlType = (&ty_str[..]).try_into()
+                .map_err(|_| ty_str)?;
+            Ok((simpl, false))
+        }
+    }
 }
 
-/// Returns (name, arg types, return type)
-pub fn function_signature(f : ItemFn) -> Option<Function> {
-    let name = f.sig.ident.to_token_stream().to_string();
-    let inputs = f.sig.inputs.iter();
-    let mut args : Vec<SqlType> = Vec::new();
-    let mut mode = FunctionMode::Simple;
+/// Returns function mode and doc attributes
+pub fn get_attributes(f : &ItemFn) -> Result<(FunctionMode, Option<String>), ParseError> {
+    let mut opt_mode : Option<FunctionMode> = None;
     let mut doc_content = String::new();
+    for attr in &f.attrs {
+        let ident = attr.path.get_ident().to_token_stream().to_string();
+        println!("attr identity: {}", ident);
+        match &ident[..] {
+            "doc" => doc_content += &attr.tokens.to_string()[..],
+            "sql" => if opt_mode.is_none() {
+                opt_mode = Some(FunctionMode::Simple);
+            } else {
+                return Err(ParseError::Attr);
+            },
+            "sql_agg" => if opt_mode.is_none() {
+                opt_mode = Some(FunctionMode::Aggregate);
+            } else {
+                return Err(ParseError::Attr);
+            },
+            "sql_win" => if opt_mode.is_none() {
+                opt_mode = Some(FunctionMode::Window);
+            } else {
+                return Err(ParseError::Attr);
+            }
+            _ => { }
+        }
+    }
+    let mode = if let Some(mode) = opt_mode {
+        mode
+    } else {
+        return Err(ParseError::Attr);
+    };
+    doc_content = doc_content.clone().chars()
+        .filter(|c| *c != '"' && *c != '=')
+        .collect();
+    doc_content = doc_content.clone().trim_matches(' ').to_string();
+    let doc = if doc_content.is_empty() { None } else { Some(doc_content) };
+    Ok((mode, doc))
+}
+
+/// Parse arguments, and if successful tell whether the function has
+/// a variadic last argument.
+pub fn parse_agg_arguments(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseError> {
+    let mut args : Vec<SqlType> = Vec::new();
+    let inputs = f.sig.inputs.iter();
     let mut var_arg = false;
-    let mut var_ret = false;
-    for input in inputs {
+    let n_arg = inputs.clone().count();
+    for (i, input) in inputs.enumerate() {
         match input {
             FnArg::Typed(typed) => {
-                let (ty, nested) = get_simple_type(typed.ty.to_token_stream())?;
+                let (ty, nested) = get_simple_type(typed.ty.to_token_stream())
+                    .map_err(|e| ParseError::Arg(i, e) )?;
                 args.push(ty);
-                var_arg = nested;
+                if nested {
+                    if i == n_arg - 1 {
+                        var_arg = true;
+                    } else {
+                        return Err(ParseError::VarArg(i));
+                    }
+                }
             },
             _ => {  }
         }
     }
-    for attr in f.attrs {
-        //match attr.style {
-            //AttrStyle::Outer => {
-                let ident = attr.path.get_ident().to_token_stream().to_string();
-                match &ident[..] {
-                    "doc" => doc_content += &attr.tokens.to_string()[..],
-                    // "sql" => mode = FunctionMode::Simple,
-                    // "sql_agg" => mode = FunctionMode::Aggregate,
-                    // "sql_win" => mode = FunctionMode::Window,
-                    _ => { }
-                }
-                //let tokens = attr.tokens.to_string();
-                //println!("Ident: {}, tokens: {}", ident, tokens);
-        //    },
-        //    _ => { }
-        //}
-    }
-    let doc = if doc_content.is_empty() { None } else { Some(doc_content) };
+    Ok((args, var_arg))
+}
+
+/// Parse arguments, and if successful tell whether the function has
+/// a variadic last argument.
+pub fn parse_agg_return(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseError> {
     let mut ret : Vec<SqlType> = Vec::new();
-    match f.sig.output {
-        ReturnType::Type(_, bx_type) => {
-            match *bx_type {
+    let mut var_ret = false;
+    match &f.sig.output {
+        ReturnType::Type(_, ref bx_type) => {
+            match bx_type.as_ref() {
                 syn::Type::Tuple(tuple) => {
-                    for t in tuple.elems.iter() {
-                        let (ty, nested) = get_simple_type(t.to_token_stream())?;
+                    let n_ret = tuple.elems.iter().count();
+                    for (i, t) in tuple.elems.iter().enumerate() {
+                        let (ty, nested) = get_simple_type(t.to_token_stream())
+                            .map_err(|e| ParseError::Ret(i, e) )?;
                         ret.push(ty);
-                        var_ret = nested;
+                        if nested {
+                            if i == n_ret - 1 {
+                                var_ret = true;
+                            } else {
+                                return Err(ParseError::VarRet(i));
+                            }
+                        }
                     }
                 },
                 ty => {
-                    let (ty, nested) = get_simple_type(ty.to_token_stream())?;
+                    let (ty, nested) = get_simple_type(ty.to_token_stream())
+                        .map_err(|e| ParseError::Ret(0, ty.to_token_stream().to_string()) )?;
                     ret.push(ty);
                     var_ret = nested;
                 }
             }
-            Some( Function{ name, args, ret, doc, mode, var_arg, var_ret } )
         },
-        _ => None
+        _ => return Err(ParseError::Other)
     }
+    Ok((ret, var_ret))
+}
+
+/// Returns (name, arg types, return type)
+pub fn agg_function_signature(f : ItemFn) -> Result<Function, ParseError> {
+    let name = f.sig.ident.to_token_stream().to_string();
+    let (args, var_arg) = parse_agg_arguments(&f)?;
+    let (ret, var_ret) = parse_agg_return(&f)?;
+    let (mode, doc) = get_attributes(&f)?;
+    Ok( Function{ name, args, ret, doc, mode, var_arg, var_ret } )
 }
 
 /// Apply function_signature to a module and all its submodules recursively.
@@ -176,7 +262,7 @@ pub fn parse_mod_signature(
                 },
                 Item::Fn(item_fn) => {
                     match item_fn.vis {
-                        Visibility::Public(_) => { sigs.push(function_signature(item_fn)?); },
+                        Visibility::Public(_) => { sigs.push(agg_function_signature(item_fn).ok()?); },
                         _ => { }
                     }
                 },
@@ -202,7 +288,7 @@ pub fn parse_fn_or_mod(
         },
         Item::Fn(item_fn) => {
             match item_fn.vis {
-                Visibility::Public(_) => sigs.push(function_signature(item_fn)?),
+                Visibility::Public(_) => sigs.push(agg_function_signature(item_fn).ok()?),
                 _ => { }
             }
         },
@@ -220,7 +306,7 @@ pub fn parse_top_level_funcs(
         match item {
             Item::Fn(item_fn) => {
                 match item_fn.vis {
-                    Visibility::Public(_) => sigs.push(function_signature(item_fn)?),
+                    Visibility::Public(_) => sigs.push(agg_function_signature(item_fn).ok()?),
                     _ => { },
                 }
             },

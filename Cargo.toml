@@ -26,10 +26,14 @@ nalgebra = "0.21.0"
 num-traits="0.2.11"
 bayes = { git = "https://github.com/limads/bayes.git" }
 # byteorder="1.3.4"
-queries = { path = "../queries-ext" }
+datafusion = { version = "1.0.0", optional = true }
+arrow = { version = "1.0.0", optional = true }
 libxml = "0.2.13"
 pango = "0.8.0"
 proc-macro2 = "1.0.18"
+
+[features]
+arrowext = []
 
 [[bin]]
 name="queries"

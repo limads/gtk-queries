@@ -12,4 +12,8 @@ pub mod sql;
 
 pub mod stdin;
 
+pub mod column;
+
+pub mod nullable_column;
+
 

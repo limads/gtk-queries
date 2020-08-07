@@ -401,7 +401,7 @@ impl PlotArea {
         self.draw_background(ctx, design);
         self.draw_grid(ctx, design);
         for mapping in self.mappings.iter() {
-            println!("Mapping drawn");
+            // println!("Mapping drawn");
             mapping.draw(&self.mapper, &ctx);
         }
     }
