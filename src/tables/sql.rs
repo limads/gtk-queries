@@ -15,6 +15,12 @@ use super::postgre;
 use super::sqlite;
 use crate::functions::loader::*;
 
+#[cfg(feature="arrowext")]
+use datafusion::execution::context::ExecutionContext;
+
+#[cfg(feature="arrowext")]
+use datafusion::datasource::csv::{CsvFile, CsvReadOptions};
+
 // Carries a result (arranged over columns)
 #[derive(Debug)]
 pub enum QueryResult {
@@ -361,12 +367,22 @@ pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
 /// Parse a SQL String, separating the queries.
 /// Use this if no client-side parsing is desired.
 /// TODO remove ; from text literals "" and $$ $$ when doing the
-/// analysis.
-pub fn split_sql(sql_text : String) -> Result<Vec<String>, String> {
-    let stmts_strings = sql_text.split(";")
+/// analysis. Returns true for each statement if the resulting statement
+/// is a select.
+pub fn split_sql(sql_text : String) -> Result<Vec<(String, bool)>, String> {
+    let stmts_strings : Vec<_> = sql_text.split(";")
         .filter(|c| c.len() > 0 && *c != "\n" && *c != " " && *c != "\t")
         .map(|c| c.trim_start().trim_end().to_string()).collect();
-    Ok(stmts_strings)
+    let mut stmts = Vec::new();
+    // TODO this will break if literals contain select/with statements.
+    for stmt in stmts_strings {
+        println!("{}", stmt);
+        let is_select = stmt.starts_with("select") || stmt.starts_with("SELECT") ||
+            (stmt.starts_with("with") && (stmt.contains("select") || stmt.contains("SELECT"))) ||
+            (stmt.starts_with("WITH") && (stmt.contains("select") || stmt.contains("SELECT")));
+        stmts.push((stmt.clone(), is_select));
+    }
+    Ok(stmts)
 }
 
 pub fn sql2table(result : Result<Vec<Statement>, String>) -> String {
@@ -381,7 +397,10 @@ pub enum SqlEngine {
     Inactive,
     Local{conn : rusqlite::Connection },
     PostgreSql{conn_str : String, conn : postgres::Client },
-    Sqlite3{path : Option<PathBuf>, conn : rusqlite::Connection}
+    Sqlite3{path : Option<PathBuf>, conn : rusqlite::Connection},
+
+    #[cfg(feature="arrowext")]
+    Arrow{ ctx : ExecutionContext }
 }
 
 #[derive(Debug)]
@@ -644,7 +663,7 @@ impl SqlEngine {
             Ok(rows) => {
                 match postgre::build_table_from_postgre(&rows[..]) {
                     Ok(tbl) => {
-                        QueryResult::Valid(q.to_string(), tbl.truncate(200))
+                        QueryResult::Valid(q.to_string(), tbl)
                     },
                     Err(e) => QueryResult::Invalid(e.to_string())
                 }
@@ -662,7 +681,7 @@ impl SqlEngine {
                     Ok(rows) => {
                         match sqlite::build_table_from_sqlite(rows) {
                             Ok(tbl) => {
-                                QueryResult::Valid(q.to_string(), tbl.truncate(200))
+                                QueryResult::Valid(q.to_string(), tbl)
                             },
                             Err(e) => {
                                 println!("Error building table: {}", e);
@@ -695,25 +714,59 @@ impl SqlEngine {
         }
     }
 
+    #[cfg(feature="arrowext")]
+    fn query_arrow(ctx : &mut ExecutionContext, q : &str) -> QueryResult {
+        match ctx.sql(q, 10000) {
+            Ok(results) => {
+                if results.len() == 0 {
+                    return QueryResult::Statement(String::from("0 Row(s) modified"));
+                } else {
+                    match super::arrow::table_from_batch(&results[0]) {
+                        Ok(tbl) => QueryResult::Valid(q.to_string(), tbl),
+                        Err(e) => QueryResult::Invalid(format!("{}", e))
+                    }
+                }
+            },
+            Err(e) => {
+                QueryResult::Invalid(format!("{}", e) )
+            }
+        }
+    }
+
+    #[cfg(feature="arrowext")]
+    fn exec_arrow(ctx : &mut ExecutionContext, q : &str) -> QueryResult {
+        unimplemented!()
+    }
+
     /// Runs the informed query sequence without client-side parsing.
     pub fn run_any(&mut self, query_seq : String) -> Result<Vec<QueryResult>, String> {
         let stmts = split_sql(query_seq).map_err(|e| format!("{}", e) )?;
         let mut results = Vec::new();
-        for stmt in stmts {
+        // TODO disregard select and with from literals.
+        for (stmt, is_select) in stmts {
             match self {
                 SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
                 SqlEngine::PostgreSql{ conn_str : _ , conn } => {
-                    if stmt.starts_with("select") || stmt.starts_with("SELECT") {
+                    if is_select {
                         results.push(Self::query_postgre(conn, &format!("{}", stmt)));
                     } else {
                         results.push(Self::exec_postgre(conn, &format!("{}", stmt)));
                     }
                 },
                 SqlEngine::Sqlite3{ path : _, conn} | SqlEngine::Local{ conn } => {
-                    if stmt.starts_with("select") || stmt.starts_with("SELECT") {
+                    if is_select {
                         results.push(Self::query_sqlite(conn, &format!("{}", stmt)));
                     } else {
                         results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
+                    }
+                },
+
+                #[cfg(feature="arrowext")]
+                SqlEngine::Arrow{ ctx } => {
+                    if is_select {
+                        results.push(Self::query_arrow(ctx, &stmt));
+                    } else {
+                        results.push(Self::exec_arrow(ctx, &stmt));
                     }
                 }
             }
@@ -728,10 +781,12 @@ impl SqlEngine {
         loader : Option<&FunctionLoader>
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = match parse {
-            true => parse_sql(&query_seq).map_err(|e| format!("{}", e) )?,
+            true => match parse_sql(&query_seq) {
+                Ok(stmts) => stmts,
+                Err(_) => return self.run_any(query_seq)
+            }
             false => return self.run_any(query_seq)
         };
-        // println!("Split query: {:?}", stmts);
         let mut results = Vec::new();
         if stmts.len() == 0 {
             return Err(String::from("Empty query sequence"));
@@ -764,6 +819,20 @@ impl SqlEngine {
                         },
                         stmt => {
                             results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
+                        }
+                    }
+                }
+            },
+
+            #[cfg(feature="arrowext")]
+            SqlEngine::Arrow{ ctx } => {
+                for stmt in stmts {
+                    match stmt {
+                        Statement::Query(q) => {
+                            results.push(Self::query_arrow(ctx, &format!("{}", q)));
+                        },
+                        stmt => {
+                            results.push(Self::exec_arrow(ctx, &format!("{}", stmt)));
                         }
                     }
                 }
@@ -937,7 +1006,13 @@ impl SqlListener {
                             }
                         },
                         Err(e) => {
-                            return Err(e.to_string());
+                            for (stmt, is_select) in split_sql(sql.clone())? {
+                                let stmt_txt = match is_select {
+                                    true => String::from("select"),
+                                    false => String::from("other")
+                                };
+                                last_cmd.push(stmt_txt);
+                            }
                         }
                     }
                 },

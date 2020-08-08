@@ -1,5 +1,5 @@
-use postgres::{self, /*Row, types::FromSql,*/ types::ToSql };
-use std::convert::{ /*TryFrom,*/ TryInto};
+use postgres::{self, types::ToSql };
+use std::convert::{TryInto};
 use rust_decimal::Decimal;
 use super::column::*;
 use super::nullable_column::*;

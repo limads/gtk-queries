@@ -204,6 +204,18 @@ impl ConnPopover {
         if t_env.is_engine_active() {
             return Err(format!("Invalid connection state"));
         }
+
+        #[cfg(feature="arrowext")]
+        {
+            let source = EnvironmentSource::Arrow;
+            if let Err(e) = t_env.update_source(source, true) {
+                println!("{}", e);
+                return Err(e);
+            }
+            conn_popover.entries[3].set_text("(In-memory database)");
+            conn_popover.set_db_loaded_mode();
+            return Ok(());
+        }
         let source = EnvironmentSource::SQLite3((opt_path.clone(), String::new()));
         if let Err(e) = t_env.update_source(source, true) {
             println!("{}", e);
@@ -483,15 +495,13 @@ impl ConnPopover {
             .and_then(|n| n.to_str() )
             .map(|n| n.to_string() )
             .and_then(|name| name.split('.').next().map(|n| n.to_string()) );
-        match opt_name {
-            Some(name) => {
-                let sql = format!("create virtual table temp.{} using csv(filename='{}', header='YES');", name, path.to_str().unwrap());
-                if let Err(e) = t_env.prepare_and_send_query(sql, false) {
-                    status_stack.update(Status::SqlErr(e));
-                    Self::disconnect_with_delay(switch.clone());
-                }
-            },
-            None => return
+        if let Some(name) = opt_name {
+            if let Err(e) = t_env.create_csv_table(path, &name) {
+                status_stack.update(Status::SqlErr(e));
+                Self::disconnect_with_delay(switch.clone());
+            }
+        } else {
+            println!("Error retrieving table name from: {:?}", path);
         }
     }
 

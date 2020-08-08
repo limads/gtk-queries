@@ -9,6 +9,12 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::functions::loader::*;
 
+#[cfg(feature="arrowext")]
+use datafusion::execution::context::ExecutionContext;
+
+#[cfg(feature="arrowext")]
+use datafusion::execution::physical_plan::csv::CsvReadOptions;
+
 #[derive(Clone, Debug)]
 pub enum EnvironmentUpdate {
 
@@ -118,6 +124,9 @@ impl TableEnvironment {
                 SqlEngine::PostgreSql{..} => String::from("PostgreSQL"),
                 SqlEngine::Sqlite3{..} => String::from("SQLite3"),
                 SqlEngine::Local{..} => String::from("Local"),
+
+                #[cfg(feature="arrowext")]
+                SqlEngine::Arrow{..} => String::from("Arrow"),
             }
         } else {
             String::from("Unavailable")
@@ -242,6 +251,33 @@ impl TableEnvironment {
         } else {
             Err(format!("No query available to send."))
         }
+    }
+
+    pub fn create_csv_table(&mut self, path : PathBuf, name : &str) -> Result<(), String> {
+
+        // Case DataFusion
+        match self.listener.engine.lock() {
+            #[cfg(feature="arrowext")]
+            Ok(mut engine) => {
+                match *engine {
+                    SqlEngine::Arrow{ ref mut ctx } => {
+                        ctx.register_csv(
+                            name,
+                            path.to_str().unwrap(),
+                            CsvReadOptions::new(),
+                        ).map_err(|e| format!("{}", e) )?;
+                        return Ok(());
+                    },
+                    _ => { }
+                }
+            },
+            Err(e) => { return Err(format!("{}", e)); },
+        }
+
+        // Case Sqlite3
+        let sql = format!("create virtual table temp.{} using \
+            csv(filename='{}', header='YES');", name, path.to_str().unwrap());
+        self.prepare_and_send_query(sql, false)
     }
 
     pub fn clear_queries(&mut self) {
@@ -410,6 +446,13 @@ impl TableEnvironment {
                     }
                 }
             },
+
+            #[cfg(feature="arrowext")]
+            EnvironmentSource::Arrow => {
+                let ctx = ExecutionContext::new();
+                self.update_engine(SqlEngine::Arrow{ ctx })?;
+            }
+
             _ => { println!("Invalid_source"); }
         }
         self.source = src;
@@ -541,7 +584,7 @@ impl TableEnvironment {
     pub fn all_tables_as_rows(&self) -> Vec<Vec<Vec<String>>> {
         let mut tables = Vec::new();
         for t in self.tables.iter() {
-            tables.push(t.text_rows());
+            tables.push(t.clone().truncate(200).text_rows());
         }
         tables
         /*if let Some(t) = self.tables.iter().next() {

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
 use super::stdin::StdinListener;
-// use std::collections::HashMap;
 
 /// Environment source acts like a proxy for either the filesystem or a remote
 /// database connection, encapsulating the details of establishing connections to this
@@ -27,7 +26,10 @@ pub enum EnvironmentSource {
     // Path + Content
     File(String, String),
 
-    Undefined
+    Undefined,
+
+    #[cfg(feature="arrowext")]
+    Arrow
 }
 
 impl EnvironmentSource {

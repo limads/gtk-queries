@@ -22,6 +22,7 @@ impl TableNotebook {
         {
             let tbl_nb = tbl_nb.clone();
             tbl_nb.nb.clone().connect_change_current_page(move |_, _| {
+                println!("Unselect now");
                 tbl_nb.unselect_all_tables();
                 true
             });
