@@ -1,7 +1,6 @@
 use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-// use gtk::prelude::*;
 use super::plotview::plot_view::{PlotView, UpdateContent};
 
 fn change_design(

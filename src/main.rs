@@ -20,6 +20,7 @@ use gtk_queries::plots::layout_menu::PlotSidebar;
 use gtk_queries::query_sidebar::QuerySidebar;
 use gtk_queries::main_menu::MainMenu;
 use gtk_queries::plots::layout_toolbar::*;
+use gtk_queries::file_list::FileList;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -113,7 +114,8 @@ impl QueriesApp {
         content_stack : Stack,
         status_stack : StatusStack,
         plot_sidebar : PlotSidebar,
-        mapping_popover : Popover
+        mapping_popover : Popover,
+        file_list : FileList
     ) -> Rc<RefCell<i32>> {
         //main_paned.add1(&plot_sidebar.sidebar_box);
         //main_paned.show_all();
@@ -258,11 +260,13 @@ impl QueriesApp {
                         }
                     },
                     true => {
-                        content_stack.set_visible_child_name("queries");
+                        let source_name = format!("queries_{}", file_list.get_selected());
+                        println!("Setting visible: {}", source_name);
+                        content_stack.set_visible_child_name(&source_name);
+                        println!("Visible name: {:?}", content_stack.get_visible_child_name());
                         //sidebar_stack.set_visible_child_name("database");
                         status_stack.show_alt();
                         Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), true);
-                        println!("Queries visible");
                         if table_toggle.get_active() {
                             table_toggle.set_active(false);
                         }
@@ -326,12 +330,17 @@ impl QueriesApp {
         //let table_popover : Popover =
         //    builder.get_object("table_popover").unwrap();
 
-        let sql_editor = SqlEditor::new(
+        let file_list = FileList::build(&builder);
+        let mut sql_editor = SqlEditor::build(
             builder.clone(),
             table_toggle.clone(),
+            query_toggle.clone(),
             status_stack.clone(),
-            table_env.clone()
+            content_stack.clone(),
+            table_env.clone(),
+            &file_list
         );
+        file_list.connect_selected(&sql_editor, content_stack.clone(), query_toggle.clone());
         conn_popover.hook_signals(
             table_env.clone(),
             tables_nb.clone(),
@@ -352,10 +361,12 @@ impl QueriesApp {
             let query_toggle = query_toggle.clone();
             let plot_toggle = plot_toggle.clone();
             let table_toggle = table_toggle.clone();
+            let file_list = file_list.clone();
             sql_editor.connect_send_query(move |res| {
                 match res {
                     Ok(_) => {
                         tables_nb.nb.set_sensitive(false);
+                        file_list.set_sensitive(false);
                     },
                     Err(e) => {
                         status_stack.update(Status::SqlErr(e));
@@ -381,7 +392,8 @@ impl QueriesApp {
             content_stack.clone(),
             status_stack.clone(),
             sidebar.clone(),
-            sidebar.layout_toolbar.mapping_popover.clone()
+            sidebar.layout_toolbar.mapping_popover.clone(),
+            file_list.clone()
         );
         // let fn_popover : Popover = builder.get_object("fn_popover").unwrap();
         // let funcs = fn_reg.function_list();
@@ -403,6 +415,7 @@ impl QueriesApp {
             let plot_toggle = plot_toggle.clone();
             let table_toggle = table_toggle.clone();
             let mapping_popover = sidebar.layout_toolbar.mapping_popover.clone();
+            let file_list = file_list.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
                 utils::set_tables(
@@ -596,7 +609,7 @@ impl QueriesApp {
             });
         }
 
-        let main_menu = MainMenu::new(&builder);
+        let main_menu = MainMenu::new(&builder, &sql_editor);
         Self { conn_popover, sql_editor, main_paned,
             query_toggle, table_env, /*fn_popover*/ tables_nb,
             table_toggle, plot_toggle, paned_pos, main_menu, plot_sidebar : sidebar }
@@ -729,10 +742,10 @@ fn build_ui(app: &gtk::Application) {
                     if query_toggle.get_active() == false {
                         query_toggle.set_active(true);
                     }
-                    if !view.get_realized() {
-                        view.realize();
+                    if !view.borrow().get_realized() {
+                        view.borrow().realize();
                     }
-                    view.grab_focus();
+                    view.borrow().grab_focus();
                     return glib::signal::Inhibit(true)
                 }
                 if ev_key.get_keyval() == key::w {

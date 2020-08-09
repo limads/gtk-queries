@@ -20,7 +20,7 @@ use std::default::Default;
 
 #[derive(Clone)]
 pub struct GroupToolbar {
-    active_combo : ComboBoxText,
+    // active_combo : ComboBoxText,
     toggle_unique : ToggleButton,
     toggle_horiz : ToggleButton,
     toggle_vert : ToggleButton,
@@ -53,12 +53,12 @@ impl GroupToolbar {
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu)
     ) -> GroupToolbar {
-        let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
+        // let active_combo : ComboBoxText = builder.get_object("active_combo").unwrap();
         {
             let mapping_menus = mapping_menus.clone();
             // let _plot_notebook = plot_notebook.clone();
             let plot_view = plot_view.clone();
-            active_combo.connect_changed(move |combo| {
+            /*active_combo.connect_changed(move |combo| {
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                     if let Ok(menus) = mapping_menus.try_borrow() {
                         match combo.get_active_text().as_ref().map(|s| s.as_str() ) {
@@ -108,7 +108,7 @@ impl GroupToolbar {
                     scale_menus.clone(),
                     plot_view.clone()
                 );
-            });
+            });*/
         }
         let toggle_unique : ToggleButton = builder.get_object("toggle_group_unique").unwrap();
         let toggle_horiz : ToggleButton = builder.get_object("toggle_group_horizontal").unwrap();
@@ -117,7 +117,7 @@ impl GroupToolbar {
 
         {
             let (toggle_horiz, toggle_vert, toggle_four) = (toggle_horiz.clone(), toggle_vert.clone(), toggle_four.clone());
-            let active_combo = active_combo.clone();
+            //let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let mapping_stack = mapping_stack.clone();
@@ -126,10 +126,10 @@ impl GroupToolbar {
                     toggle_horiz.set_active(false);
                     toggle_vert.set_active(false);
                     toggle_four.set_active(false);
-                    active_combo.remove_all();
+                    /*active_combo.remove_all();
                     active_combo.append(Some("Center"), "Center");
                     active_combo.set_active_id(Some("Center"));
-                    active_combo.set_sensitive(false);
+                    active_combo.set_sensitive(false);*/
                     // plot_notebook.detach_tab(plot_notebook.)
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
@@ -148,7 +148,7 @@ impl GroupToolbar {
 
         {
             let (toggle_unique, toggle_vert, toggle_four) = (toggle_unique.clone(), toggle_vert.clone(), toggle_four.clone());
-            let active_combo = active_combo.clone();
+            //let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let mapping_stack = mapping_stack.clone();
@@ -157,11 +157,11 @@ impl GroupToolbar {
                     toggle_unique.set_active(false);
                     toggle_vert.set_active(false);
                     toggle_four.set_active(false);
-                    active_combo.remove_all();
+                    /*active_combo.remove_all();
                     active_combo.append(Some("Top"), "Top");
                     active_combo.append(Some("Bottom"), "Bottom");
                     active_combo.set_sensitive(true);
-                    active_combo.set_active_id(Some("Top"));
+                    active_combo.set_active_id(Some("Top"));*/
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
                         mapping_stack.clone()
@@ -178,7 +178,7 @@ impl GroupToolbar {
 
         {
             let (toggle_unique, toggle_horiz, toggle_four) = (toggle_unique.clone(), toggle_horiz.clone(), toggle_four.clone());
-            let active_combo = active_combo.clone();
+            //let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let mapping_stack = mapping_stack.clone();
@@ -187,11 +187,11 @@ impl GroupToolbar {
                     toggle_unique.set_active(false);
                     toggle_horiz.set_active(false);
                     toggle_four.set_active(false);
-                    active_combo.remove_all();
+                    /*active_combo.remove_all();
                     active_combo.append(Some("Left"), "Left");
                     active_combo.append(Some("Right"), "Right");
                     active_combo.set_sensitive(true);
-                    active_combo.set_active_id(Some("Left"));
+                    active_combo.set_active_id(Some("Left"));*/
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
                         mapping_stack.clone()
@@ -209,7 +209,7 @@ impl GroupToolbar {
         {
             let (toggle_unique, toggle_horiz, toggle_vert) =
                 (toggle_unique.clone(), toggle_horiz.clone(), toggle_vert.clone());
-            let active_combo = active_combo.clone();
+            //let active_combo = active_combo.clone();
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let mapping_stack = mapping_stack.clone();
@@ -218,13 +218,13 @@ impl GroupToolbar {
                     toggle_unique.set_active(false);
                     toggle_horiz.set_active(false);
                     toggle_vert.set_active(false);
-                    active_combo.remove_all();
+                    /*active_combo.remove_all();
                     active_combo.append(Some("Top Left"), "Top Left");
                     active_combo.append(Some("Top Right"), "Top Right");
                     active_combo.append(Some("Bottom Left"), "Bottom Left");
                     active_combo.append(Some("Bottom Right"), "Bottom Right");
                     active_combo.set_sensitive(true);
-                    active_combo.set_active_id(Some("Top Left"));
+                    active_combo.set_active_id(Some("Top Left"));*/
                     PlotSidebar::clear_mappings(
                         mapping_menus.clone(),
                         mapping_stack.clone()
@@ -239,7 +239,7 @@ impl GroupToolbar {
             });
         }
         GroupToolbar {
-            active_combo,
+            //active_combo,
             toggle_unique,
             toggle_horiz,
             toggle_vert,

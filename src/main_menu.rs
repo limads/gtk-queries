@@ -11,12 +11,14 @@ use gtk::prelude::*;
 use crate::{ /*utils, table_widget::TableWidget, table_notebook::TableNotebook,*/ status_stack::StatusStack };
 use crate::status_stack::*;
 use sourceview::View;
+use super::sql_editor::SqlEditor;
 
 #[derive(Clone, Debug)]
 pub struct MainMenu {
     main_menu : PopoverMenu,
     main_toggle : ToggleButton,
     engine_btn : ModelButton,
+    sql_open_btn : ModelButton,
     engine_window : Window,
     settings_btn : ModelButton,
     settings_window : Window,
@@ -46,7 +48,7 @@ impl MainMenu {
         });
     }
 
-    pub fn new(builder : &Builder) -> Self {
+    pub fn new(builder : &Builder, sql_editor : &SqlEditor) -> Self {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
         let main_toggle : ToggleButton = builder.get_object("main_toggle").unwrap();
         let engine_btn : ModelButton = builder.get_object("engine_btn").unwrap();
@@ -80,36 +82,25 @@ impl MainMenu {
             });
         }
 
-
-
-        /*{
-            let settings_window = settings_window.clone();
-            settings_btn.connect_clicked(move |_| {
-                settings_window.show();
-                //funcs_window.hide();
+        let sql_open_btn : ModelButton = builder.get_object("sql_open_btn").unwrap();
+        {
+            let sql_editor = sql_editor.clone();
+            sql_open_btn.connect_clicked(move |btn| {
+                sql_editor.sql_load_dialog.run();
+                //sql_editor.sql_load_dialog.hide();
             });
-        }*/
-        /*engine_window.connect_delete_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });
-
-        engine_window.connect_destroy_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });
-
-        settings_window.connect_delete_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });
-
-        settings_window.connect_destroy_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });*/
-
-        MainMenu { main_menu, main_toggle, engine_btn, engine_window, settings_btn, settings_window, layout_window, layout_btn }
+        }
+        MainMenu {
+            main_menu,
+            main_toggle,
+            engine_btn,
+            engine_window,
+            settings_btn,
+            settings_window,
+            layout_window,
+            layout_btn,
+            sql_open_btn
+        }
     }
 
 }

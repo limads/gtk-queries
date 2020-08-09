@@ -11,6 +11,7 @@ use gtk::prelude::*;
 use crate::{status_stack::StatusStack};
 use crate::status_stack::*;
 use sourceview::View;
+use super::file_list::FileList;
 
 pub enum ExecStatus {
     File(String, usize),
@@ -20,18 +21,20 @@ pub enum ExecStatus {
 
 #[derive(Clone)]
 pub struct SqlEditor {
-    pub view : View,
+
+    /// The view is dinamically changed whenever a new file is selected. All views are owned
+    /// by the content_stack->ScrolledWindow at which they are inserted. Since the view can
+    /// be mutated, we wrap it in a RefCell since this change will happen at an Fn closure when
+    /// a new file is selected at FileList.
+
+    pub file_list : FileList,
+    pub view : Rc<RefCell<View>>,
     pub sql_load_dialog : FileChooserDialog,
     pub refresh_btn : Button,
     clear_btn : ToolButton,
     update_btn : ToggleButton,
-    //pub popover : Popover,
-    //pub query_toggle : ToggleButton,
-    //pub sql_toggle : ToggleToolButton,
-    pub file_loaded : Rc<RefCell<bool>>,
+
     pub query_sent : Rc<RefCell<bool>>,
-    //pub sql_box : Box,
-    //pub extra_toolbar : Toolbar,
     pub sql_stack : Stack,
     pub status_stack : StatusStack,
     t_env : Rc<RefCell<TableEnvironment>>,
@@ -49,15 +52,51 @@ pub struct SqlEditor {
 
 impl SqlEditor {
 
+    pub fn new_source(content : &str, refresh_btn : &Button) -> ScrolledWindow {
+        let no_adj : Option<&Adjustment> = None;
+        let sw = ScrolledWindow::new(no_adj, no_adj);
+        let view = View::new();
+        Self::configure_view(&view, refresh_btn);
+        view.get_buffer().map(|buf| buf.set_text(&content) );
+        sw.add(&view);
+        sw
+    }
+
+    pub fn update_source(&self, src : View) {
+        *(self.view.borrow_mut()) = src;
+    }
+
+    pub fn get_text(&self) -> String {
+        if let Some(buffer) = self.view.borrow().get_buffer() {
+            let txt = buffer.get_text(
+                &buffer.get_start_iter(),
+                &buffer.get_end_iter(),
+                true
+            ).unwrap();
+            txt.to_string()
+        } else {
+            panic!("Unable to retrieve text buffer");
+        }
+    }
+
+    pub fn set_text(&self, txt : &str) {
+        if let Some(buffer) = self.view.borrow().get_buffer() {
+            buffer.set_text(txt);
+        } else {
+            println!("Unable to retrieve text buffer");
+        }
+    }
+
     pub fn set_active(&self, state : bool) {
         // self.sql_new_btn.set_sensitive(state);
         // self.sql_load_btn.set_sensitive(state);
         self.clear_btn.set_sensitive(state);
         self.update_btn.set_sensitive(state);
         self.refresh_btn.set_sensitive(state);
+
         if state == false {
             self.sql_load_dialog.unselect_all();
-            if let Some(buffer) = self.view.get_buffer() {
+            if let Some(buffer) = self.view.borrow().get_buffer() {
                 buffer.set_text("");
             } else {
                 println!("Unable to retrieve text buffer");
@@ -77,47 +116,47 @@ impl SqlEditor {
     /// return it. If there was no error, set the SQL sourceview
     /// to insensitive (until no result arrived) and return Ok(()).
     pub fn update_queries(
-        file_loaded : Rc<RefCell<bool>>,
+        //file_loaded : Rc<RefCell<bool>>,
         query_sent : Rc<RefCell<bool>>,
         tbl_env : &mut TableEnvironment,
         view : &sourceview::View,
         // status_stack : StatusStack
         // nb : &TableNotebook
     ) -> Result<(), String> {
-        if let Ok(loaded) = file_loaded.try_borrow() {
+        /*if let Ok(loaded) = file_loaded.try_borrow() {
             if *loaded {
                 tbl_env.send_current_query(true)?;
                 view.set_sensitive(false);
                 //nb.nb.set_sensitive(false);
-            } else {
-                if let Some(buffer) = view.get_buffer() {
-                    let text : Option<String> = match buffer.get_selection_bounds() {
-                        Some((from,to,)) => {
-                            from.get_text(&to).map(|txt| txt.to_string())
-                        },
-                        None => {
-                            buffer.get_text(
-                                &buffer.get_start_iter(),
-                                &buffer.get_end_iter(),
-                                true
-                            ).map(|txt| txt.to_string())
-                        }
-                    };
-                    if let Some(txt) = text {
-                        // println!("{}", txt);
-                        tbl_env.prepare_and_send_query(txt, true)?;
-                        view.set_sensitive(false);
-                        // nb.nb.set_sensitive(false);
-                    } else {
-                        println!("No text available to send");
+            } else {*/
+            if let Some(buffer) = view.get_buffer() {
+                let text : Option<String> = match buffer.get_selection_bounds() {
+                    Some((from,to,)) => {
+                        from.get_text(&to).map(|txt| txt.to_string())
+                    },
+                    None => {
+                        buffer.get_text(
+                            &buffer.get_start_iter(),
+                            &buffer.get_end_iter(),
+                            true
+                        ).map(|txt| txt.to_string())
                     }
+                };
+                if let Some(txt) = text {
+                    println!("Updating query: {}", txt);
+                    tbl_env.prepare_and_send_query(txt, true)?;
+                    view.set_sensitive(false);
+                    // file_list.set_sensitive(false);
+                    // nb.nb.set_sensitive(false);
                 } else {
-                    return Err(format!("Could not retrieve text buffer"));
+                    println!("No text available to send");
                 }
+            } else {
+                return Err(format!("Could not retrieve text buffer"));
             }
-        } else {
+        /*} else {
             return Err(format!("Could not retrieve reference to file status"));
-        }
+        }*/
         if let Ok(mut sent) = query_sent.try_borrow_mut() {
             *sent = true;
             //println!("Query sent");
@@ -162,6 +201,7 @@ impl SqlEditor {
         let view_c = self.view.clone();
         let sql_popover = self.clone();
         let table_toggle = self.table_toggle.clone();
+        let file_list = self.file_list.clone();
         gtk::timeout_add(16, move || {
             if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
                 if *sent {
@@ -228,8 +268,9 @@ impl SqlEditor {
                             false
                         };
                         if updated {
-                            view_c.set_sensitive(true);
-                            view_c.grab_focus();
+                            view_c.borrow().set_sensitive(true);
+                            file_list.set_sensitive(true);
+                            view_c.borrow().grab_focus();
                             *sent = false;
                             println!("Sent set to false");
                         } else {
@@ -244,20 +285,35 @@ impl SqlEditor {
         });
     }
 
-    pub fn new(builder : Builder, table_toggle : ToggleButton, status_stack : StatusStack, t_env : Rc<RefCell<TableEnvironment>>) -> Self {
-        //let query_popover_path = utils::glade_path("query-popover-3.glade").expect("Failed to load glade file");
-        //let builder = Builder::new_from_file(query_popover_path);
-        //let popover : Popover =
-        //    builder.get_object("query_popover").unwrap();
-        //let sql_box : Box = builder.get_object("sql_box").unwrap();
-        let view : View =
-            builder.get_object("query_source").unwrap();
-        //view.realize();
+    fn configure_view(view : &View, refresh_btn : &Button) {
+        view.set_tab_width(4);
+        view.set_indent_width(4);
+        view.set_auto_indent(true);
+        view.set_insert_spaces_instead_of_tabs(true);
+        view.set_right_margin(80);
+        view.set_highlight_current_line(true);
+        view.set_indent_on_tab(true);
+        view.set_show_line_marks(true);
         let buffer = view.get_buffer().unwrap()
             .downcast::<sourceview::Buffer>().unwrap();
         let lang_manager = LanguageManager::get_default().unwrap();
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
+        Self::connect_source_key_press(&view, &refresh_btn);
+    }
+
+    pub fn build(
+        builder : Builder,
+        table_toggle : ToggleButton,
+        query_toggle : ToggleButton,
+        status_stack : StatusStack,
+        content_stack : Stack,
+        t_env : Rc<RefCell<TableEnvironment>>,
+        file_list : &FileList
+    ) -> Self {
+        let view : View =
+            builder.get_object("query_source").unwrap();
+
         let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
         sql_stack.set_visible_child_name("empty");
         let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
@@ -294,6 +350,8 @@ impl SqlEditor {
         sql_toolbar.insert(&clear_btn, 0);
         //sql_toolbar.insert(&update_btn, 1);
         sql_toolbar.show_all();
+
+        Self::configure_view(&view, &refresh_btn);
 
         let update_clock = Rc::new(RefCell::new((false, 0, 0)));
         {
@@ -413,11 +471,18 @@ impl SqlEditor {
 
         popover.set_relative_to(Some(&query_toggle));*/
 
-        let file_loaded = Rc::new(RefCell::new(false));
-        Self::connect_sql_load(sql_load_dialog.clone(), t_env.clone(), file_loaded.clone(), query_file_label.clone());
+        Self::connect_sql_load(
+            sql_load_dialog.clone(),
+            //t_env.clone(),
+            query_file_label.clone(),
+            &file_list,
+            content_stack,
+            query_toggle.clone(),
+            refresh_btn.clone()
+        );
 
         Self {
-            view,
+            view : Rc::new(RefCell::new(view)),
             //sql_load_dialog,
             refresh_btn,
             //popover,
@@ -426,7 +491,7 @@ impl SqlEditor {
             //sql_box,
             //extra_toolbar,
             // sql_toggle,
-            file_loaded,
+            // file_loaded,
             query_sent : Rc::new(RefCell::new(false)),
             sql_stack,
             status_stack,
@@ -437,23 +502,10 @@ impl SqlEditor {
             sql_new_btn,
             sql_load_btn,
             query_file_label,
-            table_toggle
+            table_toggle,
+            file_list : file_list.clone()
         }
     }
-
-    /*pub fn set_file_mode(&self, fname : &str) {
-        /*if let Some(buf) = self.view.get_buffer() {
-            buf.set_text("");
-        }
-        self.sql_toggle.set_label(Some(fname));
-        self.view.set_sensitive(false);
-        self.sql_toggle.set_active(true);
-        if let Ok(mut fl) = self.file_loaded.try_borrow_mut() {
-            *fl = true;
-        } else {
-            println!("Could not retrieve mutable reference to file status");
-        }*/
-    }*/
 
     pub fn set_view_mode(&self) {
         /*if let Some(buf) = self.view.get_buffer() {
@@ -469,57 +521,43 @@ impl SqlEditor {
         }*/
     }
 
-    pub fn connect_sql_load(
+    fn connect_sql_load(
         sql_load_dialog : FileChooserDialog,
-        table_env : Rc<RefCell<TableEnvironment>>,
-        file_loaded : Rc<RefCell<bool>>,
-        query_file_label : Label
+        // table_env : Rc<RefCell<TableEnvironment>>,
+        query_file_label : Label,
+        file_list : &FileList,
+        content_stack : Stack,
+        query_toggle : ToggleButton,
+        refresh_btn : Button
     ) {
-        //let sql_popover = self.clone();
+        let file_list = file_list.clone();
         sql_load_dialog.connect_response(move |dialog, resp|{
-            if let Ok(mut t_env) = table_env.try_borrow_mut() {
-                if let Ok(mut loaded) = file_loaded.try_borrow_mut() {
-                    match resp {
-                        ResponseType::Other(1) => {
-                            if let Some(path) = dialog.get_filename() {
-                                if let Some(name) = path.file_name().and_then(|n| n.to_str() ) {
-                                    query_file_label.set_text(name);
-                                } else {
-                                    query_file_label.set_text("(Unknown path)");
-                                }
-                                let mut sql_content = String::new();
-                                if let Ok(mut f) = File::open(path.clone()) {
-                                    if let Err(e) = f.read_to_string(&mut sql_content) {
-                                        println!("{}", e);
-                                    }
-                                    t_env.prepare_query(sql_content);
-                                    *loaded = true;
-                                } else {
-                                    println!("Unable to access informed path");
-                                    *loaded = false;
-                                    query_file_label.set_text("Empty query sequence");
-                                }
-                            } else {
-                                t_env.clear_queries();
-                                *loaded = false;
-                                query_file_label.set_text("Empty query sequence");
-                            }
-                        },
-                        _ => {
-                            //sql_popover.set_view_mode();
-                            t_env.clear_queries();
-                            *loaded = false;
-                            query_file_label.set_text("Empty query sequence");
+            //if let Ok(mut t_env) = table_env.try_borrow_mut() {
+            match resp {
+                ResponseType::Other(1) => {
+                    if let Some(path) = dialog.get_filename() {
+                        if let Some(name) = path.file_name().and_then(|n| n.to_str() ) {
+                            // query_file_label.set_text(name);
+                        } else {
+                            // query_file_label.set_text("(Unknown path)");
                         }
+                        file_list.add_file(path.to_str().unwrap(), content_stack.clone(), query_toggle.clone(), refresh_btn.clone());
+                        dialog.hide();
+                    } else {
+                        // t_env.clear_queries();
+                        println!("Empty query sequence");
                     }
-                } else {
-                    println!("Unable to acquire lock over file loaded status");
-                    query_file_label.set_text("Empty query sequence");
+                },
+                _ => {
+                    // sql_popover.set_view_mode();
+                    // t_env.clear_queries();
+                    // query_file_label.set_text("Empty query sequence");
                 }
-            } else {
+            }
+            /*} else {
                 println!("Unable to retrieve mutable reference to table environment");
                 query_file_label.set_text("Empty query sequence");
-            }
+            }*/
         });
     }
 
@@ -533,8 +571,8 @@ impl SqlEditor {
             F : Clone
     {
         {
+            // println!("Now sending sql query: {:?}", self.get_text());
             let view = self.view.clone();
-            let file_loaded = self.file_loaded.clone();
             let query_sent = self.query_sent.clone();
             let table_env = self.t_env.clone();
             let update_clock = self.update_clock.clone();
@@ -543,10 +581,10 @@ impl SqlEditor {
                 match table_env.try_borrow_mut() {
                     Ok(mut env) => {
                         let update_res = Self::update_queries(
-                            file_loaded.clone(),
+                            //file_loaded.clone(),
                             query_sent.clone(),
                             &mut env,
-                            &view.clone()
+                            &view.borrow().clone(),
                         );
                         if let Err(e) = f(update_res) {
                             println!("{}", e);
@@ -565,7 +603,7 @@ impl SqlEditor {
                 }
             });
         }
-        self.connect_source_key_press( /*f*/ );
+        // Self::connect_source_key_press(&*self.view.borrow(), &self.refresh_btn);
     }
 
     /*pub fn connect_refresh(&self, /*table_env : Rc<RefCell<TableEnvironment>>, tables_nb : TableNotebook*/ ) {
@@ -591,7 +629,7 @@ impl SqlEditor {
         });
     }*/
 
-    fn connect_source_key_press /*<F>*/ (&self, /*f : F*/)
+    fn connect_source_key_press /*<F>*/ (view : &View, refresh_btn : &Button/*f : F*/)
         //where
         //    F : Fn(Result<(), String>) -> Result<(), String> + 'static,
         //    F : Clone
@@ -600,9 +638,9 @@ impl SqlEditor {
         // let file_loaded = self.file_loaded.clone();
         // let query_sent = self.query_sent.clone();
         // let table_env = self.t_env.clone();
-        let refresh_btn = self.refresh_btn.clone();
+        let refresh_btn = refresh_btn.clone();
         // TODO verify that view is realized before accepting key press
-        self.view.connect_key_press_event(move |_view, ev_key| {
+        view.connect_key_press_event(move |_view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
                 if refresh_btn.is_sensitive() {
                     refresh_btn.emit_clicked();

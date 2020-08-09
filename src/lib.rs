@@ -22,6 +22,10 @@ pub mod query_sidebar;
 
 pub mod main_menu;
 
+pub mod file_list;
+
+pub mod schema_list;
+
 pub mod utils {
 
     use std::env;

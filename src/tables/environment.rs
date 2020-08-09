@@ -233,7 +233,7 @@ impl TableEnvironment {
     }*/
 
     pub fn send_current_query(&mut self, parse : bool) -> Result<(), String> {
-        //println!("{:?}", self.source);
+        println!("Sending current query: {:?}", self.source);
         let query = match self.source {
             EnvironmentSource::PostgreSQL(ref db_pair) =>{
                 Some(db_pair.1.clone())
@@ -241,6 +241,12 @@ impl TableEnvironment {
             EnvironmentSource::SQLite3(ref db_pair) => {
                 Some(db_pair.1.clone())
             },
+
+            #[cfg(feature="arrowext")]
+            EnvironmentSource::Arrow(ref q) => {
+                Some(q.clone())
+            },
+
             _ => None
         };
         if let Some(q) = query {
@@ -257,9 +263,9 @@ impl TableEnvironment {
 
         // Case DataFusion
         match self.listener.engine.lock() {
-            #[cfg(feature="arrowext")]
             Ok(mut engine) => {
                 match *engine {
+                    #[cfg(feature="arrowext")]
                     SqlEngine::Arrow{ ref mut ctx } => {
                         ctx.register_csv(
                             name,
@@ -293,6 +299,12 @@ impl TableEnvironment {
             EnvironmentSource::SQLite3((_, ref mut q)) => {
                 *q = sql;
             },
+
+            #[cfg(feature="arrowext")]
+            EnvironmentSource::Arrow(ref mut q) => {
+                *q = sql;
+            },
+
             _ => { }
         }
     }
@@ -448,7 +460,7 @@ impl TableEnvironment {
             },
 
             #[cfg(feature="arrowext")]
-            EnvironmentSource::Arrow => {
+            EnvironmentSource::Arrow(_) => {
                 let ctx = ExecutionContext::new();
                 self.update_engine(SqlEngine::Arrow{ ctx })?;
             }
@@ -646,6 +658,11 @@ impl TableEnvironment {
                 }
             },
             EnvironmentSource::SQLite3(_) | EnvironmentSource::PostgreSQL(_) => {
+                self.send_current_query(true).map_err(|e| println!("{}", e) ).ok();
+            },
+
+            #[cfg(feature="arrowext")]
+            EnvironmentSource::Arrow(_) => {
                 self.send_current_query(true).map_err(|e| println!("{}", e) ).ok();
             },
             _ => { }

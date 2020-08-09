@@ -29,7 +29,7 @@ pub enum EnvironmentSource {
     Undefined,
 
     #[cfg(feature="arrowext")]
-    Arrow
+    Arrow(String)
 }
 
 impl EnvironmentSource {

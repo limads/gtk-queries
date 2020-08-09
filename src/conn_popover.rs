@@ -207,7 +207,7 @@ impl ConnPopover {
 
         #[cfg(feature="arrowext")]
         {
-            let source = EnvironmentSource::Arrow;
+            let source = EnvironmentSource::Arrow(String::new());
             if let Err(e) = t_env.update_source(source, true) {
                 println!("{}", e);
                 return Err(e);
