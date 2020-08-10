@@ -38,8 +38,8 @@ pub struct SqlEditor {
     pub sql_stack : Stack,
     pub status_stack : StatusStack,
     t_env : Rc<RefCell<TableEnvironment>>,
-    sql_new_btn : Button,
-    sql_load_btn : Button,
+    // sql_new_btn : Button,
+    // sql_load_btn : Button,
     query_file_label : Label,
     table_toggle : ToggleButton,
 
@@ -52,6 +52,15 @@ pub struct SqlEditor {
 
 impl SqlEditor {
 
+    pub fn add_fresh_editor(&self, content_stack : Stack, query_toggle : ToggleButton) {
+        if self.file_list.get_selected().is_none() {
+            content_stack.set_visible_child_name("queries_0");
+            self.file_list.add_fresh_source(content_stack.clone(), self.clone(), query_toggle.clone());
+        } else {
+
+        }
+    }
+
     pub fn new_source(content : &str, refresh_btn : &Button) -> ScrolledWindow {
         let no_adj : Option<&Adjustment> = None;
         let sw = ScrolledWindow::new(no_adj, no_adj);
@@ -62,8 +71,19 @@ impl SqlEditor {
         sw
     }
 
-    pub fn update_source(&self, src : View) {
-        *(self.view.borrow_mut()) = src;
+    pub fn update_editor(&self, content_stack : Stack, new_name : &str) {
+        let new_view = content_stack.get_child_by_name(&new_name)
+            .and_then(|child| child.downcast::<ScrolledWindow>().ok() )
+            .and_then(|sw| {
+                let child = sw.get_child().unwrap();
+                child.downcast::<View>().ok()
+            });
+        if let Some(view) = new_view {
+            *(self.view.borrow_mut()) = view;
+            // println!("Updating SQL editor to {:?}", view);
+        } else {
+            println!("Could not retrieve new view");
+        }
     }
 
     pub fn get_text(&self) -> String {
@@ -316,24 +336,24 @@ impl SqlEditor {
 
         let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
         sql_stack.set_visible_child_name("empty");
-        let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
-        let sql_load_btn : Button = builder.get_object("sql_load_btn").unwrap();
+        // let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
+        //let sql_load_btn : Button = builder.get_object("sql_load_btn").unwrap();
         let query_file_label : Label = builder.get_object("query_file_label").unwrap();
-        {
+        /*{
             let sql_stack = sql_stack.clone();
             sql_new_btn.connect_clicked(move |_btn| {
                 sql_stack.set_visible_child_name("source");
             });
-        }
+        }*/
         let sql_load_dialog : FileChooserDialog =
             builder.get_object("sql_load_dialog").unwrap();
-        {
+        /*{
             let sql_load_dialog = sql_load_dialog.clone();
             sql_load_btn.connect_clicked(move |_btn| {
                 sql_load_dialog.run();
                 sql_load_dialog.hide();
             });
-        }
+        }*/
         //let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
         let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
         let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
@@ -471,17 +491,7 @@ impl SqlEditor {
 
         popover.set_relative_to(Some(&query_toggle));*/
 
-        Self::connect_sql_load(
-            sql_load_dialog.clone(),
-            //t_env.clone(),
-            query_file_label.clone(),
-            &file_list,
-            content_stack,
-            query_toggle.clone(),
-            refresh_btn.clone()
-        );
-
-        Self {
+        let sql_editor = Self {
             view : Rc::new(RefCell::new(view)),
             //sql_load_dialog,
             refresh_btn,
@@ -499,12 +509,25 @@ impl SqlEditor {
             update_clock,
             clear_btn,
             update_btn,
-            sql_new_btn,
-            sql_load_btn,
+            //sql_new_btn,
+            //sql_load_btn,
             query_file_label,
             table_toggle,
             file_list : file_list.clone()
-        }
+        };
+
+        Self::connect_sql_load(
+            sql_editor.sql_load_dialog.clone(),
+            //t_env.clone(),
+            sql_editor.query_file_label.clone(),
+            &file_list,
+            content_stack,
+            query_toggle.clone(),
+            sql_editor.refresh_btn.clone(),
+            sql_editor.clone()
+        );
+
+        sql_editor
     }
 
     pub fn set_view_mode(&self) {
@@ -528,7 +551,8 @@ impl SqlEditor {
         file_list : &FileList,
         content_stack : Stack,
         query_toggle : ToggleButton,
-        refresh_btn : Button
+        refresh_btn : Button,
+        sql_editor : SqlEditor
     ) {
         let file_list = file_list.clone();
         sql_load_dialog.connect_response(move |dialog, resp|{
@@ -541,7 +565,13 @@ impl SqlEditor {
                         } else {
                             // query_file_label.set_text("(Unknown path)");
                         }
-                        file_list.add_file(path.to_str().unwrap(), content_stack.clone(), query_toggle.clone(), refresh_btn.clone());
+                        file_list.add_disk_file(
+                            path.to_str().unwrap(),
+                            content_stack.clone(),
+                            query_toggle.clone(),
+                            refresh_btn.clone(),
+                            sql_editor.clone()
+                        );
                         dialog.hide();
                     } else {
                         // t_env.clear_queries();

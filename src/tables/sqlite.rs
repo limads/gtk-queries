@@ -34,7 +34,7 @@ impl SqliteColumn {
 
     fn new(decl_type : &str) -> Result<Self, &'static str> {
         match decl_type {
-            "integer" | "int" | "INTEGER" => Ok(SqliteColumn::I64(Vec::new())),
+            "integer" | "int" | "INTEGER" | "INT" => Ok(SqliteColumn::I64(Vec::new())),
             "real" | "REAL" => Ok(SqliteColumn::F64(Vec::new())),
             "text" | "TEXT" => Ok(SqliteColumn::Str(Vec::new())),
             "blob" | "BLOB" => Ok(SqliteColumn::Bytes(Vec::new())),
@@ -228,4 +228,43 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
         Ok(Table::new(names, cols)?)
     }
 }
+
+mod functions {
+
+    use rusqlite::{self, ToSql};
+    use rusqlite::functions::{Aggregate, Context};
+    use std::panic::{RefUnwindSafe, UnwindSafe};
+
+    pub struct ToSqlAgg<T>
+    where T : ToSql
+    {
+        data : T,
+
+        /// This function can be read as a dynamic external symbol
+        transition : Box<dyn Fn(T)->T>,
+
+        /// This function also can be read as a dynamic external symbol
+        agg : Box<dyn Fn(T)->T>
+    }
+
+    impl<T> Aggregate<T, T> for ToSqlAgg<T>
+    where
+        T : ToSql + RefUnwindSafe + UnwindSafe
+    {
+        fn init(&self) -> T {
+            unimplemented!()
+        }
+
+        fn step(&self, ctx : &mut Context, t : &mut T) ->rusqlite::Result<()> {
+            unimplemented!()
+        }
+
+        fn finalize(&self, t : Option<T>) -> rusqlite::Result<T> {
+            unimplemented!()
+        }
+
+    }
+
+}
+
 

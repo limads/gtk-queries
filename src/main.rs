@@ -260,9 +260,13 @@ impl QueriesApp {
                         }
                     },
                     true => {
-                        let source_name = format!("queries_{}", file_list.get_selected());
-                        println!("Setting visible: {}", source_name);
-                        content_stack.set_visible_child_name(&source_name);
+                        let page_name = if let Some(ix) = file_list.get_selected() {
+                            format!("queries_{}", ix)
+                        } else {
+                            format!("no_queries")
+                        };
+                        println!("Setting visible: {}", page_name);
+                        content_stack.set_visible_child_name(&page_name);
                         println!("Visible name: {:?}", content_stack.get_visible_child_name());
                         //sidebar_stack.set_visible_child_name("database");
                         status_stack.show_alt();
@@ -339,6 +343,11 @@ impl QueriesApp {
             content_stack.clone(),
             table_env.clone(),
             &file_list
+        );
+        file_list.add_file_row(
+            "Untitled 1",
+            content_stack.clone(),
+            sql_editor.clone(),
         );
         file_list.connect_selected(&sql_editor, content_stack.clone(), query_toggle.clone());
         conn_popover.hook_signals(
@@ -609,7 +618,12 @@ impl QueriesApp {
             });
         }
 
-        let main_menu = MainMenu::new(&builder, &sql_editor);
+        let main_menu = MainMenu::build(
+            &builder,
+            &sql_editor,
+            content_stack.clone(),
+            query_toggle.clone()
+        );
         Self { conn_popover, sql_editor, main_paned,
             query_toggle, table_env, /*fn_popover*/ tables_nb,
             table_toggle, plot_toggle, paned_pos, main_menu, plot_sidebar : sidebar }

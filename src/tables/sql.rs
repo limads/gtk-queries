@@ -735,7 +735,21 @@ impl SqlEngine {
 
     #[cfg(feature="arrowext")]
     fn exec_arrow(ctx : &mut ExecutionContext, q : &str) -> QueryResult {
-        unimplemented!()
+        match ctx.sql(q, 10000) {
+            Ok(results) => {
+                if results.len() == 0 {
+                    return QueryResult::Statement(String::from("0 Row(s) modified"));
+                } else {
+                    match super::arrow::table_from_batch(&results[0]) {
+                        Ok(tbl) => QueryResult::Valid(q.to_string(), tbl),
+                        Err(e) => QueryResult::Invalid(format!("{}", e))
+                    }
+                }
+            },
+            Err(e) => {
+                QueryResult::Invalid(format!("{}", e) )
+            }
+        }
     }
 
     /// Runs the informed query sequence without client-side parsing.

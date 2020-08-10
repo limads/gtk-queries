@@ -21,6 +21,7 @@ pub struct MainMenu {
     sql_open_btn : ModelButton,
     engine_window : Window,
     settings_btn : ModelButton,
+    sql_new_btn : ModelButton,
     settings_window : Window,
     layout_window : Window,
     layout_btn : ModelButton
@@ -48,8 +49,9 @@ impl MainMenu {
         });
     }
 
-    pub fn new(builder : &Builder, sql_editor : &SqlEditor) -> Self {
+    pub fn build(builder : &Builder, sql_editor : &SqlEditor, content_stack : Stack, query_toggle : ToggleButton) -> Self {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
+        let sql_new_btn : ModelButton = builder.get_object("sql_new_btn").unwrap();
         let main_toggle : ToggleButton = builder.get_object("main_toggle").unwrap();
         let engine_btn : ModelButton = builder.get_object("engine_btn").unwrap();
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
@@ -90,6 +92,16 @@ impl MainMenu {
                 //sql_editor.sql_load_dialog.hide();
             });
         }
+
+        {
+            let sql_editor = sql_editor.clone();
+            let content_stack = content_stack.clone();
+            let query_toggle = query_toggle.clone();
+            sql_new_btn.connect_clicked(move |btn|{
+                sql_editor.add_fresh_editor(content_stack.clone(), query_toggle.clone());
+            });
+        }
+
         MainMenu {
             main_menu,
             main_toggle,
@@ -99,7 +111,8 @@ impl MainMenu {
             settings_window,
             layout_window,
             layout_btn,
-            sql_open_btn
+            sql_open_btn,
+            sql_new_btn
         }
     }
 
