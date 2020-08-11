@@ -37,7 +37,6 @@ pub struct MappingMenu {
     pub mapping_name : Rc<RefCell<String>>,
     pub mapping_type : String,
     pub mapping_box : Box,
-    //pub combos : Vec<ComboBoxText>,
     pub design_widgets : HashMap<String, Widget>,
     pub column_labels : Vec<Label>,
     pub source : Rc<RefCell<DataSource>>,

@@ -108,7 +108,7 @@ impl GroupToolbar {
                         println!("Unable to get mutable reference to plotview");
                     }
                 } else {
-                    toggles[&GroupSplit::Unique].set_active(true);
+                    // toggles[&GroupSplit::Unique].set_active(true);
                 }
             });
         }

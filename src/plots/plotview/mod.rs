@@ -135,13 +135,13 @@ impl PlotGroup {
         h : i32
     ) {
         let top_left = (0.05, 0.05);
-        let top_right = (w as f64 * self.v_ratio, 0.05);
-        let bottom_left = (0.05, h as f64 * self.h_ratio);
-        let bottom_right = (w as f64 * self.v_ratio, h as f64 * self.h_ratio);
+        let top_right = (w as f64 * self.h_ratio, 0.05);
+        let bottom_left = (0.05, h as f64 * self.v_ratio);
+        let bottom_right = (w as f64 * self.h_ratio, h as f64 * self.v_ratio);
         for (i, plot) in self.plots.iter_mut().enumerate() {
             let origin_offset = match (&self.split, i) {
-                (GroupSplit::Horizontal, 1) => (0.05, h as f64 * self.v_ratio),
-                (GroupSplit::Vertical, 1) => (w as f64 * self.h_ratio, 0.05),
+                (GroupSplit::Horizontal, 1) => bottom_left,
+                (GroupSplit::Vertical, 1) => top_right,
                 (GroupSplit::Four, 1) => top_right,
                 (GroupSplit::Four, 2) => bottom_left,
                 (GroupSplit::Four, 3) => bottom_right,
@@ -150,11 +150,11 @@ impl PlotGroup {
                 (GroupSplit::ThreeTop, 1) => bottom_left,
                 (GroupSplit::ThreeTop, 2) => bottom_right,
                 (GroupSplit::ThreeRight, 0) => top_left,
-                (GroupSplit::ThreeRight, 1) => top_left,
+                (GroupSplit::ThreeRight, 1) => top_right,
                 (GroupSplit::ThreeRight, 2) => bottom_left,
                 (GroupSplit::ThreeBottom, 0) => top_left,
-                (GroupSplit::ThreeBottom, 1) => bottom_left,
-                (GroupSplit::ThreeBottom, 2) => bottom_right,
+                (GroupSplit::ThreeBottom, 1) => top_right,
+                (GroupSplit::ThreeBottom, 2) => bottom_left,
                 _ => top_left
             };
 
@@ -167,26 +167,26 @@ impl PlotGroup {
             let diag = (self.h_ratio, self.v_ratio);
             let diag_compl = (1. - self.h_ratio, 1. - self.v_ratio);
             let scale_factor = match (&self.split, i) {
-                (GroupSplit::Horizontal, 0) => h_full_v,
+                (GroupSplit::Horizontal, 0) => h_v_compl,
                 (GroupSplit::Horizontal, 1) => h_full_v_compl,
-                (GroupSplit::Vertical, 0) => h_full_v,
+                (GroupSplit::Vertical, 0) => h_v_full,
                 (GroupSplit::Vertical, 1) => h_compl_v_full,
                 (GroupSplit::Four, 0) => diag,
                 (GroupSplit::Four, 1) => h_compl_v,
                 (GroupSplit::Four, 2) => h_v_compl,
                 (GroupSplit::Four, 3) => diag_compl,
-                (GroupSplit::ThreeLeft, 0) => h_full_v,
+                (GroupSplit::ThreeLeft, 0) => h_v_full,
                 (GroupSplit::ThreeLeft, 1) => h_compl_v,
                 (GroupSplit::ThreeLeft, 2) => diag_compl,
-                (GroupSplit::ThreeTop, 0) => h_compl_v_full,
+                (GroupSplit::ThreeTop, 0) => h_full_v,
                 (GroupSplit::ThreeTop, 1) => h_v_compl,
                 (GroupSplit::ThreeTop, 2) => diag_compl,
                 (GroupSplit::ThreeRight, 0) => diag,
-                (GroupSplit::ThreeRight, 1) => h_full_v_compl,
+                (GroupSplit::ThreeRight, 1) => h_compl_v_full,
                 (GroupSplit::ThreeRight, 2) => h_v_compl,
                 (GroupSplit::ThreeBottom, 0) => diag,
                 (GroupSplit::ThreeBottom, 1) => h_compl_v,
-                (GroupSplit::ThreeBottom, 2) => h_compl_v_full,
+                (GroupSplit::ThreeBottom, 2) => h_full_v_compl,
                 _ => (1., 1.)
             };
             let origin = (x as f64 + origin_offset.0, y as f64 + origin_offset.1);
