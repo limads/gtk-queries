@@ -54,10 +54,18 @@ impl SqlEditor {
 
     pub fn add_fresh_editor(&self, content_stack : Stack, query_toggle : ToggleButton) {
         if self.file_list.get_selected().is_none() {
+            self.file_list.add_file_row(
+                "Untitled 1",
+                content_stack.clone(),
+                self.clone(),
+            );
             content_stack.set_visible_child_name("queries_0");
-            self.file_list.add_fresh_source(content_stack.clone(), self.clone(), query_toggle.clone());
         } else {
-
+            self.file_list.add_fresh_source(
+                content_stack.clone(),
+                self.clone(),
+                query_toggle.clone()
+            );
         }
     }
 

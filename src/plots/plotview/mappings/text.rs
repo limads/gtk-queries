@@ -17,7 +17,8 @@ pub struct TextMapping {
     text : Vec<String>,
     font : FontData,
     color : RGBA,
-    col_names : [String; 3]
+    col_names : [String; 3],
+    source : String
 }
 
 impl TextMapping {
@@ -38,7 +39,8 @@ impl TextMapping {
             String::from("None"),
             String::from("None")
         ];
-        let mut mapping = TextMapping{ x, y, text, font, color, col_names};
+        let source = String::new();
+        let mut mapping = TextMapping{ x, y, text, font, color, col_names, source};
         mapping.update_layout(node);
         mapping
     }
@@ -174,6 +176,14 @@ impl Mapping for TextMapping {
             self.set_col_name("text", &cols[2]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 }
 

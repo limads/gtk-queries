@@ -11,7 +11,7 @@ use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
 use super::mapping_menu::*;
-use super::layout_menu::*;
+use super::layout_window::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::table_notebook::TableNotebook;
@@ -325,14 +325,32 @@ impl PlotPopover {
         self.data_popover.show();
     }
 
+    fn within_rect(x : f64, y : f64, w : i32, h : i32, rect : (f64, f64, f64, f64)) -> bool {
+        x > w as f64 * rect.0 && x < w as f64 * rect.1 &&
+            y > h as f64 *rect.2 && y < h as f64 * rect.3
+    }
+
     /// Show either the x/y scale popovers or the data popover from a click,
     /// dependin on where the click was made.
-    pub fn show_from_click(&self, ev : &EventButton, w : i32, h : i32) {
+    pub fn show_from_click(&self, ev : &EventButton, w : i32, h : i32, layout : GroupSplit, active_area : usize) {
         let (x, y) = ev.get_position();
         //let w = ev.get_allocation().width; //wid (draw area)
         //let h = ev.get_allocation().height; //wid (draw area)
+
+        let (x_rect, y_rect) = match (layout, active_area) {
+            (GroupSplit::Unique, _) => ((0.0, 1.0, 0.9, 1.0), (0.0, 0.1, 0.0, 1.0)),
+            (GroupSplit::Vertical, 0) => ((0.0, 0.5, 0.9, 1.0), (0.0, 0.1, 0.0, 1.0)),
+            (GroupSplit::Vertical, 1) => ((0.5, 1.0, 0.9, 1.0), (0.5, 0.6, 0.0, 1.0)),
+            (GroupSplit::Horizontal, 0) => ((0.0, 1.0, 0.4, 0.5), (0.0, 0.1, 0.0, 0.5)),
+            (GroupSplit::Horizontal, 1) => ((0.0, 1.0, 0.9, 1.0), (0.0, 0.1, 0.5, 1.0)),
+            (GroupSplit::Four, 0) => ((0.0, 0.5, 0.4, 0.5), (0.0, 0.1, 0.0, 0.5)),
+            (GroupSplit::Four, 1) => ((0.5, 1.0, 0.4, 0.5), (0.5, 0.6, 0.5, 1.0)),
+            (GroupSplit::Four, 2) => ((0.0, 0.5, 0.9, 1.0), (0.0, 0.1, 0.5, 1.0)),
+            (GroupSplit::Four, 3) => ((0.5, 1.0, 0.9, 1.0), (0.5, 0.6, 0.5, 1.0)),
+            _ => unimplemented!()
+        };
         if ev.get_button() == 3 {
-            if x <= w as f64 * 0.1 {
+            if Self::within_rect(x, y, w, h, y_rect) {
                 self.scale_y_popover.set_pointing_to(&Rectangle{
                     x : x as i32,
                     y : y as i32,
@@ -343,7 +361,7 @@ impl PlotPopover {
                 self.scale_x_popover.hide();
                 self.data_popover.hide();
             } else {
-                if y >= h as f64 * 0.9 {
+                if Self::within_rect(x, y, w, h, x_rect) {
                     self.scale_x_popover.set_pointing_to(&Rectangle{
                         x : x as i32,
                         y : y as i32,

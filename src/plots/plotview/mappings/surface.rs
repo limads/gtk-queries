@@ -23,6 +23,7 @@ pub struct SurfaceMapping {
     color : RGBA,
     color_final : RGBA,
     col_names : [String; 3],
+    source : String,
     _interp_task : Option<Interpolation2D>
 }
 
@@ -61,7 +62,8 @@ impl SurfaceMapping {
             String::from("None")
         ];
         let interp_task = None;
-        let mut mapping = SurfaceMapping{color, color_final, x, y, z, col_names, z_lims, _interp_task : interp_task };
+        let source = String::new();
+        let mut mapping = SurfaceMapping{color, color_final, x, y, z, col_names, z_lims, _interp_task : interp_task, source };
         mapping.update_layout(node);
         mapping
     }
@@ -389,6 +391,14 @@ impl Mapping for SurfaceMapping {
             self.set_col_name("z", &cols[2]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 }
 

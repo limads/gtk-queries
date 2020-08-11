@@ -16,7 +16,7 @@ use gtk_queries::sql_editor::*;
 use gtk_queries::functions::registry::FunctionRegistry;
 use gtk_queries::plots::plotview::plot_view::PlotView;
 use gtk_queries::plots::save_widgets;
-use gtk_queries::plots::layout_menu::PlotSidebar;
+use gtk_queries::plots::layout_window::PlotSidebar;
 use gtk_queries::query_sidebar::QuerySidebar;
 use gtk_queries::main_menu::MainMenu;
 use gtk_queries::plots::layout_toolbar::*;
@@ -66,7 +66,7 @@ impl QueriesApp {
     ) -> PlotSidebar {
         //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let pl_view = PlotView::new_with_draw_area(
-            "assets/plot_layout/layout-single.xml", pl_da.clone());
+            "assets/plot_layout/layout-unique.xml", pl_da.clone());
         save_widgets::build_save_widgets(&builder, pl_view.clone());
         let sidebar = PlotSidebar::new(
             builder.clone(),

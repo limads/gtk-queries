@@ -16,7 +16,8 @@ pub struct ScatterMapping {
     x : Vec<f64>,
     y : Vec<f64>,
     radius : f64,
-    col_names : [String; 2]
+    col_names : [String; 2],
+    source : String
 }
 
 impl ScatterMapping {
@@ -34,7 +35,8 @@ impl ScatterMapping {
             String::from("None"),
             String::from("None")
         ];
-        let mut mapping = ScatterMapping{color, x, y, radius, col_names};
+        let source = String::new();
+        let mut mapping = ScatterMapping{color, x, y, radius, col_names, source};
         mapping.update_layout(node);
         mapping
     }
@@ -135,6 +137,14 @@ impl Mapping for ScatterMapping {
             self.set_col_name("y", &cols[1]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 
 }

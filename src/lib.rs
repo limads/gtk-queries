@@ -34,7 +34,7 @@ pub mod utils {
     use crate::tables::environment::TableEnvironment;
     use crate::table_notebook::*;
     //use crate::functions::function_search::*;
-    use crate::plots::layout_menu::*;
+    use crate::plots::layout_window::*;
 
     pub fn set_tables(
         table_env : &TableEnvironment,

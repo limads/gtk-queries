@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::{RefCell};
 use crate::table_widget::*;
 use gtk::prelude::*;
-use crate::plots::layout_menu::*;
+use crate::plots::layout_window::*;
 use crate::plots::layout_toolbar::LayoutToolbar;
 
 #[derive(Clone)]

@@ -2,7 +2,7 @@
 
 <plotgroup>
     <object class="design">
-        <property name="split">None</property>
+        <property name="split">Unique</property>
         <property name="vertical_ratio">1.0</property>
         <property name="horizontal_ratio">1.0</property>
         <property name="bg_color">#ffffff</property>

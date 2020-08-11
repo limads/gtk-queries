@@ -1,4 +1,4 @@
-pub mod layout_menu;
+pub mod layout_window;
 
 pub mod save_widgets;
 

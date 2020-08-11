@@ -17,7 +17,8 @@ pub struct AreaMapping {
     ymin : Vec<f64>,
     ymax : Vec<f64>,
     color : RGBA,
-    col_names : [String; 3]
+    col_names : [String; 3],
+    source : String
 }
 
 impl AreaMapping {
@@ -37,7 +38,8 @@ impl AreaMapping {
             String::from("None"),
             String::from("None")
         ];
-        let mut mapping = AreaMapping{ x, ymin, ymax, color, col_names};
+        let source = String::new();
+        let mut mapping = AreaMapping{ x, ymin, ymax, color, col_names, source };
         mapping.update_layout(node);
         mapping
     }
@@ -207,6 +209,14 @@ impl Mapping for AreaMapping {
             self.set_col_name("ymax", &cols[2]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 }
 

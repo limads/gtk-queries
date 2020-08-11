@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
-use super::layout_menu::*;
+use super::layout_window::*;
 use super::mapping_menu::*;
 use super::plot_popover::*;
 use std::collections::HashMap;
@@ -74,7 +74,7 @@ impl LayoutToolbar {
             clear_layout_btn.connect_clicked(move |btn| {
                 //TODO toggle group toolbar to single
                 if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
+                    pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-unique.xml")));
                     sidebar_stack.set_visible_child_name("empty");
                     *(layout_path.borrow_mut()) = None;
                     status_stack.show_curr_status();
@@ -290,30 +290,10 @@ impl LayoutToolbar {
 
     fn set_toggled_mappings(&self, mapping_types : &[&str]) {
         self.mapping_btns.iter()
-            //.filter(|(name, _)| &name[..] != &mapping_type[..] )
             .for_each(|(_, m)| m.set_active(false) );
         self.mapping_btns.iter()
             .filter(|(name, _)| mapping_types.iter().find(|n| n == name).is_some() )
             .for_each(|(_, btn)| btn.set_active(true) );
-
-        /*if mapping_types.len() > 1 {
-            self.add_mapping_btn.set_sensitive(false);
-            self.edit_mapping_btn.set_sensitive(true);
-            self.remove_mapping_btn.set_sensitive(true);
-        } else {
-            self.add_mapping_btn.set_sensitive(false);
-            self.edit_mapping_btn.set_sensitive(false);
-            self.remove_mapping_btn.set_sensitive(false);
-        }*/
-
-        /*if let Some(mapping_btn) = self.mapping_btns.get(mapping_type) {
-            mapping_btn.set_active(true);
-            self.add_mapping_btn.set_sensitive(false);
-            self.edit_mapping_btn.set_sensitive(true);
-            self.remove_mapping_btn.set_sensitive(true);
-        } else {
-            println!("No mapping named {} found", mapping_name);
-        }*/
     }
 
     /// Check which types are mapped to this set of column positions (linear index).
@@ -365,7 +345,6 @@ impl LayoutToolbar {
         sel_mapping : Rc<RefCell<String>>
     ) -> (HashMap<String, ToggleToolButton>, Popover) {
         let add_mapping_popover : Popover = builder.get_object("add_mapping_popover").unwrap();
-        //add_mapping_popover.set_relative_to(Some(&add_mapping_btn));
         let upper_mapping_toolbar : Toolbar = builder.get_object("upper_mapping_toolbar").unwrap();
         let lower_mapping_toolbar : Toolbar = builder.get_object("lower_mapping_toolbar").unwrap();
         let toolbars = [upper_mapping_toolbar, lower_mapping_toolbar];
@@ -382,40 +361,11 @@ impl LayoutToolbar {
         let mut mapping_btns = HashMap::new();
         let iter_names = mapping_names.iter().cloned();
         for (i, mapping) in iter_names.enumerate() {
-            // let mut m_name = String::from(&mapping[0..1].to_uppercase());
-            // m_name += &mapping[1..];
             let img = Image::new_from_file(&(String::from("assets/icons/") +  &mapping + ".svg"));
             let btn : ToggleToolButton = ToggleToolButton::new();
             btn.set_icon_widget(Some(&img));
             mapping_btns.insert(mapping.to_string(), btn.clone());
             toolbars[i / 3].insert(&btn, (i % 3) as i32);
-            // let m = mapping.clone();
-            // let add_mapping_popover = add_mapping_popover.clone();
-            // let builder = builder.clone();
-            // let tbl_env = tbl_env.clone();
-            // let plot_view = plot_view.clone();
-            // let remove_mapping_btn = remove_mapping_btn.clone();
-            // let tbl_nb = tbl_nb.clone();
-            // let glade_def = glade_def.clone();
-            // let mapping_menus = mapping_menus.clone();
-            // let plot_notebook = plot_notebook.clone();
-            // let plot_toggle = plot_toggle.clone();
-            // let status_stack = status_stack.clone();
-            /*{
-                // let add_mapping_popover = add_mapping_popover.clone();
-                let sel_mapping = sel_mapping.clone();
-                // let add_mapping_btn = layout_toolbar.add_mapping_btn.clone();
-
-                // Update current mapping name state for add behavior
-                btn.connect_toggled(move |btn| {
-                    if btn.get_active() {
-                        *(sel_mapping.borrow_mut()) = mapping.clone();
-                        // add_mapping_btn.set_sensitive(true);
-                    }
-                    // add_mapping_popover.hide();
-                    // remove_mapping_btn.set_sensitive(true);
-                });
-            }*/
         }
 
         // Disable toggles alternatively / set add sensitive
@@ -601,7 +551,7 @@ impl LayoutToolbar {
         Self::remove_mapping_at_index(plot_popover, mapping_menus, plot_view, mapping_ix);
     }
 
-    pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
+    /*pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
         // TODO: Allow sensitive only when selected mapping applicable to current plot region.
         //let visible = self.sidebar_stack.get_visible_child_name()
         //    .ok_or("Unable to determine layout stack status" )?;
@@ -643,7 +593,7 @@ impl LayoutToolbar {
             self.edit_mapping_btn.set_sensitive(false);
         }
         Ok(())
-    }
+    }*/
 
     pub fn set_toggles_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
         Self::config_toggles_sensitive(
@@ -658,7 +608,6 @@ impl LayoutToolbar {
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_popover : &PlotPopover,
         selected : &[usize],
-        //curr : usize
     ) {
         let map_len = if let Ok(mappings) = mapping_menus.try_borrow(){
             mappings.len()
@@ -670,9 +619,6 @@ impl LayoutToolbar {
         let mapped = Self::check_mapped(&selected[..], mapping_menus.clone(), None);
         let types : Vec<_> = mapped.iter().map(|(t, _, _)| t.as_str() ).collect();
         println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
-
-        // set_toggle(true) will propagage through all toggles at this call, setting add/edit
-        // sensitive depending on the types as needed.
 
         self.set_toggles_sensitive(selected.len());
         println!("Currently mapped data: {:?}", mapped);
@@ -695,16 +641,6 @@ impl LayoutToolbar {
         } else {
             self.set_toggled_mappings(&[]);
         }
-
-        /*} else {
-            // sidebar.set_add_mapping_sensitive(selected.len())
-            //    .map_err(|e| println!("{}", e) ).ok();
-            // if let Ok(mut sel_mapping) = plot_popover.sel_mapping.try_borrow_mut() {
-            //    sel_mapping.curr_ix = 0;
-            // } else {
-            //    println!("Failed to acquire mutable reference to selected mapping");
-            // }
-        }*/
     }
 
     /// The toggles that are sensitive is a function of the number of selected columns alone.
@@ -721,16 +657,12 @@ impl LayoutToolbar {
             3 => vec!["area", "text", "surface"],
             _ => vec![]
         };
-        // println!("mapping_btns : {:?}", mapping_btns);
-        // println!("should be sensitive: {:?}", sensitive);
         for (mapping, btn) in mapping_btns.iter() {
             if sensitive.iter().find(|n| *n == mapping).is_some() {
-                // println!("{} set to sensitive=true", mapping);
                 if !btn.get_sensitive() {
                     btn.set_sensitive(true);
                 }
             } else {
-                // println!("{} set to sensitive=false", mapping);
                 if btn.get_sensitive() {
                     btn.set_sensitive(false);
                 }
@@ -776,9 +708,6 @@ impl LayoutToolbar {
         } else {
             println!("Could not borrow mapping_menus");
         }
-        // self.edit_mapping_btn.set_sensitive(true);
-        // self.remove_mapping_btn.set_sensitive(true);
-        // self.mapping_popover.show();
     }
 
 

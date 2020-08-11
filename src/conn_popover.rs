@@ -15,7 +15,7 @@ use std::io::Read;
 use crate::tables::table::*;
 use crate::status_stack::*;
 use crate::sql_editor::SqlEditor;
-use crate::plots::layout_menu::PlotSidebar;
+use crate::plots::layout_window::PlotSidebar;
 use crate::table_notebook::*;
 
 #[derive(Clone)]

@@ -17,7 +17,8 @@ pub struct LineMapping {
     y : Vec<f64>,
     width : f64,
     dash_n : i32,
-    col_names : [String; 2]
+    col_names : [String; 2],
+    source : String
 }
 
 impl LineMapping {
@@ -36,7 +37,8 @@ impl LineMapping {
             String::from("None"),
             String::from("None")
         ];
-        let mut mapping = LineMapping{color, x, y, width, dash_n, col_names};
+        let source = String::new();
+        let mut mapping = LineMapping{color, x, y, width, dash_n, col_names, source};
         mapping.update_layout(node);
         mapping
     }
@@ -171,6 +173,14 @@ impl Mapping for LineMapping {
             self.set_col_name("y", &cols[1]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 }
 

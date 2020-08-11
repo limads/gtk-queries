@@ -27,8 +27,11 @@ pub enum UpdateContent {
     /// Mapping name; Mapping type
     NewMapping(String, String),
 
-    // Mapping id; Column id; Column names;
-    //MappingColumn(String, Vec<String>),
+    // Mapping id; Column names;
+    ColumnNames(String, Vec<String>),
+
+    // Mapping id; source
+    Source(String, String),
 
     /// Mapping id
     RemoveMapping(String),
@@ -149,15 +152,12 @@ impl PlotView {
                 }
                 self.parent.queue_draw();
             },
-            //UpdateContent::MappingColumn(m_name, cols) => {
-            //    panic!("Unimplemented")
-                /*let old_cols = self.plot_area.mapping_column_names(m_name);
-                for ((col, _), new_name) in old_cols.iter().zip(cols.iter()) {
-                    let prop_name = String::from("/gridplot/object[@name='") +
-                        &m_name + "']/property[@name='" + &col + "']";
-                    self.plot_area.update_layout(&prop_name, new_name);
-                }*/
-            //},
+            UpdateContent::ColumnNames(m_name, cols) => {
+                self.plot_group.update_mapping_columns(active, &m_name, cols.to_vec());
+            },
+            UpdateContent::Source(m_name, source) => {
+                self.plot_group.update_source(active, &m_name, source.clone());
+            },
             UpdateContent::NewMapping(m_name, m_type) => {
                 self.insert_mapping(active, m_name.clone(), m_type.clone());
                 self.parent.queue_draw();

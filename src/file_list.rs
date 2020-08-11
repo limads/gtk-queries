@@ -79,7 +79,12 @@ impl FileList {
         file_list
     }
 
-    pub fn add_fresh_source(&self, content_stack : Stack, sql_editor : SqlEditor, query_toggle : ToggleButton) {
+    pub fn add_fresh_source(
+        &self,
+        content_stack : Stack,
+        sql_editor : SqlEditor,
+        query_toggle : ToggleButton
+    ) {
         let n_untitled = self.files.borrow().iter()
             .filter(|f| f.starts_with("Untitled") )
             .filter_map(|f| f.split(' ').nth(1) )
@@ -87,11 +92,19 @@ impl FileList {
             .and_then(|n| n.parse::<usize>().ok() )
             .unwrap_or(0);
         let title = &format!("Untitled {}", n_untitled + 1);
+        println!("New title: {}", title);
         let row = self.add_file_row(&title, content_stack.clone(), sql_editor.clone());
         self.list_box.select_row(Some(&row));
         if !query_toggle.get_active() {
             query_toggle.set_active(true);
         }
+        self.list_box.show_all();
+        let n = self.files.borrow().len();
+        content_stack.add_named(
+            &SqlEditor::new_source("", &sql_editor.refresh_btn.clone()),
+            &format!("queries_{}", n)
+        );
+        content_stack.show_all();
     }
 
     fn remove_source(

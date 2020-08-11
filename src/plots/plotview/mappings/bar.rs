@@ -23,7 +23,8 @@ pub struct BarMapping {
     bar_width : f64,
     origin : (f64, f64),
     bar_spacing : f64,
-    horizontal : bool
+    horizontal : bool,
+    source : String
 }
 
 impl BarMapping {
@@ -50,9 +51,11 @@ impl BarMapping {
         let origin = (0.0, 0.0);
         let bar_spacing = 1.0;
         let horizontal = false;
+        let source = String::new();
         let mut mapping = BarMapping{
             color, center_anchor, x, y, w, h,
-            col_names, bar_width, origin, bar_spacing, horizontal
+            col_names, bar_width, origin, bar_spacing, horizontal,
+            source
         };
         mapping.update_layout(node);
         mapping
@@ -254,6 +257,14 @@ impl Mapping for BarMapping {
             self.set_col_name("height", &cols[3]);
             Ok(())
         }
+    }
+
+    fn set_source(&mut self, source : String) {
+        self.source = source;
+    }
+
+    fn get_source(&self) -> String {
+        self.source.clone()
     }
 
 }

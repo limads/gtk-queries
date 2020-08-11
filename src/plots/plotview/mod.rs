@@ -60,12 +60,16 @@ impl Error for PlotError {
 
 }*/
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GroupSplit {
-    None,
+    Unique,
     Vertical,
     Horizontal,
-    Both
+    Four,
+    ThreeLeft,
+    ThreeTop,
+    ThreeRight,
+    ThreeBottom
 }
 
 /// A plotgroup has at least one first plot.
@@ -80,9 +84,6 @@ pub struct PlotGroup {
     h_ratio : f64,
 
     v_ratio : f64,
-
-    // (x, y) origin; proportion.
-    // bounds : Vec<(f64, f64, f64, f64)>,
 
     parser : Parser,
 
@@ -103,7 +104,7 @@ impl PlotGroup {
             .first().cloned().expect("No design node");
         let design = PlotDesign::new(&design_node)
             .expect("Failed instantiating design");
-        let mut plot_group = Self{ parser, doc, plots, split : GroupSplit::None, v_ratio : 1.0, h_ratio : 1.0, design };
+        let mut plot_group = Self{ parser, doc, plots, split : GroupSplit::Unique, v_ratio : 1.0, h_ratio : 1.0, design };
         plot_group.load_layout(layout_path)?;
         Ok(plot_group)
     }
@@ -133,26 +134,59 @@ impl PlotGroup {
         w : i32,
         h : i32
     ) {
-        //println!("--");
+        let top_left = (0.05, 0.05);
+        let top_right = (w as f64 * self.v_ratio, 0.05);
+        let bottom_left = (0.05, h as f64 * self.h_ratio);
+        let bottom_right = (w as f64 * self.v_ratio, h as f64 * self.h_ratio);
         for (i, plot) in self.plots.iter_mut().enumerate() {
-            //println!("w : {}; h : {}", w, h);
             let origin_offset = match (&self.split, i) {
                 (GroupSplit::Horizontal, 1) => (0.05, h as f64 * self.v_ratio),
                 (GroupSplit::Vertical, 1) => (w as f64 * self.h_ratio, 0.05),
-                (GroupSplit::Both, 1) => (w as f64 * self.v_ratio, 0.05),
-                (GroupSplit::Both, 2) => (0.05, h as f64 * self.h_ratio),
-                (GroupSplit::Both, 3) => (w as f64 * self.v_ratio, h as f64 * self.h_ratio),
-                _ => (0.05, 0.05)
+                (GroupSplit::Four, 1) => top_right,
+                (GroupSplit::Four, 2) => bottom_left,
+                (GroupSplit::Four, 3) => bottom_right,
+                (GroupSplit::ThreeLeft, 1) => top_right,
+                (GroupSplit::ThreeLeft, 2) => bottom_right,
+                (GroupSplit::ThreeTop, 1) => bottom_left,
+                (GroupSplit::ThreeTop, 2) => bottom_right,
+                (GroupSplit::ThreeRight, 0) => top_left,
+                (GroupSplit::ThreeRight, 1) => top_left,
+                (GroupSplit::ThreeRight, 2) => bottom_left,
+                (GroupSplit::ThreeBottom, 0) => top_left,
+                (GroupSplit::ThreeBottom, 1) => bottom_left,
+                (GroupSplit::ThreeBottom, 2) => bottom_right,
+                _ => top_left
             };
+
+            let h_full_v = (1., self.v_ratio);
+            let h_full_v_compl = (1., 1. - self.v_ratio);
+            let h_v_full = (self.h_ratio, 1.);
+            let h_compl_v_full = (1. - self.h_ratio, 1.);
+            let h_compl_v = (1. - self.h_ratio, self.v_ratio);
+            let h_v_compl = (self.h_ratio, 1. - self.v_ratio);
+            let diag = (self.h_ratio, self.v_ratio);
+            let diag_compl = (1. - self.h_ratio, 1. - self.v_ratio);
             let scale_factor = match (&self.split, i) {
-                (GroupSplit::Horizontal, 0) => (1., self.v_ratio),
-                (GroupSplit::Horizontal, 1) => (1., 1. - self.v_ratio),
-                (GroupSplit::Vertical, 0) => (self.h_ratio, 1.),
-                (GroupSplit::Vertical, 1) => (1. - self.h_ratio, 1.),
-                (GroupSplit::Both, 0) => (self.h_ratio, self.v_ratio),
-                (GroupSplit::Both, 1) => (1. - self.h_ratio, self.v_ratio),
-                (GroupSplit::Both, 2) => (self.h_ratio, 1. - self.v_ratio),
-                (GroupSplit::Both, 3) => (1. - self.h_ratio, 1. - self.v_ratio),
+                (GroupSplit::Horizontal, 0) => h_full_v,
+                (GroupSplit::Horizontal, 1) => h_full_v_compl,
+                (GroupSplit::Vertical, 0) => h_full_v,
+                (GroupSplit::Vertical, 1) => h_compl_v_full,
+                (GroupSplit::Four, 0) => diag,
+                (GroupSplit::Four, 1) => h_compl_v,
+                (GroupSplit::Four, 2) => h_v_compl,
+                (GroupSplit::Four, 3) => diag_compl,
+                (GroupSplit::ThreeLeft, 0) => h_full_v,
+                (GroupSplit::ThreeLeft, 1) => h_compl_v,
+                (GroupSplit::ThreeLeft, 2) => diag_compl,
+                (GroupSplit::ThreeTop, 0) => h_compl_v_full,
+                (GroupSplit::ThreeTop, 1) => h_v_compl,
+                (GroupSplit::ThreeTop, 2) => diag_compl,
+                (GroupSplit::ThreeRight, 0) => diag,
+                (GroupSplit::ThreeRight, 1) => h_full_v_compl,
+                (GroupSplit::ThreeRight, 2) => h_v_compl,
+                (GroupSplit::ThreeBottom, 0) => diag,
+                (GroupSplit::ThreeBottom, 1) => h_compl_v,
+                (GroupSplit::ThreeBottom, 2) => h_compl_v_full,
                 _ => (1., 1.)
             };
             let origin = (x as f64 + origin_offset.0, y as f64 + origin_offset.1);
@@ -160,7 +194,7 @@ impl PlotGroup {
             ctx.save();
             // ctx.move_to(0.0, 0.0);
             ctx.translate(origin.0, origin.1);
-            //println!("i: {}; origin: {:?}, size: {:?}", i, origin, size);
+            // println!("i: {}; origin: {:?}, size: {:?}", i, origin, size);
             plot.draw_plot(&ctx, &self.design, size.0, size.1);
             ctx.restore();
         }
@@ -177,6 +211,9 @@ impl PlotGroup {
     }
 
     pub fn load_layout(&mut self, path : String) -> Result<(), String> {
+
+        use GroupSplit::*;
+
         self.doc = self.parser.parse_file(&path)
             .map_err(|e| format!("Failed parsing XML: {}", e) )?;
         let root_el = self.doc.get_root_element()
@@ -202,10 +239,14 @@ impl PlotGroup {
                     Some("split") => {
                         found_split = true;
                         match &node.get_content()[..] {
-                            "None" => self.split = GroupSplit::None,
-                            "Both" => self.split = GroupSplit::Both,
-                            "Horizontal" => self.split = GroupSplit::Horizontal,
-                            "Vertical" => self.split = GroupSplit::Vertical,
+                            "Unique" => self.split = Unique,
+                            "Four" => self.split = Four,
+                            "Horizontal" => self.split = Horizontal,
+                            "Vertical" => self.split = Vertical,
+                            "ThreeLeft" => self.split = ThreeLeft,
+                            "ThreeTop" => self.split = ThreeTop,
+                            "ThreeRight" => self.split = ThreeRight,
+                            "ThreeBottom" => self.split = ThreeBottom,
                             _ => return Err(String::from("Unrecognized split value"))
                         }
                     },
@@ -220,21 +261,25 @@ impl PlotGroup {
             return Err("Root node plotgroup does not contain any plotarea children.".into());
         }
         if !found_split {
-            self.split = GroupSplit::None;
+            self.split = Unique;
         }
         match self.split {
-            GroupSplit::None => if self.plots.len() != 1 {
+            Unique => if self.plots.len() != 1 {
                 return Err("'None' split require 1 plot".into());
             },
-            GroupSplit::Vertical => if self.plots.len() != 2 {
+            Vertical => if self.plots.len() != 2 {
                 return Err("Vertical split require 2 plots".into());
             },
-            GroupSplit::Horizontal => if self.plots.len() != 2 {
+            Horizontal => if self.plots.len() != 2 {
                 return Err("Horizontal split require 2 plots".into());
             },
-            GroupSplit::Both => if self.plots.len() != 4 {
+            Four => if self.plots.len() != 4 {
                 return Err("'Both' split require 4 plots".into());
-            }
+            },
+            ThreeLeft | ThreeTop | ThreeRight | ThreeBottom => if self.plots.len() != 3 {
+                return Err("'Three' split require 3 plots".into());
+            },
+            _ => unimplemented!()
         }
         self.reload_layout_data()
             .map_err(|_| "Could not reload layout data")?;
@@ -242,9 +287,9 @@ impl PlotGroup {
             plot.reload_mappings()
                 .map_err(|()| "Could not reload mappings from informed layout")?;
         }
-        //println!("h: {}; v : {}; split: {:?}", self.h_ratio, self.v_ratio, self.split);
+        // println!("h: {}; v : {}; split: {:?}", self.h_ratio, self.v_ratio, self.split);
         Ok(())
-         //Document.get_root_element(&self) -> Option<Node>
+        // Document.get_root_element(&self) -> Option<Node>
     }
 
     pub fn save_layout(&self, path : String) {
@@ -308,6 +353,14 @@ impl PlotGroup {
 
     pub fn update_mapping_text(&mut self, ix : usize, id : &str, text : &Vec<String>) -> Result<(), Box<dyn Error>> {
         self.plots[ix].update_mapping_text(id, text)
+    }
+
+    pub fn update_mapping_columns(&mut self, ix : usize, id : &str, cols : Vec<String>) -> Result<(), Box<dyn Error>> {
+        self.plots[ix].update_mapping_columns(id, cols)
+    }
+
+    pub fn update_source(&mut self, ix : usize, id : &str, source : String) -> Result<(), Box<dyn Error>> {
+        self.plots[ix].update_source(id, source)
     }
 
     pub fn add_mapping(&mut self, ix : usize, mapping_index : String, mapping_type : String) -> Result<(), String> {
@@ -1029,11 +1082,11 @@ impl PlotArea {
         }
     }
 
-    /*pub fn update_mapping_columns(
+    pub fn update_mapping_columns(
         &mut self,
         id : &str,
         columns : Vec<String>
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         if let Some(mapping) = self.mappings.get_mut(id.parse::<usize>().unwrap()) {
             if let Err(e) = mapping.set_col_names(columns) {
                 println!("{}", e);
@@ -1041,10 +1094,24 @@ impl PlotArea {
         } else {
             println!("Mapping not found when updating column name");
         }
-        if let Err(e) = self.reload_layout_data() {
+        if let Err(e) = self.reload_layout_node() {
             println!("{}", e);
         }
-    }*/
+        Ok(())
+    }
+
+    pub fn update_source(
+        &mut self,
+        id : &str,
+        source : String
+    ) -> Result<(), Box<dyn Error>> {
+        if let Some(mapping) = self.mappings.get_mut(id.parse::<usize>().unwrap()) {
+            mapping.set_source(source);
+        } else {
+            println!("Mapping not found when updating column name");
+        }
+        Ok(())
+    }
 
     /*pub fn update_mapping_column(
         &mut self,

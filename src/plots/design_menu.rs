@@ -1,22 +1,9 @@
 use gtk::*;
-// use gio::prelude::*;
 use std::rc::Rc;
 use std::cell::{RefCell};
-// use std::fs::File;
-// use gtkplotview::PlotView;
-// use std::io::Read;
-use super::plotview::plot_view::{PlotView, /*UpdateContent*/ };
-// use super::plotview::PlotArea;
-// use std::path::PathBuf;
-//use mapping_menu::MappingMenu;
+use super::plotview::plot_view::{PlotView};
 use super::layout_aux::*;
-//use crate::tables::{source::EnvironmentSource, environment::TableEnvironment};
-//use tables::button::TableChooser;
-// use std::boxed;
-//use layout_menu::*;
-//use save_widgets::*;
 use std::collections::HashMap;
-// use gdk::RGBA;
 use gtk::prelude::*;
 
 #[derive(Clone)]

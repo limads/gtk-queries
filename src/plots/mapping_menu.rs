@@ -2,29 +2,12 @@ use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-// use gtkplotview::PlotArea;
-// use std::io::{Read, BufReader};
-// use std::path::PathBuf;
-// use crate::data_source::TableDataSource;
-// use crate::plots::plotview::PlotArea;
 use crate::plots::layout_aux::*;
 use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
 use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
-// use crate::table_notebook::*;
-// use crate::tables::table::*;
-// use crate::status_stack::*;
 use std::default::Default;
-
-//pub struct ActiveMapping {
-    // mapping_name
-    // mapping_type
-    // plot : usize
-    // ixs
-    // clear mapping just sets this to None
-    //menu : Option<MappingMenu>
-//}
 
 #[derive(Clone, Debug, Default)]
 pub struct DataSource {
@@ -208,22 +191,29 @@ impl MappingMenu {
                 self.column_labels.push(builder.get_object::<Label>("column_y_label").unwrap());
             },
             "scatter" => {
-
+                self.column_labels.push(builder.get_object::<Label>("column_x_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_y_label").unwrap());
             },
             "bar" => {
-
+                self.column_labels.push(builder.get_object::<Label>("column_height_label").unwrap());
             },
             "text" => {
-
+                self.column_labels.push(builder.get_object::<Label>("column_x_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_y_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_text_label").unwrap());
             },
             "area" => {
-
+                self.column_labels.push(builder.get_object::<Label>("column_x_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_ymin_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_ymax_label").unwrap());
             },
             "surface" => {
-
+                self.column_labels.push(builder.get_object::<Label>("column_x_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_y_label").unwrap());
+                self.column_labels.push(builder.get_object::<Label>("column_z_label").unwrap());
             },
             _ => {
-
+                panic!("Unknown surface: {}", self.mapping_type);
             }
         }
     }
@@ -438,6 +428,12 @@ impl MappingMenu {
         s.set_active(value.parse().unwrap());
     }
 
+    pub fn set_font_property(wid : &Widget, value : &str) {
+        let btn : FontButton = wid.clone().downcast()
+            .expect("Could not downcast to entry");
+        btn.set_font_name(&value);
+    }
+
     pub fn update_widget_values(
         &self,
         properties : HashMap<String, String>
@@ -466,7 +462,10 @@ impl MappingMenu {
                     .ok_or(no_val)?);
             },
             "text" => {
-
+                let wid_font = self.design_widgets.get("text_mapping_font_btn")
+                    .ok_or(no_wid)?;
+                Self::set_font_property(wid_font, properties.get("font")
+                    .ok_or(no_val)?);
             },
             "bar" => {
                 let wid_center = self.design_widgets.get("bar_anchor_switch")
@@ -635,10 +634,17 @@ impl MappingMenu {
             println!("No data for current mapping");
             return Ok(())
         }
-        let (cols, _, _) = t_env.get_columns(&selected[..]).unwrap();
-        let name = self.get_mapping_name().map(|n| n.clone())
+        let (cols, _, query) = t_env.get_columns(&selected[..]).unwrap();
+        let name = self.get_mapping_name()
+            .map(|n| n.clone())
             .ok_or("Unable to get mapping name")?;
-        let pos0 = cols.try_numeric(0).ok_or("Error mapping column 1 to position")?;
+        let pos0 = cols.try_numeric(0)
+            .ok_or("Error mapping column 1 to position")?;
+        let col_names : Vec<_> = cols.names().iter()
+            .map(|n| n.to_string())
+            .collect();
+        pl_view.update(&mut UpdateContent::ColumnNames(name.clone(), col_names));
+        pl_view.update(&mut UpdateContent::Source(name.clone(), query));
         match &self.mapping_type[..] {
             "text" => {
                 let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to position")?;
@@ -692,59 +698,6 @@ impl MappingMenu {
     }
 
 }
-
-/*/// Updates the data underlying a single mapping
-/// from the plot and queues a redraw. Assumes
-/// both the plot and source were unwrapped from
-/// Rc<RefCell<.>>
-pub fn update_mapping_data(
-    source : &TableEnvironment,
-    mapping_name : String,
-    mapping_type : String,
-    cols : Vec<String>,
-    plot : &mut PlotView,
-    tbl_nb : TableNotebook
-) -> Result<(), &'static str> {
-
-    println!("{:?}", tbl_nb.full_selected_cols());
-    match &mapping_type[..] {
-        "text" => {
-            // TODO recover data here
-            /*let pos_cols = source.get_subset_cols(vec![cols[0].clone(), cols[1].clone()]);
-            let txt_cols = source.subset_cols_as_txt(vec![cols[2].clone()]);
-            match (pos_cols, txt_cols) {
-                (Ok(pcs), Ok(tcs)) => {
-                    if let Some(tc) = tcs.get(0) {
-                        plot.update(&mut UpdateContent::TextData(mapping_name, pcs, tc.clone()));
-                        Ok(())
-                    } else {
-                        Err("No text column available")
-                    }
-                },
-                _ => Err("Invalid column selection")
-            }*/
-        },
-        _ => {
-            /*let matched_cols = source.get_subset_cols(cols);
-            match matched_cols {
-                Ok(cols) => {
-                    plot.update(&mut UpdateContent::Data(mapping_name, cols));
-                    Ok(())
-                },
-                _ => Err("Not possible to fetch columns")
-            }*/
-        }
-    }
-    Ok(())
-}*/
-
-// fn build_query_item(label : &str) {
-// let bx = Box::new(Orientation::Horizontal, 0);
-// let check = CheckButton::new_with_label(label);
-// }
-// Use new_line/new_scatter etc to hook up layout-dependent signals.
-// actual struct is just used to update the data.
-
 
 
 

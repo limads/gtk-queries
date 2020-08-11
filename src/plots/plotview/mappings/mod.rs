@@ -1,12 +1,8 @@
 use libxml::tree::node::Node;
-// use gdk::RGBA;
 use cairo::Context;
 use super::context_mapper::ContextMapper;
 use std::collections::HashMap;
-// use std::f64::consts::PI;
 use super::utils;
-// use super::context_mapper::Coord2D;
-// use cairo::ScaledFont;
 use super::text::{FontData, draw_label};
 
 pub mod area;
@@ -52,6 +48,7 @@ impl MappingType {
         hash.insert(String::from("color"), String::from("#000000"));
         hash.insert(String::from("x"), String::from("None"));
         hash.insert(String::from("y"), String::from("None"));
+        hash.insert(String::from("source"), String::from("None"));
         match self {
             MappingType::Line => {
                 hash.insert(String::from("width"), String::from("1"));
@@ -126,6 +123,11 @@ pub trait Mapping {
     fn set_col_name(&mut self, col : &str, name : &str);
 
     fn set_col_names(&mut self, cols : Vec<String>) -> Result<(), &'static str>;
+
+    fn set_source(&mut self, source : String);
+
+    fn get_source(&self) -> String;
+
 }
 
 
