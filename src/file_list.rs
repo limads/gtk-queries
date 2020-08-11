@@ -44,10 +44,10 @@ impl FileList {
 
                     // Set visible child only when app is at edit mode. At connect_toggles,
                     // the current index will always be used to set to the right source window.
-                    let old_name = content_stack.get_visible_child_name().unwrap();
-                    println!("Old name: {}", old_name);
+                    // let old_name = content_stack.get_visible_child_name().unwrap();
+                    // println!("Old name: {}", old_name);
                     let new_name = format!("queries_{}", curr_ix);
-                    println!("new name: {}", new_name);
+                    println!("Selecting: {}", new_name);
                     // if old_name.starts_with("queries") {
                     if !query_toggle.get_active() {
                         query_toggle.set_active(true);
@@ -93,18 +93,22 @@ impl FileList {
             .unwrap_or(0);
         let title = &format!("Untitled {}", n_untitled + 1);
         println!("New title: {}", title);
+        self.files.borrow_mut().push(title.clone());
+        self.list_box.unselect_all();
         let row = self.add_file_row(&title, content_stack.clone(), sql_editor.clone());
-        self.list_box.select_row(Some(&row));
+        self.list_box.show_all();
         if !query_toggle.get_active() {
             query_toggle.set_active(true);
         }
-        self.list_box.show_all();
         let n = self.files.borrow().len();
+        let stack_name = format!("queries_{}", n - 1);
+        println!("Adding stack child named: {}", stack_name);
         content_stack.add_named(
             &SqlEditor::new_source("", &sql_editor.refresh_btn.clone()),
-            &format!("queries_{}", n)
+            &stack_name
         );
         content_stack.show_all();
+        self.list_box.select_row(Some(&row));
     }
 
     fn remove_source(
@@ -123,18 +127,19 @@ impl FileList {
             files.borrow_mut().remove(ix);
             let curr_child_name = format!("queries_{}", ix);
             println!("Current child name = {}", curr_child_name);
+            println!("Current child index = {}", ix);
             let stack_child = content_stack.get_child_by_name(&curr_child_name).unwrap();
             content_stack.remove(&stack_child);
+            content_stack.show_all();
 
             // Case the removed is not last source at stack, rename all posterior sources
             if n >= 2 && ix < n - 1 {
-                let children = content_stack.get_children();
-                let post_children = children.iter()
-                    .skip(ix - 1);
-                for (i, child) in post_children.enumerate() {
-                    let new_name = format!("queries_{}", ix + i);
-                    println!("Updating name to {}", new_name);
-                    content_stack.set_child_name(child, Some(&new_name));
+                for i in (ix+1)..n {
+                    let old_name = format!("queries_{}", i);
+                    let new_name = format!("queries_{}", i - 1);
+                    println!("Updating {} to {}", old_name, new_name);
+                    let child = content_stack.get_child_by_name(&old_name).unwrap();
+                    content_stack.set_child_name(&child, Some(&new_name));
                 }
             }
 
@@ -184,6 +189,7 @@ impl FileList {
             let list_box = self.list_box.clone();
             let files = self.files.clone();
             ev_box.connect_button_press_event(move |ev_box, ev| {
+                println!("Close button pressed");
                 Self::remove_source(row.clone(), list_box.clone(), files.clone(), content_stack.clone(), sql_editor.clone());
                 glib::signal::Inhibit(true)
             });
