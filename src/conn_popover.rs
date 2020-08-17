@@ -17,6 +17,7 @@ use crate::status_stack::*;
 use crate::sql_editor::SqlEditor;
 use crate::plots::layout_window::PlotSidebar;
 use crate::table_notebook::*;
+use crate::functions::registry::FunctionRegistry;
 
 #[derive(Clone)]
 pub struct ConnPopover {
@@ -291,7 +292,8 @@ impl ConnPopover {
         table_notebook : TableNotebook,
         status : StatusStack,
         sql_popover : SqlEditor,
-        plot_sidebar : PlotSidebar
+        plot_sidebar : PlotSidebar,
+        fn_reg : FunctionRegistry
     ) {
         let conn_popover = self.clone();
         self.conn_switch.connect_state_set(move |switch, state| {
@@ -396,8 +398,10 @@ impl ConnPopover {
                     Status::Connected => {
                         sql_popover.set_active(true);
                         plot_sidebar.set_active(true);
+                        fn_reg.set_sensitive(false);
                     },
                     _ => {
+                        fn_reg.set_sensitive(true);
                         if let Ok(mut t_env) = table_env.try_borrow_mut() {
                             Self::clear_session(
                                 sql_popover.clone(),

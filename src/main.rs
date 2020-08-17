@@ -355,7 +355,8 @@ impl QueriesApp {
             tables_nb.clone(),
             status_stack.clone(),
             sql_editor.clone(),
-            sidebar.clone()
+            sidebar.clone(),
+            fn_reg.clone()
         );
 
         //let query_toggle : ToggleButton =

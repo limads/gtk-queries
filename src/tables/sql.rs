@@ -547,6 +547,19 @@ impl SqlEngine {
         }
     }
 
+    pub fn remove_sqlite3_udfs(&self, loader : &FunctionLoader, lib_name : &str) {
+        match self {
+            SqlEngine::Sqlite3{ conn, .. } => {
+                for f in loader.fn_list_for_lib(lib_name) {
+                    if let Err(e) = conn.remove_function(&f.name, f.args.len() as i32) {
+                        println!("{}", e);
+                    }
+                }
+            },
+            _ => println!("No UDFs can be registered with the current engine")
+        }
+    }
+
     fn bind_sqlite3_udfs(conn : &rusqlite::Connection, loader : &FunctionLoader) {
         println!("Function loader state (New Sqlite3 conn): {:?}", loader);
         match loader.load_functions() {
@@ -570,6 +583,10 @@ impl SqlEngine {
                             // any time the library is de-activated.
                             // (3) No call to raw_fn must happen outside the TableEnvironment public API,
                             // (since TableEnvironment holds an Arc copy to FunctionLoader).
+                            // Libraries that are not active but are loaded stay on main memory, but will not
+                            // be registered by this function because load_functions return only active libraries.
+                            // Perhaps only let the user add/remove/active libraries when there is no connection open
+                            // for safety.
                             let raw_fn = unsafe { f.into_raw() };
                             conn.create_scalar_function(
                                 &func.name,

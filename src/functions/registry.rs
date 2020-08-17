@@ -2,7 +2,7 @@ use gtk::*;
 use gio::prelude::*;
 use std::env::{self, args};
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, RefCell, RefMut};
 use std::fs::File;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -111,7 +111,8 @@ pub struct FunctionRegistry {
     fn_doc_label : Label,
     so_file_chooser : FileChooserDialog,
     lib_info : InfoBar,
-    info_lbl : Label
+    info_lbl : Label,
+    sensitive : Rc<Cell<bool>>
     // fn_arg_box : Box,
     // src_entry : Entry,
     // dst_entry : Entry
@@ -269,6 +270,21 @@ impl FunctionRegistry {
         Ok(args)
     }*/
 
+    pub fn set_sensitive(&self, state : bool) {
+        self.sensitive.set(state);
+        self.lib_update_btn.set_sensitive(state);
+        self.lib_add_btn.set_sensitive(state);
+        self.lib_remove_btn.set_sensitive(state);
+        for child in self.lib_list_box.get_children() {
+            let row = child.downcast::<ListBoxRow>().unwrap();
+            let wid = row.get_child().unwrap();
+            let bx = wid.downcast::<gtk::Box>().unwrap();
+            let check = &bx.get_children()[0].clone()
+                .downcast::<CheckButton>().unwrap();
+            check.set_sensitive(state);
+        }
+    }
+
     fn update_fn_info(&self, name : Option<&str>) {
         if let Ok(loader) = self.loader.lock() {
             if let Some(name) = name {
@@ -277,7 +293,7 @@ impl FunctionRegistry {
                     if let Some(doc) = loader.get_doc(name) {
                         self.fn_doc_label.set_text(&doc[..]);
                     } else {
-                        println!("No doc available");
+                        self.fn_doc_label.set_text("No documentation available");
                     }
                 } else {
                     println!("{} not in function Registry", name);
@@ -291,9 +307,17 @@ impl FunctionRegistry {
         }
     }
 
-    fn reload_lib_list(list_box : &ListBox, loader : &Arc<Mutex<FunctionLoader>>, prefix : Option<&str>) {
-        for child in list_box.get_children() {
-            list_box.remove(&child);
+    fn reload_lib_list(
+        lib_list_box : &ListBox,
+        fn_list_box : &ListBox,
+        loader : &Arc<Mutex<FunctionLoader>>,
+        prefix : Option<&str>
+    ) {
+        for child in lib_list_box.get_children() {
+            lib_list_box.remove(&child);
+        }
+        for child in fn_list_box.get_children() {
+            fn_list_box.remove(&child);
         }
         let lib_list : Vec<(String, bool)> = if let Ok(loader) = loader.lock() {
             loader.lib_list()
@@ -307,11 +331,11 @@ impl FunctionRegistry {
         for (i, (lib, active)) in lib_list.iter().enumerate() {
             if prefix.map(|p| lib.starts_with(p) ).unwrap_or(true) {
                 // println!("Must add: {}", lib);
-                let n = list_box.get_children().len();
-                list_box.insert(&Self::build_lib_item(lib, &loader, *active), n as i32);
+                let n = lib_list_box.get_children().len();
+                lib_list_box.insert(&Self::build_lib_item(lib, &loader, *active), n as i32);
             }
         }
-        list_box.show_all();
+        lib_list_box.show_all();
     }
 
     fn build_lib_item(name : &str, loader : &Arc<Mutex<FunctionLoader>>, active : bool) -> ListBoxRow {
@@ -392,13 +416,14 @@ impl FunctionRegistry {
         let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
         let so_file_chooser : FileChooserDialog = builder.get_object("so_file_chooser").unwrap();
-
+        let sensitive = Rc::new(Cell::new(false));
         {
             let loader = loader.clone();
             let lib_list_box = lib_list_box.clone();
             let search_entry = search_entry.clone();
             let lib_info = lib_info.clone();
             let info_lbl = info_lbl.clone();
+            let fn_list_box = fn_list_box.clone();
             so_file_chooser.connect_response(move |dialog, resp|{
                 match resp {
                     ResponseType::Other(1) => {
@@ -419,7 +444,7 @@ impl FunctionRegistry {
                                 println!("Could not lock function loader");
                             }
                             search_entry.set_text("");
-                            Self::reload_lib_list(&lib_list_box, &loader, None);
+                            Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
                         } else {
                             println!("Could not retrieve file path");
                         }
@@ -439,23 +464,35 @@ impl FunctionRegistry {
 
         {
             let loader = loader.clone();
+            let lib_list_box = lib_list_box.clone();
+            let fn_list_box = fn_list_box.clone();
             lib_update_btn.connect_clicked(move |_| {
                 if let Ok(mut loader) = loader.lock() {
-                    println!("Should update library now");
+                    if let Err(e) = loader.reload_libs() {
+                        println!("Error updating library: {}", e);
+                        return;
+                    }
+                    println!("Libraries updated");
                 } else {
                     println!("Could not lock function loader");
                 }
+                Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
             });
         }
 
         {
             let loader = loader.clone();
             let lib_list_box = lib_list_box.clone();
+            let fn_list_box = fn_list_box.clone();
             lib_remove_btn.connect_clicked(move |_| {
                 match (loader.lock(), lib_list_box.get_selected_row()) {
                     (Ok(mut loader), Some(row)) => {
                         if let Some(name) = Self::get_row_name(&row, 1) {
                             if let Err(e) = loader.remove_crate(&name[..]) {
+                                println!("Error removing library: {}", e);
+                                return;
+                            }
+                            if let Err(e) = loader.reload_libs() {
                                 println!("{}", e);
                             }
                         }
@@ -464,6 +501,7 @@ impl FunctionRegistry {
                         println!("Error removing function");
                     }
                 }
+                Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
             });
         }
 
@@ -481,9 +519,12 @@ impl FunctionRegistry {
             let fn_list_box = fn_list_box.clone();
             let loader = loader.clone();
             let (lib_remove_btn, lib_update_btn) = (lib_remove_btn.clone(), lib_update_btn.clone());
+            let sensitive = sensitive.clone();
             lib_list_box.connect_row_selected(move|ls_bx, opt_row| {
-                lib_remove_btn.set_sensitive(true);
-                lib_update_btn.set_sensitive(true);
+                if sensitive.get() {
+                    lib_remove_btn.set_sensitive(true);
+                    lib_update_btn.set_sensitive(true);
+                }
                 if let Ok(loader) = loader.lock() {
                     if let Some(row) = opt_row {
                         if let Some(child) = row.get_child() {
@@ -526,7 +567,7 @@ impl FunctionRegistry {
         let fn_reg = Self {
             search_entry : search_entry.clone(),
             loader : loader.clone(),
-            lib_list_box,
+            lib_list_box : lib_list_box.clone(),
             fn_list_box : fn_list_box.clone(),
             lib_add_btn,
             lib_update_btn : lib_update_btn.clone(),
@@ -535,9 +576,10 @@ impl FunctionRegistry {
             fn_doc_label,
             so_file_chooser,
             info_lbl,
-            lib_info
+            lib_info,
+            sensitive
         };
-        Self::reload_lib_list(&fn_reg.lib_list_box, &fn_reg.loader, None);
+        Self::reload_lib_list(&fn_reg.lib_list_box, &fn_reg.fn_list_box, &fn_reg.loader, None);
 
         {
             let fn_reg = fn_reg.clone();
@@ -565,12 +607,13 @@ impl FunctionRegistry {
             let lib_update_btn = lib_update_btn.clone();
             let loader = fn_reg.loader.clone();
             let lib_list_box = fn_reg.lib_list_box.clone();
+            let fn_list_box = fn_list_box.clone();
             search_entry.connect_key_release_event(move |entry, _ev_key| {
                 let name = entry.get_text().to_string();
                 if name.len() >= 1 {
-                    Self::reload_lib_list(&lib_list_box, &loader, Some(&name[..]));
+                    Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, Some(&name[..]));
                 } else {
-                    Self::reload_lib_list(&lib_list_box, &loader, None);
+                    Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
                 }
                 glib::signal::Inhibit(false)
             });

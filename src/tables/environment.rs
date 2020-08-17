@@ -690,6 +690,14 @@ impl TableEnvironment {
         }
     }
 
+    pub fn remove_udfs(&self, lib_name : &str) {
+        if let (Ok(engine), Ok(loader)) = (self.listener.engine.lock(), self.loader.lock()) {
+            engine.remove_sqlite3_udfs(&loader, lib_name);
+        } else {
+            println!("Failed acquiring lock over sql engine or function loader to remove UDFs");
+        }
+    }
+
     pub fn clear(&mut self) {
         self.tables.clear();
     }

@@ -8,7 +8,7 @@ drop table if exists aggregate;
 
 create table library (
     id integer primary key,
-    name text,
+    name text unique,
     libpath text,
     srcpath text,
     active integer

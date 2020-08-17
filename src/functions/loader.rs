@@ -2,7 +2,7 @@ use libloading;
 use crate::tables::table::{Table, Columns};
 use libloading::{Library, Symbol};
 use std::env;
-use rusqlite::Connection;
+use rusqlite::{Connection, config::DbConfig};
 use std::collections::HashMap;
 use std::path::Path;
 use std::fs::File;
@@ -215,17 +215,10 @@ impl FunctionLoader {
 
     /// Returns the number of recovered functions if successful, or an error
     /// message if unsucessful. This is used every time the user clicks the
-    /// "Add library" button.
+    /// "Add library" button, and maps to an insertion into the registry
+    /// database.
     pub fn add_crate(&mut self, path_str : &str) -> Result<usize, String> {
         let path = Path::new(path_str);
-        /*let fname = path.file_stem()
-            .ok_or(format!("Could not retrieve name"))?
-            .to_str().unwrap().to_string();
-        let lib_name = if fname.starts_with("lib") {
-            fname[3..].to_string()
-        } else {
-            fname.to_string()
-        };*/
         if path.extension().and_then(|e| e.to_str()) != Some("toml") {
             return Err(String::from("Should inform .toml file"));
         }
@@ -234,7 +227,7 @@ impl FunctionLoader {
         let id = {
             let mut stmt = self.conn
                 .prepare("insert into library (name, srcpath, libpath, active) \
-                    values (?1, ?2, ?3, 0);"
+                    values (?1, ?2, ?3, 1);"
                 ).map_err(|e| format!("{}", e) )?;
             stmt.execute(&[lib_name.clone(), src_path.clone(), lib_path.clone()])
                 .map_err(|e| format!("{}", e) )?;
@@ -252,7 +245,7 @@ impl FunctionLoader {
             remote_path : None,
             name : lib_name.to_string(),
             lib,
-            active : false
+            active : true
         });
         Ok(n)
         //} else {
@@ -303,6 +296,12 @@ impl FunctionLoader {
         let registry_path = String::from(exe_dir) + "/../../registry/registry.db";
         let conn = Connection::open(&registry_path)
             .map_err(|e| { println!("{}", e); "Could not open registry database" })?;
+        if let Err(e) = conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_FKEY, true) {
+            println!("{}", e);
+        }
+        if let Err(e) = conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, true) {
+            println!("{}", e);
+        }
         let libs = Vec::new();
         let mut reg = Self{ conn, libs };
         reg.reload_libs()?;
@@ -409,14 +408,14 @@ impl FunctionLoader {
         None
     }
 
-    fn call<'a>(f : &'a Function, lib : &'a Library, cols : Vec<Column>) -> Result<Vec<Column>, FunctionErr> {
+    /*fn call<'a>(f : &'a Function, lib : &'a Library, cols : Vec<Column>) -> Result<Vec<Column>, FunctionErr> {
         unsafe {
             let f : Symbol<'a, unsafe extern fn(Vec<Column>)->Result<Vec<Column>,String>> =
                 lib.get(f.name.as_bytes()).map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
             let ans = f(cols).map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
             Ok(ans)
         }
-    }
+    }*/
 
     pub fn try_exec_fn(
         &self,
@@ -424,7 +423,7 @@ impl FunctionLoader {
         arg_names : Vec<String>,
         tbl : Table
     ) -> Result<Table, FunctionErr> {
-        if let Some((lib, f)) = self.find_fn(&fn_name[..]) {
+        /*if let Some((lib, f)) = self.find_fn(&fn_name[..]) {
             let cols = tbl.take_columns();
             let ans_cols = Self::call(&f, &lib.lib, cols)?;
             let mut col_names = f.get_col_names(arg_names)
@@ -434,7 +433,8 @@ impl FunctionLoader {
             Ok(tbl)
         } else {
             Err(FunctionErr::NotFound(tbl))
-        }
+        }*/
+        unimplemented!()
     }
 
     pub fn get_func<'a>(&'a self, name : &str) -> Option<&'a Function> {
@@ -453,7 +453,7 @@ impl FunctionLoader {
     }
 
     pub fn get_doc(&self, name : &str) -> Option<String> {
-        self.get_func(name).map(|func| func.doc.clone().unwrap_or(String::new()) )
+        self.get_func(name).and_then(|func| func.doc.clone() )
     }
 
     pub fn get_args(&self, name : &str) -> Option<Vec<String>> {
