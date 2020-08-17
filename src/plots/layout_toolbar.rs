@@ -17,7 +17,10 @@ use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
 use std::default::Default;
+use crate::plots::plot_workspace::PlotWorkspace;
 
+/// LayoutToolbar encapsulates the logic for the popover when the user right-click
+/// some table columns to add, edit or remove mappings.
 #[derive(Debug, Clone)]
 pub struct LayoutToolbar {
     pub add_mapping_btn : ToolButton,
@@ -207,7 +210,7 @@ impl LayoutToolbar {
         let mapping_btns = self.mapping_btns.clone();
         self.add_mapping_btn.connect_clicked(move|btn| {
             let m = sel_mapping.borrow();
-            PlotSidebar::add_mapping_from_type(
+            PlotWorkspace::add_mapping_from_type(
                 glade_def.clone(),
                 &m[..],
                 table_env.clone(),
@@ -236,7 +239,7 @@ impl LayoutToolbar {
         self.edit_mapping_btn.connect_clicked(move |btn| {
             plot_toggle.set_active(true);
             mapping_popover.hide();
-            let (x, y, w, h) = PlotSidebar::get_active_coords(&pl_view.borrow());
+            let (x, y, w, h) = PlotWorkspace::get_active_coords(&pl_view.borrow());
             tbl_nb.unselect_all_tables();
             plot_popover.show_at(x, y, w, h);
             // Disable most recent toggle

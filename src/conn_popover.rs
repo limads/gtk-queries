@@ -15,7 +15,7 @@ use std::io::Read;
 use crate::tables::table::*;
 use crate::status_stack::*;
 use crate::sql_editor::SqlEditor;
-use crate::plots::layout_window::PlotSidebar;
+use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_notebook::*;
 use crate::functions::registry::FunctionRegistry;
 
@@ -270,14 +270,14 @@ impl ConnPopover {
 
     fn clear_session(
         sql_popover : SqlEditor,
-        plot_sidebar : PlotSidebar,
+        workspace : PlotWorkspace,
         table_notebook : TableNotebook,
         t_env : &mut TableEnvironment
     ) {
         sql_popover.set_active(false);
-        plot_sidebar.set_active(false);
+        workspace.set_active(false);
         table_notebook.clear();
-        plot_sidebar.clear();
+        workspace.clear();
         //if let Ok(mut t_env) = table_env.try_borrow_mut() {
         t_env.clear();
         t_env.clear_queries();
@@ -292,7 +292,7 @@ impl ConnPopover {
         table_notebook : TableNotebook,
         status : StatusStack,
         sql_popover : SqlEditor,
-        plot_sidebar : PlotSidebar,
+        workspace : PlotWorkspace,
         fn_reg : FunctionRegistry
     ) {
         let conn_popover = self.clone();
@@ -385,7 +385,7 @@ impl ConnPopover {
                     status.update(Status::Disconnected);
                     Self::clear_session(
                         sql_popover.clone(),
-                        plot_sidebar.clone(),
+                        workspace.clone(),
                         table_notebook.clone(),
                         &mut t_env
                     );
@@ -397,7 +397,7 @@ impl ConnPopover {
                 match status {
                     Status::Connected => {
                         sql_popover.set_active(true);
-                        plot_sidebar.set_active(true);
+                        workspace.set_active(true);
                         fn_reg.set_sensitive(false);
                     },
                     _ => {
@@ -405,7 +405,7 @@ impl ConnPopover {
                         if let Ok(mut t_env) = table_env.try_borrow_mut() {
                             Self::clear_session(
                                 sql_popover.clone(),
-                                plot_sidebar.clone(),
+                                workspace.clone(),
                                 table_notebook.clone(),
                                 &mut t_env
                             );

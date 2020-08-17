@@ -15,8 +15,7 @@ use gtk_queries::status_stack::*;
 use gtk_queries::sql_editor::*;
 use gtk_queries::functions::registry::FunctionRegistry;
 use gtk_queries::plots::plotview::plot_view::PlotView;
-use gtk_queries::plots::save_widgets;
-use gtk_queries::plots::layout_window::PlotSidebar;
+use gtk_queries::plots::plot_workspace::PlotWorkspace;
 use gtk_queries::query_sidebar::QuerySidebar;
 use gtk_queries::main_menu::MainMenu;
 use gtk_queries::plots::layout_toolbar::*;
@@ -34,7 +33,7 @@ pub struct QueriesApp {
     query_toggle : ToggleButton,
     paned_pos : Rc<RefCell<i32>>,
     main_menu : MainMenu,
-    plot_sidebar : PlotSidebar
+    plot_workspace : PlotWorkspace
 }
 
 /*fn adjust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
@@ -63,12 +62,12 @@ impl QueriesApp {
         table_toggle : ToggleButton,
         status_stack : StatusStack,
         sidebar_stack : Stack,
-    ) -> PlotSidebar {
+    ) -> PlotWorkspace {
         //let builder = Builder::new_from_file(utils::glade_path("gtk-plots-stack.glade").unwrap());
         let pl_view = PlotView::new_with_draw_area(
             "assets/plot_layout/layout-unique.xml", pl_da.clone());
-        save_widgets::build_save_widgets(&builder, pl_view.clone());
-        let sidebar = PlotSidebar::new(
+        // save_widgets::build_save_widgets(&builder, pl_view.clone());
+        let workspace = PlotWorkspace::new(
             builder.clone(),
             pl_view.clone(),
             table_env.clone(),
@@ -79,7 +78,7 @@ impl QueriesApp {
             sidebar_stack.clone()
         );
         //sidebar_stack.add_named(&sidebar.layout_stack, "layout");
-        sidebar
+        workspace
     }
 
     fn switch_paned_pos(main_paned : Paned, paned_pos : Rc<RefCell<i32>>, state : bool) {
@@ -113,7 +112,7 @@ impl QueriesApp {
         sidebar_stack : Stack,
         content_stack : Stack,
         status_stack : StatusStack,
-        plot_sidebar : PlotSidebar,
+        workspace : PlotWorkspace,
         mapping_popover : Popover,
         file_list : FileList
     ) -> Rc<RefCell<i32>> {
@@ -143,7 +142,7 @@ impl QueriesApp {
             let plot_toggle = plot_toggle.clone();
             //let sidebar_stack = sidebar_stack.clone();
             let content_stack = content_stack.clone();
-            let plot_sidebar = plot_sidebar.clone();
+            let workspace = workspace.clone();
             let status_stack = status_stack.clone();
             let paned_pos = paned_pos.clone();
             let query_toggle = query_toggle.clone();
@@ -152,7 +151,7 @@ impl QueriesApp {
                 match btn.get_active() {
                     false => {
                         //content_stack.set_visible_child_name("plot");
-                        if !plot_sidebar.layout_loaded() {
+                        if !workspace.layout_loaded() {
                             status_stack.try_show_alt_or_connected();
                         }
                         Self::switch_paned_pos(main_paned.clone(), paned_pos.clone(), false);
@@ -192,7 +191,7 @@ impl QueriesApp {
             let query_toggle = query_toggle.clone();
             let status_stack = status_stack.clone();
             let sidebar_stack = sidebar_stack.clone();
-            let plot_sidebar = plot_sidebar.clone();
+            let workspace = workspace.clone();
             plot_toggle.connect_toggled(move |btn| {
                 match btn.get_active() {
                     false => {
@@ -213,7 +212,7 @@ impl QueriesApp {
                             sidebar_stack.set_visible_child_name("empty");
                         }*/
                         content_stack.set_visible_child_name("plot");
-                        if let Ok(pl_view) = plot_sidebar.pl_view.try_borrow() {
+                        if let Ok(pl_view) = workspace.pl_view.try_borrow() {
                             pl_view.redraw();
                         } else {
                             println!("Failed to acquire lock over plot")
@@ -315,7 +314,7 @@ impl QueriesApp {
             .expect("Could not open glade path");
         let conn_popover = ConnPopover::new_from_glade(builder.clone(), conn_btn, &popover_path[..]);
         let pl_da : DrawingArea = builder.get_object("plot").unwrap();
-        let sidebar = Self::build_plots_widgets(
+        let plot_workspace = Self::build_plots_widgets(
             builder.clone(),
             table_env.clone(),
             tables_nb.clone(),
@@ -355,7 +354,7 @@ impl QueriesApp {
             tables_nb.clone(),
             status_stack.clone(),
             sql_editor.clone(),
-            sidebar.clone(),
+            plot_workspace.clone(),
             fn_reg.clone()
         );
 
@@ -401,8 +400,8 @@ impl QueriesApp {
             sidebar_stack.clone(),
             content_stack.clone(),
             status_stack.clone(),
-            sidebar.clone(),
-            sidebar.layout_toolbar.mapping_popover.clone(),
+            plot_workspace.clone(),
+            plot_workspace.layout_toolbar.mapping_popover.clone(),
             file_list.clone()
         );
         // let fn_popover : Popover = builder.get_object("fn_popover").unwrap();
@@ -419,12 +418,12 @@ impl QueriesApp {
             let tables_nb = tables_nb.clone();
             let fn_reg = fn_reg.clone();
             //let fn_popover = fn_popover.clone();
-            let sidebar = sidebar.clone();
+            let workspace = plot_workspace.clone();
             let status_stack = status_stack.clone();
             let query_toggle = query_toggle.clone();
             let plot_toggle = plot_toggle.clone();
             let table_toggle = table_toggle.clone();
-            let mapping_popover = sidebar.layout_toolbar.mapping_popover.clone();
+            let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             let file_list = file_list.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 //if let Ok(t_env) = table_env_c.try_borrow() {
@@ -432,18 +431,18 @@ impl QueriesApp {
                     &t_env,
                     &mut tables_nb.clone(),
                     mapping_popover.clone(),
-                    sidebar.clone(),
+                    workspace.clone(),
                     //fn_popover.clone()
                 );
                 // TODO update all mappings to NULL data and set mappings as insensitive
                 // if new table output is different than old table output.
                 match update {
                     EnvironmentUpdate::Refresh => {
-                        sidebar.update_all_mappings(&t_env,status_stack.clone())
+                        workspace.update_all_mappings(&t_env,status_stack.clone())
                             .map_err(|e| println!("{}", e) ).ok();
                     },
                     _ => {
-                        sidebar.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
+                        workspace.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
                     }
                 }
                 tables_nb.nb.set_sensitive(true);
@@ -451,9 +450,9 @@ impl QueriesApp {
                     table_toggle.set_active(true);
                 }
                 LayoutToolbar::clear_invalid_mappings(
-                    sidebar.plot_popover.clone(),
-                    sidebar.mapping_menus.clone(),
-                    sidebar.pl_view.clone()
+                    workspace.plot_popover.clone(),
+                    workspace.mapping_menus.clone(),
+                    workspace.pl_view.clone()
                 );
                 Ok(())
                 //} else {
@@ -565,69 +564,18 @@ impl QueriesApp {
             });
         }*/
 
-        {
-            let pl_view = sidebar.pl_view.clone();
-            let tables_nb = tables_nb.clone();
-            let tbl_env = table_env.clone();
-            let csv_btn : Button =
-                builder.get_object("save_text_btn").unwrap();
-            let save_dialog : FileChooserDialog =
-                builder.get_object("save_dialog").unwrap();
-            save_dialog.connect_response(move |dialog, resp| {
-                match resp {
-                    ResponseType::Other(1) => {
-                        if let Some(path) = dialog.get_filename() {
-                            if let Some(ext) = path.as_path().extension().map(|ext| ext.to_str().unwrap_or("")) {
-                                if let Ok(t) = tbl_env.try_borrow() {
-                                    match ext {
-                                        "db" | "sqlite" | "sqlite3" => {
-                                            t.try_backup(path);
-                                        },
-                                        "xml" => {
-                                            if let Ok(pl) = pl_view.try_borrow() {
-                                                if let Ok(mut f) = File::create(path) {
-                                                    let content = pl.plot_group.get_layout_as_text();
-                                                    let _ = f.write_all(&content.into_bytes());
-                                                } else {
-                                                    println!("Unable to create file");
-                                                }
-                                            } else {
-                                                println!("Unable to retrieve reference to plot");
-                                            }
-                                        },
-                                        _ => {
-                                            if let Ok(mut f) = File::create(path) {
-                                                let idx = tables_nb.get_page_index();
-                                                if let Some(content) = t.get_text_at_index(idx) {
-                                                    let _ = f.write_all(&content.into_bytes());
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    println!("Unable to get reference to table environment");
-                                }
-                            }
-                        }
-                    },
-                    _ => { }
-                }
-            });
-            csv_btn.connect_clicked(move |_btn| {
-                save_dialog.run();
-                save_dialog.hide();
-            });
-        }
-
         let main_menu = MainMenu::build(
             &builder,
             &sql_editor,
             content_stack.clone(),
-            query_toggle.clone()
+            query_toggle.clone(),
+            plot_workspace.pl_view.clone(),
+            tables_nb.clone(),
+            table_env.clone()
         );
         Self { conn_popover, sql_editor, main_paned,
             query_toggle, table_env, /*fn_popover*/ tables_nb,
-            table_toggle, plot_toggle, paned_pos, main_menu, plot_sidebar : sidebar }
+            table_toggle, plot_toggle, paned_pos, main_menu, plot_workspace }
     }
 
     //fn check_active_selection(&self) {
@@ -745,7 +693,7 @@ fn build_ui(app: &gtk::Application) {
         let plot_toggle = queries_app.plot_toggle.clone();
         let sql_stack : Stack = queries_app.sql_editor.sql_stack.clone();
         let paned_pos = queries_app.paned_pos.clone();
-        let mapping_popover = queries_app.plot_sidebar.layout_toolbar.mapping_popover.clone();
+        let mapping_popover = queries_app.plot_workspace.layout_toolbar.mapping_popover.clone();
         //let plot_notebook = queries_app.plot_sidebar.notebook.clone();
         win.connect_key_release_event(move |_win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {

@@ -5,6 +5,7 @@ use crate::table_widget::*;
 use gtk::prelude::*;
 use crate::plots::layout_window::*;
 use crate::plots::layout_toolbar::LayoutToolbar;
+use crate::plots::plot_workspace::PlotWorkspace;
 
 #[derive(Clone)]
 pub struct TableNotebook {
@@ -58,7 +59,7 @@ impl TableNotebook {
         err_msg : Option<&str>,
         data : Option<Vec<Vec<String>>>,
         mapping_popover : Popover,
-        sidebar : PlotSidebar,
+        workspace : PlotWorkspace,
     ) {
         let img = Image::from_icon_name(
             Some(icon), IconSize::LargeToolbar
@@ -93,9 +94,9 @@ impl TableNotebook {
             // Right-click events
             {
                 let mapping_popover = mapping_popover.clone();
-                let mapping_menus = sidebar.mapping_menus.clone();
-                let layout_toolbar = sidebar.layout_toolbar.clone();
-                let plot_popover = sidebar.plot_popover.clone();
+                let mapping_menus = workspace.mapping_menus.clone();
+                let layout_toolbar = workspace.layout_toolbar.clone();
+                let plot_popover = workspace.plot_popover.clone();
                 table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
                     println!("All selected: {:?}", selected);
                     println!("Currently selected: {}", curr);

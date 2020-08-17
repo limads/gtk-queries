@@ -34,13 +34,13 @@ pub mod utils {
     use crate::tables::environment::TableEnvironment;
     use crate::table_notebook::*;
     //use crate::functions::function_search::*;
-    use crate::plots::layout_window::*;
+    use crate::plots::plot_workspace::PlotWorkspace;
 
     pub fn set_tables(
         table_env : &TableEnvironment,
         tables_nb : &mut TableNotebook,
         mapping_popover : Popover,
-        pl_sidebar : PlotSidebar,
+        workspace : PlotWorkspace,
         //fn_popover : Popover
     ) {
         tables_nb.clear();
@@ -52,7 +52,7 @@ pub mod utils {
                 Some("No queries"),
                 None,
                 mapping_popover.clone(),
-                pl_sidebar.clone(),
+                workspace.clone(),
                 //fn_popover.clone()
             );
         } else {
@@ -69,7 +69,7 @@ pub mod utils {
                         None,
                         Some(t_rows),
                         mapping_popover.clone(),
-                        pl_sidebar.clone(),
+                        workspace.clone(),
                         //fn_popover.clone()
                     );
                 } else {

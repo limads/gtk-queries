@@ -35,6 +35,9 @@ pub struct MappingSelection {
     pub curr_ix : usize
 }
 
+/// PlotPopover encapsulates the logic for when the user right-clicks the scales or content
+/// of one of the plots. It interoperates heavily with LayoutToolbar during the selection
+/// and edition of mappings.
 #[derive(Clone, Debug)]
 pub struct PlotPopover {
     pub data_popover : Popover,
