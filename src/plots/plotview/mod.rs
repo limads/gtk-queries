@@ -214,6 +214,7 @@ impl PlotGroup {
 
         use GroupSplit::*;
 
+        // TODO falling here when closing connection to SQLite database
         self.doc = self.parser.parse_file(&path)
             .map_err(|e| format!("Failed parsing XML: {}", e) )?;
         let root_el = self.doc.get_root_element()

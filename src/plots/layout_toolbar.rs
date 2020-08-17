@@ -45,10 +45,10 @@ impl LayoutToolbar {
         sel_mapping : Rc<RefCell<String>>
     ) -> Self {
         let layout_toolbar : Toolbar = builder.get_object("layout_toolbar").unwrap();
-        let img_add = Image::new_from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
-        let img_edit = Image::new_from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
-        let img_remove = Image::new_from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
-        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        let img_add = Image::from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
+        let img_edit = Image::from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
+        let img_remove = Image::from_icon_name(Some("list-remove-symbolic"), IconSize::SmallToolbar);
+        let img_clear = Image::from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_layout_btn : ToolButton = ToolButton::new(Some(&img_clear), None);
         let add_mapping_btn : ToolButton = ToolButton::new(Some(&img_add), None);
         let edit_mapping_btn : ToolButton = ToolButton::new(Some(&img_edit), None);
@@ -361,7 +361,7 @@ impl LayoutToolbar {
         let mut mapping_btns = HashMap::new();
         let iter_names = mapping_names.iter().cloned();
         for (i, mapping) in iter_names.enumerate() {
-            let img = Image::new_from_file(&(String::from("assets/icons/") +  &mapping + ".svg"));
+            let img = Image::from_file(&(String::from("assets/icons/") +  &mapping + ".svg"));
             let btn : ToggleToolButton = ToggleToolButton::new();
             btn.set_icon_widget(Some(&img));
             mapping_btns.insert(mapping.to_string(), btn.clone());

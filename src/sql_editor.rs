@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::{RefCell};
 use std::fs::File;
 use std::io::Read;
-use gdk::{self, enums::key};
+use gdk::{self, keys};
 use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
 use sourceview::*;
 use gtk::prelude::*;
@@ -364,7 +364,7 @@ impl SqlEditor {
         }*/
         //let extra_toolbar : Toolbar = builder.get_object("extra_toolbar").unwrap();
         let sql_toolbar : Toolbar = builder.get_object("sql_toolbar").unwrap();
-        let img_clear = Image::new_from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
+        let img_clear = Image::from_icon_name(Some("edit-clear-all-symbolic"), IconSize::SmallToolbar);
         let clear_btn = ToolButton::new(Some(&img_clear), None);
         //let img_refresh = Image::new_from_icon_name(Some("view-refresh"), IconSize::SmallToolbar);
         let refresh_btn : Button = builder.get_object("refresh_btn").unwrap();
@@ -679,7 +679,7 @@ impl SqlEditor {
         let refresh_btn = refresh_btn.clone();
         // TODO verify that view is realized before accepting key press
         view.connect_key_press_event(move |_view, ev_key| {
-            if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == key::Return {
+            if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == keys::constants::Return {
                 if refresh_btn.is_sensitive() {
                     refresh_btn.emit_clicked();
                     /*match table_env.try_borrow_mut() {

@@ -14,6 +14,8 @@ use super::sql_type::*;
 use super::function::*;
 use crate::tables::table::*;
 use toml;
+use std::convert::TryFrom;
+use super::function::*;
 
 // use std::rc::Rc;
 // use std::cell::RefCell;
@@ -21,6 +23,15 @@ use toml;
 // (2) Call libloading to load all functions that were parsed.
 // *pub type TableFunc<'a> = Symbol<'a, unsafe extern fn(Columns, &[&str])->Result<Table,String>>;*/
 
+/// Structure that carries the state of which user-defined functions (UDFs)
+/// are loaded in the user session. Its methods access the filesystem to verify the validity of a
+/// crate as an exporter of UDFs, add paths to dynamic libraries that will be loaded later on,
+/// and add/remove libraries from the registry and active and de-active them.
+/// The registry is a SQLite database shipped with queries,
+/// and this structure keeps a connection to this database alive to perform those operations.
+/// The ownership of the loader is shared by the FunctionRegistry GUI and the EnvironmentSource.
+/// The first item offers the user interface to add/remove functions; the last item links the
+/// active user-defined functinos for each new local connection.
 #[derive(Debug)]
 pub struct FunctionLoader {
     conn : Connection,
@@ -37,39 +48,102 @@ pub enum FunctionErr {
 
 impl FunctionLoader {
 
-    fn parse_toml(path : &Path) -> Result<Vec<Function>, String> {
+    fn search_lib_path(root : &Path, pkg_name : &str) -> Option<String> {
+        let root_buf = root.to_path_buf();
+        let fname = format!("lib{}.so", pkg_name);
+
+        let mut tgt_release = root_buf.clone();
+        tgt_release.push("target");
+        tgt_release.push("release");
+        tgt_release.push(fname.clone());
+
+        let mut tgt_debug = root_buf.clone();
+        tgt_debug.push("target");
+        tgt_debug.push("debug");
+        tgt_debug.push(fname);
+
+        for cand in [tgt_release, tgt_debug].iter() {
+            println!("Searching lib at {:?}", cand);
+            if cand.as_path().exists() {
+                if let Some(path_str) = cand.as_path().to_str() {
+                    println!("Library found");
+                    return Some(path_str.to_string());
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns (name, source path, lib path, parsed_functions, parsed aggregates) if successful.
+    fn parse_toml(path : &Path) -> Result<(String, String, String, Vec<Function>, Vec<Aggregate>), String> {
+        let parent = path.parent().ok_or(String::from("Path does not have parent"))?;
+        let mut src_folder = parent.to_path_buf();
+        src_folder.push("src");
         let mut content = String::new();
-        let mut f = File::open(path)
+        let mut f = File::open(&path)
             .map_err(|e| format!("Could not read toml file: {}", e) )?;
         f.read_to_string(&mut content);
         let v : toml::Value = content.parse()
             .map_err(|e| format!("Could not parse toml file: {}", e) )?;
         if let Some(pkg) = v.get("package") {
-            if let Some(name) = pkg.get("name") {
-                println!("name = {}", name);
+            if let Some(name_value) = pkg.get("name") {
+                println!("package name = {}", name_value);
+                let name = if let toml::Value::String(s) = name_value {
+                    s.clone()
+                } else {
+                    return Err(String::from("Package name field should be a string"));
+                };
+                let func_vals = pkg.get("metadata")
+                    .and_then(|meta| { println!("meta={:?}", meta); meta.get("sql") })
+                    .and_then(|sql| { println!("sql={:?}", sql); sql.as_array() })
+                    .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
+                let mut funcs = Vec::new();
+                let mut aggs = Vec::new();
+                for f in func_vals.iter() {
+                    if let Ok(mut agg) = Aggregate::try_from(f.clone()) {
+                        println!("Found aggregate: {:?}", agg);
+                        aggs.push(agg);
+                    } else {
+                        let mut func = Function::try_from(f.clone())
+                            .map_err(|_| String::from("Invalid function signature"))?;
+                        println!("Searching doc at: {:?}", src_folder.as_path());
+                        func.doc = search_doc_at_dir(src_folder.as_path(), &func.name);
+                        println!("Found doc: {:?}", func.doc);
+                        println!("Found function: {:?}", func);
+                        funcs.push(func);
+                    }
+                }
+                let src_path = v.get("lib")
+                    .and_then(|lib| lib.get("path"))
+                    .and_then(|path|
+                        if let toml::Value::String(path) = path {
+                            Some(path.clone())
+                        } else {
+                            None
+                        }
+                    ).unwrap_or("src/lib.rs".to_string());
+                println!("Found source path: {}", src_path);
+                let lib_path = Self::search_lib_path(parent, &name)
+                    .ok_or(format!("Compiled library not found"))?;
+                println!("Found library path: {}", lib_path);
+                let src_path_str = src_path.as_str().to_string();
+                return Ok((name.to_string(), src_path_str, lib_path, funcs, aggs));
             } else {
                 return Err(String::from("Could not get crate name"));
-            }
-            let funcs = pkg.get("metadata")
-                .and_then(|meta| meta.get("sql"))
-                .and_then(|sql| sql.as_array())
-                .ok_or(String::from("Cargo does not have 'sql' metadata field"))?;
-            for f in funcs.iter() {
-                println!("func = {}", f);
             }
         } else {
             return Err(String::from("Could not get package table"));
         }
-        Ok(Vec::new())
     }
 
-    /// Returns (source path, parsed_functions) if successful.
-    fn parse_lib_source(path : &Path) -> Result<(String, Vec<Function>), String> {
-        let mut fname = path.file_stem().ok_or(format!("Could not retrieve name"))?.to_str().unwrap().to_string();
+    /*fn parse_lib_source(path : &Path) -> Result<(String, String, Vec<Function>), String> {
+        let mut fname = path.file_stem()
+            .ok_or(format!("Could not retrieve name"))?.to_str().unwrap().to_string();
         if fname.starts_with("lib") {
             fname = fname[3..].to_string();
         };
-        let parent = path.parent().ok_or(String::from("Path does not have parent"))?;
+        unimplemented!()
+        /*let parent = path.parent().ok_or(String::from("Path does not have parent"))?;
         let parent2 = parent.parent().ok_or(String::from("Path does not have parent/parent"))?;
         let parent3 = parent2.parent().ok_or(String::from("Path does not have parent/parent"))?;
         let mut src_folder = parent2.to_path_buf();
@@ -105,8 +179,8 @@ impl FunctionLoader {
                 return Ok((src_path, funcs))
             }
         }
-        Err(String::from("Source file not found"))
-    }
+        Err(String::from("Source file not found"))*/
+    }*/
 
     fn insert_types(conn : &Connection, func_id : i64, tbl : &str, types : &[SqlType]) -> Result<(), String> {
         let mut stmt = conn.prepare(&format!("insert into {} (fn_id, pos, type)
@@ -121,41 +195,48 @@ impl FunctionLoader {
 
     fn insert_functions(&mut self, id : i64, funcs : &[Function]) -> Result<(), String> {
         let mut stmt_func = self.conn.prepare("insert into function \
-            (lib_id, name, doc, fn_mode, var_arg, var_ret) \
-            values (?1, ?2, ?3, ?4, ?5, ?6);").unwrap();
+            (lib_id, name, doc, var_arg, ret) \
+            values (?1, ?2, ?3, ?4, ?5);").unwrap();
         for f in funcs.iter() {
             stmt_func.execute(&[
                 &id as &dyn ToSql,
                 &f.name as &dyn ToSql,
                 &f.doc as &dyn ToSql,
-                &f.mode.to_string() as &dyn ToSql,
+                //&f.mode.to_string() as &dyn ToSql,
                 &f.var_arg as &dyn ToSql,
-                &f.var_ret as &dyn ToSql
+                &(f.ret.to_string()) as &dyn ToSql
             ]).map_err(|e| format!("{}", e))?;
             let func_id = self.conn.last_insert_rowid();
             Self::insert_types(&self.conn, func_id, "arg", &f.args[..])?;
-            Self::insert_types(&self.conn, func_id, "ret", &f.ret[..])?;
+            // Self::insert_types(&self.conn, func_id, "ret", &f.ret[..])?;
         }
         Ok(())
     }
 
     /// Returns the number of recovered functions if successful, or an error
-    /// message if unsucessful.
+    /// message if unsucessful. This is used every time the user clicks the
+    /// "Add library" button.
     pub fn add_crate(&mut self, path_str : &str) -> Result<usize, String> {
         let path = Path::new(path_str);
-        let fname = path.file_stem().ok_or(format!("Could not retrieve name"))?
+        /*let fname = path.file_stem()
+            .ok_or(format!("Could not retrieve name"))?
             .to_str().unwrap().to_string();
         let lib_name = if fname.starts_with("lib") {
             fname[3..].to_string()
         } else {
             fname.to_string()
-        };
+        };*/
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            return Err(String::from("Should inform .toml file"));
+        }
+        let (lib_name, src_path, lib_path, funcs, aggs) = Self::parse_toml(path)?;
         self.remove_crate(&lib_name)?;
-        let (src, funcs) = Self::parse_lib_source(path)?;
         let id = {
-            let mut stmt = self.conn.prepare("insert into library (name, libpath, srcpath, active) values (?1, ?2, ?3, 0);")
-                .map_err(|e| format!("{}", e) )?;
-            stmt.execute(&[lib_name.clone(), path_str.into(), src])
+            let mut stmt = self.conn
+                .prepare("insert into library (name, srcpath, libpath, active) \
+                    values (?1, ?2, ?3, 0);"
+                ).map_err(|e| format!("{}", e) )?;
+            stmt.execute(&[lib_name.clone(), src_path.clone(), lib_path.clone()])
                 .map_err(|e| format!("{}", e) )?;
             self.conn.last_insert_rowid()
         };
@@ -163,9 +244,10 @@ impl FunctionLoader {
         let cloned_funcs = funcs.clone();
         self.insert_functions(id, &cloned_funcs[..])?;
         let n = funcs.len();
-        let lib = Library::new(path_str).map_err(|e| format!("Library not found: {}", e) )?;
+        let lib = Library::new(lib_path).map_err(|e| format!("Library not found: {}", e) )?;
         self.libs.push(FunctionLibrary {
             funcs,
+            aggs,
             local_path : path_str.to_string(),
             remote_path : None,
             name : lib_name.to_string(),
@@ -229,6 +311,7 @@ impl FunctionLoader {
 
     pub fn reload_libs(&mut self) -> Result<(), &'static str> {
         let new_libs : Vec<FunctionLibrary> = Self::read_libs(&self.conn)?;
+        println!("New libs: {:?}", new_libs);
         self.libs.clear();
         self.libs.extend(new_libs);
         Ok(())
@@ -248,13 +331,19 @@ impl FunctionLoader {
                 //let funcs = FunctionLibrary::load_functions(&conn, &name[..], &libr)?;
                 let mut lib = FunctionLibrary {
                     funcs : Vec::new(),
+                    aggs : Vec::new(),
                     local_path : path,
                     remote_path : None,
                     name : name,
                     lib,
                     active
                 };
-                lib.reload_functions(&conn);
+                if let Err(e) = lib.reload_functions(&conn) {
+                    println!("{}", e);
+                }
+                if let Err(e) = lib.reload_aggregates(&conn) {
+                    println!("{}", e);
+                }
                 libs.push(lib);
             } else {
                 break;
@@ -266,6 +355,40 @@ impl FunctionLoader {
 
     pub fn lib_list<'a>(&'a self) -> Vec<&'a FunctionLibrary> {
         self.libs.iter().collect()
+    }
+
+    pub fn load_functions<'a>(&'a self) -> Result<Vec<(&'a Function, LoadedFunc<'a>)>, FunctionErr> {
+        let mut active = Vec::new();
+        for lib in self.libs.iter().filter(|lib| lib.active ) {
+            for func in lib.funcs.iter() {
+                unsafe{
+                    match func.ret {
+                        SqlType::I32 => {
+                            let f : SqlSymbol<'a, i32> = lib.lib.get(func.name.as_bytes())
+                                .map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
+                            active.push((func, LoadedFunc::I32(f)));
+                        },
+                        SqlType::F64 => {
+                            let f : SqlSymbol<'a, f64> = lib.lib.get(func.name.as_bytes())
+                                .map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
+                            active.push((func, LoadedFunc::F64(f)));
+                        },
+                        SqlType::String => {
+                            let f : SqlSymbol<'a, String> = lib.lib.get(func.name.as_bytes())
+                                .map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
+                            active.push((func, LoadedFunc::Text(f)));
+                        },
+                        SqlType::Bytes => {
+                            let f : SqlSymbol<'a, Vec<u8>> = lib.lib.get(func.name.as_bytes())
+                                .map_err(|e| FunctionErr::UserErr(format!("{}",e)) )?;
+                            active.push((func, LoadedFunc::Bytes(f)));
+                        },
+                        _ => unimplemented!()
+                    }
+                }
+            }
+        }
+        Ok(active)
     }
 
     pub fn fn_list_for_lib<'a>(&'a self, lib_name : &'a str) -> Vec<&'a Function> {
@@ -316,7 +439,9 @@ impl FunctionLoader {
 
     pub fn get_func<'a>(&'a self, name : &str) -> Option<&'a Function> {
         for lib in self.libs.iter() {
+            println!("Found lib: {:?}", lib);
             if let Some(func) = lib.funcs.iter().find(|func| func.name == name) {
+                println!("Found function: {:?}", func);
                 return Some(func)
             }
         }
@@ -355,6 +480,7 @@ pub struct FunctionLibrary {
     pub name : String,
     pub active : bool,
     funcs : Vec<Function>,
+    aggs : Vec<Aggregate>,
     local_path : String,
     remote_path : Option<String>,
     lib : Library
@@ -410,22 +536,81 @@ impl FunctionLibrary {
         types
     }
 
+    pub fn get_fn_name(conn : &Connection, id : i64) -> Option<String> {
+        let mut stmt = conn.prepare("select name from function where id = ?1").unwrap();
+        stmt.query_row(&[&id as &dyn ToSql], |row| {
+            let name : String = row.get(0)?;
+            Ok(name)
+        }).ok()
+    }
+
+    pub fn reload_aggregates(&mut self, conn : &Connection) -> Result<(), &'static str> {
+        self.aggs.clear();
+        let mut agg_stmt = conn.prepare(
+            "select aggregate.name, init, state, final \
+            from aggregate inner join library \
+            on library.id = aggregate.lib_id \
+            where library.name = ?1;"
+        ).unwrap();
+        let agg_result = agg_stmt.query_map(&[&self.name], |row| {
+            let init_id : i64 = row.get(1)?;
+            let state_id: i64  = row.get(2)?;
+            let final_id : i64 = row.get(3)?;
+            let init_func = Self::get_fn_name(&conn, init_id).unwrap();
+            let state_func = Self::get_fn_name(&conn, state_id).unwrap();
+            let final_func = Self::get_fn_name(&conn, final_id).unwrap();
+            let agg = Aggregate {
+                name : row.get(0)?,
+                init_func,
+                state_func,
+                final_func
+            };
+            Ok(agg)
+        });
+        if let Ok(res_agg) = agg_result {
+            for agg in res_agg {
+                if let Ok(agg) = agg {
+                    let init_found = self.funcs.iter()
+                        .find(|f| &f.name[..] == &agg.init_func[..])
+                        .is_some();
+                    let state_found = self.funcs.iter()
+                        .find(|f| &f.name[..] == &agg.state_func[..])
+                        .is_some();
+                    let final_found = self.funcs.iter()
+                        .find(|f| &f.name[..] == &agg.final_func[..])
+                        .is_some();
+                    if init_found && state_found && final_found {
+                        self.aggs.push(agg);
+                    } else {
+                        return Err("Missing component of aggregate function");
+                    }
+                } else {
+                    return Err("Invalid aggregate found");
+                }
+            }
+        } else {
+            return Err("Failed at getting aggregate results");
+        }
+        Ok(())
+    }
+
     pub fn reload_functions(&mut self, conn : &Connection) -> Result<(), &'static str> {
         self.funcs.clear();
+        println!("Reloading functions");
         let mut fn_stmt = conn.prepare(
-            "select id, name, doc, \
-            fn_mode, var_arg, var_ret from function inner join library \
+            "select function.id, function.name, doc, \
+            var_arg, ret from function inner join library \
             on library.id = function.lib_id \
             where library.name = ?1;"
         ).unwrap();
         let fn_result = fn_stmt.query_map(&[&self.name], |row| {
             let id = row.get::<usize, i64>(0)?;
             let name = row.get::<usize, String>(1)?;
-            let doc = row.get::<usize, String>(2)?;
-            let mode = row.get::<usize, String>(3)?;
-            let var_arg = row.get::<usize, bool>(4)?;
-            let var_ret = row.get::<usize, bool>(5)?;
-            Ok((id, name, doc, mode, var_arg, var_ret))
+            let doc = row.get::<usize, Option<String>>(2)?;
+            // let mode = row.get::<usize, String>(3)?;
+            let var_arg = row.get::<usize, bool>(3)?;
+            let ret = row.get::<usize, String>(4)?;
+            Ok((id, name, doc, var_arg, ret))
         });
         if let Ok(res_libs) = fn_result {
             let mut funcs = Vec::new();
@@ -433,18 +618,24 @@ impl FunctionLibrary {
                 if let Ok(fn_data) = fn_row {
                     let func_id : i64 = fn_data.0;
                     let name : String = fn_data.1;
-                    let doc : String = fn_data.2;
-                    let mode : FunctionMode = fn_data.3.try_into()
-                        .map_err(|_| "Could not pase function mode")?;
-                    let var_arg = fn_data.4;
-                    let var_ret = fn_data.5;
-                    let args = Self::get_type_info(&conn, func_id, "args");
-                    let ret = Self::get_type_info(&conn, func_id, "ret");
-                        funcs.push(Function {name, args, doc : Some(doc), ret, mode, var_arg, var_ret });
+                    let doc : Option<String> = fn_data.2;
+                    // let mode : FunctionMode = fn_data.3.try_into()
+                    //    .map_err(|_| "Could not pase function mode")?;
+                    let var_arg = fn_data.3;
+                    let ret = fn_data.4;
+                    let args = Self::get_type_info(&conn, func_id, "arg");
+                    //let ret = Self::get_type_info(&conn, func_id, "ret");
+                    let ret = SqlType::try_from(&ret[..])
+                        .map_err(|_| "Failed at converting return type")?;
+                    println!("Recovered function name: {:?}", name);
+                    println!("Recovered args: {:?}", args);
+                    println!("Recovered ret: {:?}", ret);
+                    funcs.push(Function {name, args, doc, ret, /*mode,*/ var_arg, /*var_ret*/ });
                 } else {
                     return Err("Error retrieving nth row");
                 }
             }
+            println!("Lib funcs vector: {:?}", funcs);
             self.funcs.extend(funcs);
             Ok(())
         } else {

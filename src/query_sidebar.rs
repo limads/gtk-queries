@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::cell::{RefCell /*, RefMut*/ };
 use std::fs::File;
 use std::io::Write;
-use gdk::{self, enums::key};
+use gdk::{self, keys};
 use crate::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate, /*sql::SqlListener*/ };
 use crate::conn_popover::*;
 use sourceview::*;

@@ -57,10 +57,10 @@ impl PlotPopover {
         let mapping_stack : Stack = builder.get_object("mapping_stack").unwrap();
         let mapping_select_toolbar : Toolbar = builder.get_object("mapping_select_toolbar").unwrap();
 
-        let img_forward = Image::new_from_icon_name(Some("go-next"), IconSize::SmallToolbar);
-        let img_backward = Image::new_from_icon_name(Some("go-previous"), IconSize::SmallToolbar);
+        let img_forward = Image::from_icon_name(Some("go-next"), IconSize::SmallToolbar);
+        let img_backward = Image::from_icon_name(Some("go-previous"), IconSize::SmallToolbar);
         let tab_img_path = String::from("assets/icons/grid-black.svg");
-        let img_table = Image::new_from_file(&tab_img_path[..]);
+        let img_table = Image::from_file(&tab_img_path[..]);
 
         let forward_btn : ToolButton = ToolButton::new(Some(&img_forward), None);
         let backward_btn : ToolButton = ToolButton::new(Some(&img_backward), None);

@@ -203,11 +203,11 @@ impl Mapping for SurfaceMapping {
             );
             mesh.end_patch();
         }
-        //println!("{}, {:?}", ctx.status(), ctx.status());
-        println!("{}, {:?}", mesh.status(), mesh.status());
+        // println!("{}, {:?}", ctx.status(), ctx.status());
+        // println!("{}, {:?}", mesh.status(), mesh.status());
         ctx.set_source(&*mesh);
         ctx.paint();
-        println!("{}, {:?}", ctx.status(), ctx.status());
+        // println!("{}, {:?}", ctx.status(), ctx.status());
 
         /*let bounds = mapper.coord_bounds();
         let mut x_domain = Vec::new();

@@ -55,25 +55,24 @@ pub fn connect_update_entry_property(
     parent_class : &'static str
 ) {
     entry.connect_focus_out_event(move |entry, _ev| {
-        if let Some(txt) = entry.get_text() {
-            match parent_class {
-                "design" => {
-                    change_design(view.clone(), &name, txt.as_str())
-                },
-                _ => {
-                    if let Ok(prefix) = prefix.try_borrow() {
-                        if txt.len() > 0 {
-                            change_plot_property(
-                                view.clone(),
-                                &prefix[..],
-                                &name,
-                                parent_class,
-                                txt.as_str()
-                            );
-                        }
-                    } else {
-                        println!("Unable to retrieve reference to mapping name");
+        let txt = entry.get_text();
+        match parent_class {
+            "design" => {
+                change_design(view.clone(), &name, txt.as_str())
+            },
+            _ => {
+                if let Ok(prefix) = prefix.try_borrow() {
+                    if txt.len() > 0 {
+                        change_plot_property(
+                            view.clone(),
+                            &prefix[..],
+                            &name,
+                            parent_class,
+                            txt.as_str()
+                        );
                     }
+                } else {
+                    println!("Unable to retrieve reference to mapping name");
                 }
             }
         }

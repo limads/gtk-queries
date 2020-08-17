@@ -13,7 +13,9 @@ use super::table::*;
 use std::path::PathBuf;
 use super::postgre;
 use super::sqlite;
-use crate::functions::loader::*;
+use crate::functions::{*, function::*, loader::*};
+use rusqlite::functions::*;
+use libloading::Symbol;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -364,6 +366,18 @@ pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
         })
 }
 
+/*/// Remove the content from all string literals from a SQL query.
+fn remove_string_literals(text : &str) -> String {
+    let split_text = text.split("\"|$$|'");
+    let mut out = String::new();
+    for (i, s) in split_text {
+        if  i % 2 == 0 {
+            out += &format!("{}\"\""s);
+        }
+    }
+    out
+}*/
+
 /// Parse a SQL String, separating the queries.
 /// Use this if no client-side parsing is desired.
 /// TODO remove ; from text literals "" and $$ $$ when doing the
@@ -533,7 +547,53 @@ impl SqlEngine {
         }
     }
 
-    pub fn try_new_sqlite3(path : Option<PathBuf>) -> Result<Self, String> {
+    fn bind_sqlite3_udfs(conn : &rusqlite::Connection, loader : &FunctionLoader) {
+        println!("Function loader state (New Sqlite3 conn): {:?}", loader);
+        match loader.load_functions() {
+            Ok(funcs) => {
+                for (func, load_func) in funcs {
+                    let n_arg = if func.var_arg {
+                        -1
+                    } else {
+                        func.args.len() as i32
+                    };
+                    let created = match load_func {
+                        LoadedFunc::F64(f) => {
+                            // Since we are handing over control of the function to the C
+                            // SQLite API, we can't track the lifetime anymore. raw_fn is now
+                            // assumed to stay alive while the last shared reference to the
+                            // function loader is alive and the library has not been cleared
+                            // from the "libs" array of loader. Two things mut happen to guarantee this:
+                            // (1) The function is always removed when the library is removed, so this branch is
+                            // not accessed;
+                            // (2) The function is removed from the Sqlite connection via conn.remove_function(.)
+                            // any time the library is de-activated.
+                            // (3) No call to raw_fn must happen outside the TableEnvironment public API,
+                            // (since TableEnvironment holds an Arc copy to FunctionLoader).
+                            let raw_fn = unsafe { f.into_raw() };
+                            conn.create_scalar_function(
+                                &func.name,
+                                n_arg,
+                                FunctionFlags::empty(),
+                                move |ctx| { unsafe{ raw_fn(ctx) } }
+                            )
+                        },
+                        _ => unimplemented!()
+                    };
+                    if let Err(e) = created {
+                        println!("{:?}", e);
+                    } else {
+                        println!("User defined function {:?} registered", func);
+                    }
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+            }
+        }
+    }
+
+    pub fn try_new_sqlite3(path : Option<PathBuf>, loader : &Arc<Mutex<FunctionLoader>>) -> Result<Self, String> {
         let res_conn = match &path {
             Some(ref path) => rusqlite::Connection::open(path),
             None => {
@@ -541,6 +601,11 @@ impl SqlEngine {
                     .and_then(|conn| {
                         rusqlite::vtab::csvtab::load_module(&conn)
                             .map_err(|e| format!("{}", e));
+                        if let Ok(loader) = loader.lock() {
+                            Self::bind_sqlite3_udfs(&conn, &*loader);
+                        } else {
+                            println!("Unable to acquire lock over function loader");
+                        }
                         Ok(conn)
                     });
                 conn

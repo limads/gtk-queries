@@ -38,7 +38,8 @@ pub struct TableEnvironment {
     queries : Vec<String>,
 
     last_update : Option<String>,
-    history : Vec<EnvironmentUpdate>
+    history : Vec<EnvironmentUpdate>,
+    loader : Arc<Mutex<FunctionLoader>>
 }
 
 impl TableEnvironment {
@@ -46,11 +47,12 @@ impl TableEnvironment {
     pub fn new(src : EnvironmentSource, loader : Arc<Mutex<FunctionLoader>>) -> Self {
         Self{
             source : src,
-            listener : SqlListener::launch(loader),
+            listener : SqlListener::launch(loader.clone()),
             tables : Vec::new(),
             last_update : None,
             queries : Vec::new(),
-            history : vec![EnvironmentUpdate::Clear]
+            history : vec![EnvironmentUpdate::Clear],
+            loader : loader.clone()
         }
     }
 
@@ -68,8 +70,11 @@ impl TableEnvironment {
         &mut self,
         path : Option<PathBuf>
     ) -> Result<(), String> {
-        match SqlEngine::try_new_sqlite3(path) {
-            Ok(engine) => { self.update_engine(engine)?; Ok(()) },
+        match SqlEngine::try_new_sqlite3(path, &self.loader) {
+            Ok(engine) => {
+                self.update_engine(engine)?;
+                Ok(())
+            },
             Err(msg) => Err(msg)
         }
     }
@@ -281,8 +286,24 @@ impl TableEnvironment {
         }
 
         // Case Sqlite3
+        let err = String::from("Could not parse table types");
+        let mut content = String::new();
+        let schema = if let Ok(mut f) = File::open(&path) {
+            if let Ok(_) = f.read_to_string(&mut content) {
+                if let Ok(tbl) = Table::new_from_text(content) {
+                    tbl.sql_table_creation(name).ok_or(err)?
+                } else {
+                    return Err(err);
+                }
+            } else {
+                return Err(err);
+            }
+        } else {
+            return Err(err);
+        };
+        println!("Schema: {}", schema); //schema='{}'
         let sql = format!("create virtual table temp.{} using \
-            csv(filename='{}', header='YES');", name, path.to_str().unwrap());
+            csv(filename='{}', header='YES', schema='{}');", name, path.to_str().unwrap(), schema );
         self.prepare_and_send_query(sql, false)
     }
 

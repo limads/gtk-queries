@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::{RefCell};
 use std::fs::File;
 use std::io::Read;
-use gdk::{self, enums::key};
+use gdk::{self, keys};
 use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
 use sourceview::*;
 use gtk::prelude::*;
@@ -177,7 +177,7 @@ impl FileList {
         let lbl = Label::new(Some(name));
         bx.pack_start(&lbl, false, false, 0);
         bx.pack_start(&Box::new(Orientation::Horizontal, 0), true, true, 0);
-        let img_close = Image::new_from_icon_name(
+        let img_close = Image::from_icon_name(
             Some("application-exit-symbolic"),
             IconSize::SmallToolbar
         );

@@ -60,7 +60,7 @@ impl TableNotebook {
         mapping_popover : Popover,
         sidebar : PlotSidebar,
     ) {
-        let img = Image::new_from_icon_name(
+        let img = Image::from_icon_name(
             Some(icon), IconSize::LargeToolbar
         );
         let mut table_w = TableWidget::new();

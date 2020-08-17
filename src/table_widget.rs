@@ -290,25 +290,22 @@ impl TableWidget {
                             ev_box.connect_button_press_event(move |bx, ev| {
                                 if let Some(child) = bx.get_children().get(0) {
                                     let label : Label = child.clone().downcast().unwrap();
-                                    if let Some(txt) = label.get_text().map(|t| t.to_string()) {
-                                        if let Ok(mut sel) = selected.try_borrow_mut() {
-                                            if ev.get_button() == 1 {
-                                                if ev.get_click_count() == Some(1) {
-                                                    if let Some(pos) = sel.iter_mut().position(|c| &c.0[..] == &txt[..] ) {
-                                                        Self::switch_selected(grid.clone(), &mut sel[..], pos);
-                                                    } else {
-                                                        println!("Invalid column name");
-                                                    }
+                                    let txt = label.get_text().to_string();
+                                    if let Ok(mut sel) = selected.try_borrow_mut() {
+                                        if ev.get_button() == 1 {
+                                            if ev.get_click_count() == Some(1) {
+                                                if let Some(pos) = sel.iter_mut().position(|c| &c.0[..] == &txt[..] ) {
+                                                    Self::switch_selected(grid.clone(), &mut sel[..], pos);
                                                 } else {
-                                                    Self::switch_all(grid.clone(), &mut sel[..]);
+                                                    println!("Invalid column name");
                                                 }
+                                            } else {
+                                                Self::switch_all(grid.clone(), &mut sel[..]);
                                             }
-                                        } else {
-                                           println!("Selected vector mutably borrowed");
-                                           return glib::signal::Inhibit(false);
-                                        };
+                                        }
                                     } else {
-                                        println!("Label does not have text");
+                                       println!("Selected vector mutably borrowed");
+                                       return glib::signal::Inhibit(false);
                                     }
                                 } else {
                                     println!("Label not present inside event box");

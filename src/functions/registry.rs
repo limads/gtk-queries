@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::ffi::OsStr;
 use gdk::ModifierType;
-use gdk::{self, enums::key};
+use gdk::{self, keys};
 use std::boxed;
 use std::process::Command;
 use gtk::prelude::*;
@@ -109,7 +109,9 @@ pub struct FunctionRegistry {
     lib_add_btn : Button,
     fn_name_label : Label,
     fn_doc_label : Label,
-    so_file_chooser : FileChooserDialog
+    so_file_chooser : FileChooserDialog,
+    lib_info : InfoBar,
+    info_lbl : Label
     // fn_arg_box : Box,
     // src_entry : Entry,
     // dst_entry : Entry
@@ -277,11 +279,6 @@ impl FunctionRegistry {
                     } else {
                         println!("No doc available");
                     }
-                    //if let Some(args) = self.loader.get_args(name) {
-                    //    self.update_param_box(&args[..]);
-                    //} else {
-                    //    println!("No args available");
-                    //}
                 } else {
                     println!("{} not in function Registry", name);
                 }
@@ -309,7 +306,7 @@ impl FunctionRegistry {
         };
         for (i, (lib, active)) in lib_list.iter().enumerate() {
             if prefix.map(|p| lib.starts_with(p) ).unwrap_or(true) {
-                println!("Must add: {}", lib);
+                // println!("Must add: {}", lib);
                 let n = list_box.get_children().len();
                 list_box.insert(&Self::build_lib_item(lib, &loader, *active), n as i32);
             }
@@ -346,7 +343,7 @@ impl FunctionRegistry {
         let child_box = child.downcast::<Box>().unwrap();
         let label = child_box.get_children().get(label_ix)?.clone()
             .downcast::<Label>().ok()?;
-        label.get_text().as_ref().map(|txt| txt.as_str().to_string())
+        Some(label.get_text().as_str().to_string())
     }
 
     fn reload_fn_list(list_box : &ListBox, funcs : &[&Function]) {
@@ -354,7 +351,7 @@ impl FunctionRegistry {
             list_box.remove(&child);
         }
         for (i, f) in funcs.iter().enumerate() {
-            println!("Must add: {:?}", f);
+            println!("Must add function: {:?}", f);
             let n = list_box.get_children().len();
             list_box.insert(&Label::new(Some(&f.name[..])), n as i32);
         }
@@ -385,24 +382,13 @@ impl FunctionRegistry {
         let search_entry : Entry =
             builder.get_object("function_search_entry").unwrap();
         let loader = Arc::new(Mutex::new(FunctionLoader::load().map_err(|e| { println!("{}", e); e }).unwrap()));
-        //let provider = utils::provider_from_path("entry.css").unwrap();
-        //let ctx = search_entry.get_style_context();
-        //ctx.add_provider(&provider,800);
-        //let completion : EntryCompletion =
-        //    builder.get_object("entrycompletion1").unwrap();
-        //completion.set_text_column(0);
-        //completion.set_minimum_key_length(1);
-        //completion.set_popup_completion(true);
-        //let completion_list_store : ListStore =
-        //    builder.get_object("fn_list_store").unwrap();
+        let lib_info : InfoBar = builder.get_object("lib_info").unwrap();
+        let info_lbl : Label = builder.get_object("info_label").unwrap();
         let lib_list_box : ListBox = builder.get_object("lib_list_box").unwrap();
         let fn_list_box : ListBox = builder.get_object("fn_list_box").unwrap();
-        //let fn_tree_model_filter : TreeModelFilter =
-        //    builder.get_object("treemodelfilter1").unwrap();
         let lib_add_btn : Button = builder.get_object("lib_add_btn").unwrap();
         let lib_remove_btn : Button = builder.get_object("lib_remove_btn").unwrap();
         let lib_update_btn : Button = builder.get_object("lib_update_btn").unwrap();
-        //let fn_arg_box : Box = builder.get_object("fn_arg_box").unwrap();
         let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
         let so_file_chooser : FileChooserDialog = builder.get_object("so_file_chooser").unwrap();
@@ -411,6 +397,8 @@ impl FunctionRegistry {
             let loader = loader.clone();
             let lib_list_box = lib_list_box.clone();
             let search_entry = search_entry.clone();
+            let lib_info = lib_info.clone();
+            let info_lbl = info_lbl.clone();
             so_file_chooser.connect_response(move |dialog, resp|{
                 match resp {
                     ResponseType::Other(1) => {
@@ -418,6 +406,14 @@ impl FunctionRegistry {
                             if let Ok(mut loader) = loader.lock() {
                                 if let Err(e) = loader.add_crate(&path[..]) {
                                     println!("{}", e);
+                                    lib_info.set_visible(true);
+                                    lib_info.set_message_type(MessageType::Error);
+                                    info_lbl.set_text(&format!("{}", e));
+                                } else {
+                                    lib_info.set_message_type(MessageType::Info);
+                                    lib_info.set_visible(true);
+                                    info_lbl.set_text("Library loaded");
+                                    println!("Library loaded");
                                 }
                             } else {
                                 println!("Could not lock function loader");
@@ -494,12 +490,11 @@ impl FunctionRegistry {
                             let rbox = child.downcast::<Box>().unwrap();
                             let label = rbox.get_children().get(1).map(|w| w.clone() ).unwrap().downcast::<Label>().unwrap();
                             //if let Ok(child) =  {
-                            if let Some(text) = label.get_text().as_ref().map(|txt| txt.as_str()) {
-                                let funcs = loader.fn_list_for_lib(&text[..]);
-                                Self::reload_fn_list(&fn_list_box, &funcs[..]);
-                            } else {
-                                println!("No label at function name");
-                            }
+                            let text = label.get_text().to_string();
+                            let funcs = loader.fn_list_for_lib(&text[..]);
+                            println!("Function list for {}: {:?}", text, funcs);
+                            Self::reload_fn_list(&fn_list_box, &funcs[..]);
+
                             //else {
                             //    Self::reload_fn_list(&fn_list_box, &[]);
                             //}
@@ -532,30 +527,33 @@ impl FunctionRegistry {
             search_entry : search_entry.clone(),
             loader : loader.clone(),
             lib_list_box,
-            fn_list_box,
+            fn_list_box : fn_list_box.clone(),
             lib_add_btn,
             lib_update_btn : lib_update_btn.clone(),
             lib_remove_btn,
             fn_name_label,
             fn_doc_label,
-            so_file_chooser
+            so_file_chooser,
+            info_lbl,
+            lib_info
         };
         Self::reload_lib_list(&fn_reg.lib_list_box, &fn_reg.loader, None);
 
         {
             let fn_reg = fn_reg.clone();
             let lib_list_box = fn_reg.lib_list_box.clone();
-            lib_list_box.connect_row_selected(move |ls_bx, opt_row| {
+            fn_list_box.connect_row_selected(move |ls_bx, opt_row| {
                 if let Some(row) = opt_row {
-                    if let Some(child) = row.get_child().and_then(|child| child.downcast::<gtk::Box>().ok() ) {
-                        let label = child.get_children()[1].clone().downcast::<Label>().unwrap();
-                        if let Some(text) = label.get_text().as_ref().map(|txt| txt.as_str()) {
+                    if let Some(label) = row.get_child().and_then(|child| child.downcast::<gtk::Label>().ok() ) {
+                        //let label = child.get_children()[1].clone().downcast::<Label>().unwrap();
+                        let text = label.get_text().to_string();
+                        if text.len() >= 1 {
                             fn_reg.update_fn_info(Some(&text[..]));
                         } else {
                             fn_reg.update_fn_info(None);
                         }
                     } else {
-                        println!("Row does not have child");
+                        println!("Row does not have label child");
                     }
                 } else {
                     fn_reg.update_fn_info(None);
@@ -568,7 +566,8 @@ impl FunctionRegistry {
             let loader = fn_reg.loader.clone();
             let lib_list_box = fn_reg.lib_list_box.clone();
             search_entry.connect_key_release_event(move |entry, _ev_key| {
-                if let Some(name) = entry.get_text().map(|n| n.to_string()) {
+                let name = entry.get_text().to_string();
+                if name.len() >= 1 {
                     Self::reload_lib_list(&lib_list_box, &loader, Some(&name[..]));
                 } else {
                     Self::reload_lib_list(&lib_list_box, &loader, None);

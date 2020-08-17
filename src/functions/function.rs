@@ -1,4 +1,4 @@
-use syn::{File, Item, Type, ItemFn, ItemMod, ReturnType, FnArg, AttrStyle, Visibility };
+use syn::{self, File, Item, Type, ItemFn, ItemMod, ReturnType, FnArg, AttrStyle, Visibility };
 use syn::parse::Parse;
 use quote::{ToTokens};
 use proc_macro2::TokenStream;
@@ -14,23 +14,147 @@ use std::convert::{TryFrom, TryInto};
 use super::sql_type::*;
 use std::error::Error;
 use std::cmp::PartialEq;
+use std::str::FromStr;
+use rusqlite::{self, functions::Context };
+use libloading::Symbol;
 
-#[derive(Debug, Clone, PartialEq)]
+/*#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionMode {
+
     Simple,
-    Aggregate,
+
+    /// Holds (Init, State, Final) triple
+    Aggregate(String, String, String),
+
     Window
-}
+}*/
 
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name : String,
     pub args : Vec<SqlType>,
-    pub ret : Vec<SqlType>,
+    // pub ret : Vec<SqlType>,
+    pub ret : SqlType,
     pub doc : Option<String>,
-    pub mode : FunctionMode,
+    // pub mode : FunctionMode,
     pub var_arg : bool,
-    pub var_ret : bool
+    // pub var_ret : bool
+}
+
+pub type SqlSymbol<'a, T> = Symbol<'a, unsafe extern fn(&Context)->rusqlite::Result<T,rusqlite::Error>>;
+
+pub enum LoadedFunc<'a> {
+    F64(SqlSymbol<'a, f64>),
+    I32(SqlSymbol<'a, i32>),
+    Text(SqlSymbol<'a, String>),
+    Bytes(SqlSymbol<'a, Vec<u8>>)
+}
+
+#[derive(Debug, Clone)]
+pub struct Aggregate {
+    pub name : String,
+    pub init_func : String,
+    pub state_func : String,
+    pub final_func : String
+}
+
+impl TryFrom<toml::Value> for Aggregate {
+
+    type Error = ();
+
+    fn try_from(val : toml::Value) -> Result<Self, ()> {
+        match val {
+            toml::Value::Table(ref tbl) => {
+                match tbl.get("init") {
+                    Some(toml::Value::String(init_func)) => {
+                        let state_func = match tbl.get("state") {
+                            Some(toml::Value::String(s)) => s.clone(),
+                            _ => return Err(())
+                        };
+                        let final_func = match tbl.get("final") {
+                            Some(toml::Value::String(s)) => s.clone(),
+                            _ => return Err(())
+                        };
+                        let name = match tbl.get("name") {
+                            Some(toml::Value::String(s)) => s.clone(),
+                            _ => return Err(())
+                        };
+                        Ok(Self{ init_func : init_func.clone(), name, state_func, final_func })
+                    },
+                    _ => Err(())
+                }
+            },
+            _ => Err(())
+        }
+    }
+
+}
+
+impl FromStr for Function {
+
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        let mut spl = s.trim().split("->");
+        let left = spl.next().ok_or(())?;
+        let right = spl.next().ok_or(())?;
+        println!("left={}", left);
+        println!("right={}", right);
+        let mut spl_left = left.split('(');
+        let name = spl_left.next().ok_or(())?.to_string();
+        println!("name={}", name);
+        let full_args = spl_left.next().ok_or(())?
+            .split(')').next().ok_or(())?;
+        println!("full args={}", full_args);
+        println!("next = {:?}", spl_left.next());
+        if spl_left.next().is_some() {
+            return Err(());
+        }
+        let mut args : Vec<SqlType> = Vec::new();
+        for s in full_args.split(',') {
+            args.push(SqlType::try_from(s)?);
+        }
+        println!("args={:?}", args);
+        let ret = SqlType::try_from(right)?;
+        Ok(Function{
+            name,
+            args,
+            ret,
+            doc : None,
+            // mode : FunctionMode::Simple,
+            var_arg : false,
+            // var_ret : false
+        })
+    }
+
+}
+
+fn simple_from_table(tbl : &toml::value::Table) -> Result<Function, ()> {
+    let variadic = match tbl.get("variadic") {
+        Some(toml::Value::Boolean(b)) => *b,
+        None => false,
+        _ => return Err(()),
+    };
+    match tbl.get("name") {
+        Some(toml::Value::String(s)) => {
+            let mut func : Function = s.parse()?;
+            func.var_arg = variadic;
+            Ok(func)
+        },
+        _ => Err(())
+    }
+}
+
+impl TryFrom<toml::Value> for Function {
+
+    type Error = ();
+
+    fn try_from(val : toml::Value) -> Result<Self, ()> {
+        match val {
+            toml::Value::String(s) => s.parse(),
+            _ => Err(())
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,14 +197,14 @@ impl fmt::Display for ParseError {
 
 impl Error for ParseError { }
 
-impl TryFrom<String> for FunctionMode {
+/*impl TryFrom<String> for FunctionMode {
 
     type Error = ();
 
     fn try_from(s : String) -> Result<FunctionMode, ()> {
         match &s[..] {
             "Simple" => Ok(FunctionMode::Simple),
-            "Aggregate" => Ok(FunctionMode::Aggregate),
+            "Aggregate" => /*Ok(FunctionMode::Aggregate),*/ unimplemented!(),
             "Window" => Ok(FunctionMode::Window),
             _ => Err(())
         }
@@ -93,13 +217,13 @@ impl fmt::Display for FunctionMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             FunctionMode::Simple => "Simple",
-            FunctionMode::Aggregate => "Aggregate",
+            FunctionMode::Aggregate(_,_,_) => unimplemented!(),
             FunctionMode::Window => "Window"
         };
         write!(f, "{}", name)
     }
 
-}
+}*/
 
 impl Function {
 
@@ -134,7 +258,93 @@ fn get_simple_type(ts : TokenStream) -> Result<(SqlType, bool), String> {
     }
 }
 
-/// Returns function mode and doc attributes
+fn search_doc_at_item(item : Item, f : &str) -> Option<String> {
+    match item {
+        Item::Mod(item_mod) => {
+            match item_mod.vis {
+                Visibility::Public(_) => {
+                    println!("Searching doc at mod: {:?}", item_mod);
+                    if let Some((_, items)) = item_mod.content {
+                        for item in items {
+                            println!("Searching doc at item: {:?}", item);
+                            if let Some(doc) = search_doc_at_item(item, f) {
+                                return Some(doc);
+                            }
+                        }
+                        None
+                    } else {
+                        None
+                    }
+                },
+                _ => None
+            }
+        },
+        Item::Fn(item_fn) => {
+            match item_fn.vis {
+                Visibility::Public(_) => {
+                    println!("Found function at source: {}", item_fn.sig.ident.to_string());
+                    if &item_fn.sig.ident.to_string()[..] == f {
+                        let mut doc_content = String::new();
+                        for attr in &item_fn.attrs {
+                            let ident = attr.path.get_ident().to_token_stream().to_string();
+                            match &ident[..] {
+                                "doc" => doc_content += &attr.tokens.to_string()[..],
+                                _ => { }
+                            }
+                        }
+                        doc_content = doc_content.clone().chars()
+                            .filter(|c| *c != '"' && *c != '=')
+                            .collect();
+                        doc_content = doc_content.clone().trim_matches(' ').to_string();
+                        Some(doc_content)
+                    } else {
+                        None
+                    }
+                },
+                _ => None
+            }
+        },
+        _ => None
+    }
+}
+
+/// Searches the source tree for the documentation of the function named f.
+/// If f is not found or does not have any documentation, returns none.
+fn search_doc_at_tree(content : &str, f : &str) -> Option<String> {
+    let t : syn::File = syn::parse_str(content).ok()?;
+    for item in t.items {
+        if let Some(doc) = search_doc_at_item(item, f) {
+            return Some(doc);
+        }
+    }
+    None
+}
+
+pub fn search_doc_at_dir(dir : &Path, f : &str) -> Option<String> {
+    for entry in dir.read_dir().ok()? {
+        if let Ok(entry) = entry {
+            if entry.path().is_dir() {
+                println!("Found directory: {:?}", entry);
+                if let Some(doc) = search_doc_at_dir(&entry.path(), f) {
+                    return Some(doc);
+                }
+            } else {
+                if entry.path().extension().and_then(|e| e.to_str()) == Some("rs") {
+                    println!("Found rs file: {:?}", entry);
+                    let mut content = String::new();
+                    let mut file = fs::File::open(&entry.path()).ok()?;
+                    file.read_to_string(&mut content);
+                    if let Some(doc) = search_doc_at_tree(&content, f) {
+                        return Some(doc);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/*/// Returns function mode and doc attributes
 pub fn get_attributes(f : &ItemFn) -> Result<(FunctionMode, Option<String>), ParseError> {
     let mut opt_mode : Option<FunctionMode> = None;
     let mut doc_content = String::new();
@@ -149,7 +359,7 @@ pub fn get_attributes(f : &ItemFn) -> Result<(FunctionMode, Option<String>), Par
                 return Err(ParseError::Attr);
             },
             "sql_agg" => if opt_mode.is_none() {
-                opt_mode = Some(FunctionMode::Aggregate);
+                opt_mode = /*Some(FunctionMode::Aggregate);*/ unimplemented!()
             } else {
                 return Err(ParseError::Attr);
             },
@@ -172,9 +382,9 @@ pub fn get_attributes(f : &ItemFn) -> Result<(FunctionMode, Option<String>), Par
     doc_content = doc_content.clone().trim_matches(' ').to_string();
     let doc = if doc_content.is_empty() { None } else { Some(doc_content) };
     Ok((mode, doc))
-}
+}*/
 
-/// Parse arguments, and if successful tell whether the function has
+/*/// Parse arguments, and if successful tell whether the function has
 /// a variadic last argument.
 pub fn parse_agg_arguments(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseError> {
     let mut args : Vec<SqlType> = Vec::new();
@@ -199,9 +409,9 @@ pub fn parse_agg_arguments(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseErr
         }
     }
     Ok((args, var_arg))
-}
+}*/
 
-/// Parse arguments, and if successful tell whether the function has
+/*/// Parse arguments, and if successful tell whether the function has
 /// a variadic last argument.
 pub fn parse_agg_return(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseError> {
     let mut ret : Vec<SqlType> = Vec::new();
@@ -235,9 +445,9 @@ pub fn parse_agg_return(f : &ItemFn) -> Result<(Vec<SqlType>, bool), ParseError>
         _ => return Err(ParseError::Other)
     }
     Ok((ret, var_ret))
-}
+}*/
 
-/// Returns (name, arg types, return type)
+/*/// Returns (name, arg types, return type)
 pub fn agg_function_signature(f : ItemFn) -> Result<Function, ParseError> {
     let name = f.sig.ident.to_token_stream().to_string();
     let (args, var_arg) = parse_agg_arguments(&f)?;
@@ -327,9 +537,9 @@ pub fn parse_nested_signatures(
         sigs.extend(parse_fn_or_mod(item)?);
     }
     Some(sigs)
-}
+}*/
 
-#[test]
+/*#[test]
 fn parse_test() -> Result<(),()> {
     let test = r#"
         pub mod internal {
@@ -348,7 +558,7 @@ fn parse_test() -> Result<(),()> {
         println!("{:?}", f);
     }
     Ok(())
-}
+}*/
 
 /*pub struct Crate {
     name : String,

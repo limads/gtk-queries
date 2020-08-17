@@ -140,7 +140,7 @@ impl Table {
     }
 
     pub fn sql_table_creation(&self, name : &str) -> Option<String> {
-        let mut query = format!("create table {} (", name);
+        let mut query = format!("CREATE TABLE {}(", name);
         for (i, (name, col)) in self.names.iter().zip(self.cols.iter()).enumerate() {
             let name = match name.chars().find(|c| *c == ' ') {
                 Some(_) => String::from("\"") + &name[..] + "\"",
@@ -150,7 +150,7 @@ impl Table {
             if i < self.cols.len() - 1 {
                 query += ","
             } else {
-                query += ");\n"
+                query += ")\n" //TODO ;
             }
         }
         Some(query)

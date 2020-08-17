@@ -1,14 +1,14 @@
 use gtk::*;
 use gio::prelude::*;
 use std::rc::Rc;
-use std::cell::{RefCell /*, RefMut*/ };
+use std::cell::{RefCell};
 use std::fs::File;
 use std::io::Read;
-use gdk::{self, enums::key};
-use crate::tables::{ /*self, source::EnvironmentSource,*/ environment::TableEnvironment, environment::EnvironmentUpdate, /*sql::SqlListener*/ };
+use gdk::{self, keys};
+use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
 use sourceview::*;
 use gtk::prelude::*;
-use crate::{ /*utils, table_widget::TableWidget, table_notebook::TableNotebook,*/ status_stack::StatusStack };
+use crate::{status_stack::StatusStack };
 use crate::status_stack::*;
 use sourceview::View;
 use super::sql_editor::SqlEditor;

@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
-use gdk::{self, enums::key};
+use gdk::{self, keys};
 use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate};
 use gtk_queries::conn_popover::*;
 use sourceview::*;
@@ -388,7 +388,7 @@ impl QueriesApp {
 
         //let function_box : Box = builder.get_object("fn_box").unwrap();
         let fn_toggle = ToggleToolButton::new();
-        let fn_img = Image::new_from_file("assets/icons/fn-dark.svg");
+        let fn_img = Image::from_file("assets/icons/fn-dark.svg");
         fn_toggle.set_icon_widget(Some(&fn_img));
         //sql_editor.add_extra_toolbar(fn_toggle.clone(), function_box.clone());
         let paned_pos = Self::connect_toggles(
@@ -724,7 +724,7 @@ fn build_ui(app: &gtk::Application) {
     } else {
         utils::glade_path("gtk-queries.glade").expect("Failed to load glade file")
     };
-    let builder = Builder::new_from_file(path);
+    let builder = Builder::from_file(path);
     let win : Window = builder.get_object("main_window")
         .expect("Could not recover window");
     //win.set_destroy_with_parent(false);
@@ -748,7 +748,7 @@ fn build_ui(app: &gtk::Application) {
         //let plot_notebook = queries_app.plot_sidebar.notebook.clone();
         win.connect_key_release_event(move |_win, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
-                if ev_key.get_keyval() == key::q {
+                if ev_key.get_keyval() == keys::constants::q {
                     //mapping_popover.hide();
                     if conn_popover.popover.get_visible() {
                         conn_popover.popover.hide();
@@ -762,7 +762,7 @@ fn build_ui(app: &gtk::Application) {
                     view.borrow().grab_focus();
                     return glib::signal::Inhibit(true)
                 }
-                if ev_key.get_keyval() == key::w {
+                if ev_key.get_keyval() == keys::constants::w {
                     if conn_popover.popover.get_visible() {
                         conn_popover.popover.hide();
                     }
@@ -771,12 +771,12 @@ fn build_ui(app: &gtk::Application) {
                     }
                     return glib::signal::Inhibit(true)
                 }
-                if ev_key.get_keyval() == key::c {
+                if ev_key.get_keyval() == keys::constants::c {
                     conn_popover.popover.show();
                     //mapping_popover.hide();
                     return glib::signal::Inhibit(true)
                 }
-                if ev_key.get_keyval() == key::e {
+                if ev_key.get_keyval() == keys::constants::e {
                     if conn_popover.popover.get_visible() {
                         conn_popover.popover.hide();
                     }
@@ -794,12 +794,12 @@ fn build_ui(app: &gtk::Application) {
                         }
                     }
                 }*/
-                if ev_key.get_keyval() == key::l {
+                if ev_key.get_keyval() == keys::constants::l {
 
                 }
                 return glib::signal::Inhibit(false)
             } else {
-                if ev_key.get_keyval() == key::Escape {
+                if ev_key.get_keyval() == keys::constants::Escape {
                     mapping_popover.hide();
                     conn_popover.popover.hide();
                     table_toggle.set_active(false);

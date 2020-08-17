@@ -464,10 +464,9 @@ impl ConnPopover {
 
     fn check_entries_clear(&self) -> bool {
         for entry in self.entries.iter().take(3) {
-            if let Some(txt) = entry.get_text().map(|t| t.to_string()) {
-                if !txt.is_empty() {
-                    return false;
-                }
+            let txt = entry.get_text().to_string();
+            if !txt.is_empty() {
+                return false;
             }
         }
         true
@@ -497,6 +496,7 @@ impl ConnPopover {
             .and_then(|name| name.split('.').next().map(|n| n.to_string()) );
         if let Some(name) = opt_name {
             if let Err(e) = t_env.create_csv_table(path, &name) {
+                println!("{}", e);
                 status_stack.update(Status::SqlErr(e));
                 Self::disconnect_with_delay(switch.clone());
             }
@@ -571,24 +571,23 @@ impl ConnPopover {
         let mut conn_info : HashMap<&str, String> = HashMap::new();
         let fields = ["host", "user", "password", "dbname"];
         for (entry, field) in entries.iter().zip(fields.iter()) {
-            if let Some(s) = entry.get_text() {
-                let value = s.as_str().to_owned();
-                if !value.is_empty() {
-                    if field == &" host" {
-                        let spl_port : Vec<&str> = value.split(":").collect();
-                        if spl_port.len() >= 2 {
-                            conn_info.insert(
-                                "host", spl_port[0].to_owned().clone()
-                            );
-                            conn_info.insert(
-                                "port", spl_port[1].to_owned().clone());
-                        } else {
-                            conn_info.insert("host",
-                                spl_port[0].to_owned().clone());
-                        }
+            let s = entry.get_text();
+            let value = s.as_str().to_owned();
+            if !value.is_empty() {
+                if field == &" host" {
+                    let spl_port : Vec<&str> = value.split(":").collect();
+                    if spl_port.len() >= 2 {
+                        conn_info.insert(
+                            "host", spl_port[0].to_owned().clone()
+                        );
+                        conn_info.insert(
+                            "port", spl_port[1].to_owned().clone());
                     } else {
-                        conn_info.insert(field, value);
+                        conn_info.insert("host",
+                            spl_port[0].to_owned().clone());
                     }
+                } else {
+                    conn_info.insert(field, value);
                 }
             }
         }

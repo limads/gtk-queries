@@ -50,7 +50,7 @@ impl MappingMenu {
 
     pub fn create_tab_image(m_type : String) -> Image {
         let tab_img_path = String::from("assets/icons/") + &m_type + ".svg";
-        Image::new_from_file(&tab_img_path[..])
+        Image::from_file(&tab_img_path[..])
     }
 
     /// The creation of a mapping menu is based on an id naming convention
@@ -68,7 +68,7 @@ impl MappingMenu {
         pl_view : Rc<RefCell<PlotView>>,
         properties : Option<HashMap<String, String>>
     ) -> Result<MappingMenu, &'static str> {
-        let builder = Builder::new_from_string(&glade_def[&mapping_type][..]);
+        let builder = Builder::from_string(&glade_def[&mapping_type][..]);
         let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
         if !valid_mappings.iter().any(|s| &mapping_type[..] == *s) {
             return Err("Invalid mapping type. Must be line|scatter|bar|area|text|surface");

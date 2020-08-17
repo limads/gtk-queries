@@ -106,10 +106,10 @@ impl<'a> Column {
 
     pub fn sqlite3_type(&self) -> String {
         match self {
-            Column::I32(_) | Column::I64(_) => String::from("integer"),
-            Column::F32(_) | Column::F64(_) => String::from("real"),
-            Column::Bytes(_) => String::from("blob"),
-            _ => String::from("text"),
+            Column::I32(_) | Column::I64(_) => String::from("INT"),
+            Column::F32(_) | Column::F64(_) => String::from("REAL"),
+            Column::Bytes(_) => String::from("BLOB"),
+            _ => String::from("TEXT"),
         }
     }
 

@@ -77,7 +77,7 @@ impl GroupToolbar {
         let mut toggles = HashMap::new();
         let layout_iter = ALL_LAYOUTS.iter().zip(ALL_PATHS.iter());
         for (i, (layout, path)) in layout_iter.clone().enumerate() {
-            let img = Image::new_from_file(&(String::from("assets/icons/") + path + ".svg"));
+            let img = Image::from_file(&(String::from("assets/icons/") + path + ".svg"));
             let btn : ToggleToolButton = ToggleToolButton::new();
             btn.set_icon_widget(Some(&img));
             toggles.insert(*layout, btn.clone());
@@ -258,6 +258,7 @@ impl PlotSidebar {
                     (false, true) => 2,
                     (false, false) => 3,
             },
+            // TODO panicking here
             _ => panic!("Undefined plot size")
         }
     }

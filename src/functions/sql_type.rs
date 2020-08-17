@@ -9,7 +9,8 @@ pub enum SqlType {
     I64,
     F32,
     F64,
-    String
+    String,
+    Bytes
 }
 
 impl TryFrom<&str> for SqlType {
@@ -23,6 +24,7 @@ impl TryFrom<&str> for SqlType {
             "f32" => Ok(Self::F32),
             "f64" => Ok(Self::F64),
             "String" => Ok(Self::String),
+            "Vec<u8>" => Ok(Self::Bytes),
             _ => Err(())
         }
     }
@@ -68,7 +70,8 @@ impl fmt::Display for SqlType {
             Self::I64 => "i64",
             Self::F32 => "f32",
             Self::F64 => "f64",
-            Self::String => "String"
+            Self::String => "String",
+            Self::Bytes => "Vec<u8>"
         };
         write!(f, "{}", out)
     }
