@@ -26,10 +26,10 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="32"
-     inkscape:cx="2.6648459"
-     inkscape:cy="5.3928759"
+     inkscape:cx="4.4121888"
+     inkscape:cy="4.5272091"
      inkscape:document-units="mm"
-     inkscape:current-layer="g848"
+     inkscape:current-layer="g820"
      showgrid="false"
      units="px"
      inkscape:window-width="1920"
@@ -61,19 +61,19 @@
          id="g820"
          transform="rotate(-90,2.2049769,294.86184)">
         <rect
-           style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:0.2;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
+           style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:0.3;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0"
            id="rect815"
            width="3.5532002"
            height="3.5532002"
            x="0.42837358"
            y="293.08524" />
         <rect
-           y="293.08524"
-           x="0.42837355"
-           height="0.73745686"
-           width="3.5532002"
+           y="293.60056"
+           x="0.78836334"
+           height="0.54973531"
+           width="2.8358912"
            id="rect850"
-           style="fill:#ffffff;fill-opacity:1;stroke:#ffffff;stroke-width:0.09111471;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
+           style="fill:#ffffff;fill-opacity:1;stroke:#ffffff;stroke-width:0.07028002;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0" />
       </g>
     </g>
   </g>

@@ -1,9 +1,6 @@
-use rusqlite::{self, /*Rows,*/ types::Value };
-// use std::convert::{TryFrom, TryInto};
-// use rust_decimal::Decimal;
+use rusqlite::{self, types::Value };
 use super::column::*;
 use super::nullable_column::*;
-// use std::fmt::Display;
 use super::table::*;
 use rusqlite::types::FromSql;
 use rusqlite::Row;
@@ -235,21 +232,26 @@ mod functions {
     use rusqlite::functions::{Aggregate, Context};
     use std::panic::{RefUnwindSafe, UnwindSafe};
 
-    pub struct ToSqlAgg<T>
-    where T : ToSql
+    pub struct ToSqlAgg<T,F>
+    where
+        T : ToSql,
+        F : ToSql
     {
         data : T,
 
+        init_func : Box<dyn Fn()->T>,
+
         /// This function can be read as a dynamic external symbol
-        transition : Box<dyn Fn(T)->T>,
+        state_func : Box<dyn Fn(T)->T>,
 
         /// This function also can be read as a dynamic external symbol
-        agg : Box<dyn Fn(T)->T>
+        final_func : Box<dyn Fn(T)->F>
     }
 
-    impl<T> Aggregate<T, T> for ToSqlAgg<T>
+    impl<T, F> Aggregate<T, F> for ToSqlAgg<T, F>
     where
-        T : ToSql + RefUnwindSafe + UnwindSafe
+        T : ToSql + RefUnwindSafe + UnwindSafe,
+        F : ToSql + RefUnwindSafe + UnwindSafe
     {
         fn init(&self) -> T {
             unimplemented!()
@@ -259,7 +261,7 @@ mod functions {
             unimplemented!()
         }
 
-        fn finalize(&self, t : Option<T>) -> rusqlite::Result<T> {
+        fn finalize(&self, t : Option<T>) -> rusqlite::Result<F> {
             unimplemented!()
         }
 

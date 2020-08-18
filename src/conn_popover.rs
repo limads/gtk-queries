@@ -18,6 +18,7 @@ use crate::sql_editor::SqlEditor;
 use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_notebook::*;
 use crate::functions::registry::FunctionRegistry;
+use crate::schema_tree::SchemaTree;
 
 #[derive(Clone)]
 pub struct ConnPopover {
@@ -293,7 +294,8 @@ impl ConnPopover {
         status : StatusStack,
         sql_popover : SqlEditor,
         workspace : PlotWorkspace,
-        fn_reg : FunctionRegistry
+        fn_reg : FunctionRegistry,
+        schema_tree : SchemaTree
     ) {
         let conn_popover = self.clone();
         self.conn_switch.connect_state_set(move |switch, state| {
@@ -399,9 +401,11 @@ impl ConnPopover {
                         sql_popover.set_active(true);
                         workspace.set_active(true);
                         fn_reg.set_sensitive(false);
+                        schema_tree.repopulate(table_env.clone());
                     },
                     _ => {
                         fn_reg.set_sensitive(true);
+                        schema_tree.clear();
                         if let Ok(mut t_env) = table_env.try_borrow_mut() {
                             Self::clear_session(
                                 sql_popover.clone(),

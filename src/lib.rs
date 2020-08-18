@@ -24,7 +24,7 @@ pub mod main_menu;
 
 pub mod file_list;
 
-pub mod schema_list;
+pub mod schema_tree;
 
 pub mod utils {
 

@@ -12,19 +12,105 @@ use crate::{status_stack::StatusStack};
 use crate::status_stack::*;
 use sourceview::View;
 use super::sql_editor::SqlEditor;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone)]
+pub struct SqlFile {
+
+    // Name that appear on the sidebar list.
+    // Usually the file and its parent directory.
+    name : String,
+
+    // Empty if user pressed "New" instead of loading the file from disk.
+    path : Option<PathBuf>,
+
+    // Whether the user saved the queries to disk since the last edits.
+    saved : bool
+}
 
 #[derive(Clone)]
 pub struct FileList {
     // Holds the ordered file paths
-    files : Rc<RefCell<Vec<String>>>,
+    files : Rc<RefCell<Vec<SqlFile>>>,
     last_ix : Rc<RefCell<usize>>,
-    list_box : ListBox
+    list_box : ListBox,
+    close_confirm_dialog : Dialog,
 }
 
 impl FileList {
 
     pub fn set_sensitive(&self, state : bool) {
         self.list_box.set_sensitive(state);
+    }
+
+    pub fn current_selected_path(&self) -> Option<PathBuf> {
+        if let Some(sel_ix) = self.get_selected() {
+            if let Ok(files) = self.files.try_borrow() {
+                files.get(sel_ix).and_then(|f| f.path.clone() )
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn get_label_from_row(row : &ListBoxRow) -> Label {
+        let bx_child = row.get_child().unwrap().downcast::<Box>().unwrap();
+        let lbl_child = bx_child
+            .get_children()[0]
+            .clone()
+            .downcast::<Label>().unwrap();
+        lbl_child
+    }
+
+     pub fn mark_current_saved(&self) {
+        if let Some(row) = self.list_box.get_selected_row() {
+            let lbl = Self::get_label_from_row(&row);
+            let txt = lbl.get_text();
+            if txt.as_str().ends_with("*") {
+                lbl.set_text(&txt[0..(txt.len()-1)]);
+            } else {
+                println!("Text already marked as saved");
+            }
+        } else {
+            println!("No selected row");
+        }
+    }
+
+    pub fn mark_current_unsaved(&self) {
+        if let Some(row) = self.list_box.get_selected_row() {
+            let lbl = Self::get_label_from_row(&row);
+            let txt = lbl.get_text();
+            if !txt.as_str().ends_with("*") {
+                lbl.set_text(&format!("{}*", txt));
+            } else {
+                println!("Text already marked as unsaved");
+            }
+        } else {
+            println!("No selected row");
+        }
+    }
+
+    pub fn set_current_selected_path(&self, path : &Path) {
+        if let Some(sel_ix) = self.get_selected() {
+            if let Ok(mut files) = self.files.try_borrow_mut() {
+                if let Some(mut f) = files.get_mut(sel_ix) {
+                    if let Some(name) = SqlEditor::clip_name(&path) {
+                        f.name = name;
+                        f.path = Some(path.to_path_buf());
+                    } else {
+                        println!("Invalid name");
+                    }
+                } else {
+                    println!("Invalid index: {}", sel_ix);
+                }
+            } else {
+                println!("Could not retrieve mutable reference to file list");
+            }
+        } else {
+            println!("No file selected");
+        }
     }
 
     pub fn connect_selected(&self, sql_editor : &SqlEditor, content_stack : Stack, query_toggle : ToggleButton) {
@@ -72,10 +158,15 @@ impl FileList {
     }
 
     pub fn build(builder : &Builder) -> Self {
-        let files = Rc::new(RefCell::new(vec![String::from("Untitled 1")]));
+        let files = Rc::new(RefCell::new(vec![SqlFile{
+            name:String::from("Untitled 1"),
+            path : None,
+            saved : true
+        }]));
         let list_box : ListBox = builder.get_object("sql_list_box").unwrap();
         let last_ix = Rc::new(RefCell::new(0));
-        let file_list = Self{ files, list_box, last_ix };
+        let close_confirm_dialog : Dialog = builder.get_object("close_confirm_dialog").unwrap();
+        let file_list = Self{ files, list_box, last_ix, close_confirm_dialog };
         file_list
     }
 
@@ -86,14 +177,18 @@ impl FileList {
         query_toggle : ToggleButton
     ) {
         let n_untitled = self.files.borrow().iter()
-            .filter(|f| f.starts_with("Untitled") )
-            .filter_map(|f| f.split(' ').nth(1) )
+            .filter(|f| f.name.starts_with("Untitled") )
+            .filter_map(|f| f.name.split(' ').nth(1) )
             .last()
             .and_then(|n| n.parse::<usize>().ok() )
             .unwrap_or(0);
         let title = &format!("Untitled {}", n_untitled + 1);
         println!("New title: {}", title);
-        self.files.borrow_mut().push(title.clone());
+        self.files.borrow_mut().push(SqlFile{
+            name : title.clone(),
+            path : None,
+            saved : true
+        });
         self.list_box.unselect_all();
         let row = self.add_file_row(&title, content_stack.clone(), sql_editor.clone());
         self.list_box.show_all();
@@ -104,7 +199,7 @@ impl FileList {
         let stack_name = format!("queries_{}", n - 1);
         println!("Adding stack child named: {}", stack_name);
         content_stack.add_named(
-            &SqlEditor::new_source("", &sql_editor.refresh_btn.clone()),
+            &SqlEditor::new_source("", &sql_editor.refresh_btn.clone(), &self),
             &stack_name
         );
         content_stack.show_all();
@@ -114,7 +209,7 @@ impl FileList {
     fn remove_source(
         row : ListBoxRow,
         list_box : ListBox,
-        files : Rc<RefCell<Vec<String>>>,
+        files : Rc<RefCell<Vec<SqlFile>>>,
         content_stack : Stack,
         sql_editor : SqlEditor
     ) {
@@ -155,10 +250,7 @@ impl FileList {
             // Case this is the last element, just clear the source view and hide it.
             sql_editor.set_text("");
             content_stack.set_visible_child_name("no_queries");
-            let bx_child = row.get_child().unwrap().downcast::<Box>().unwrap();
-            let lbl_child = bx_child.get_children()[0]
-                .clone()
-                .downcast::<Label>().unwrap();
+            let lbl_child = Self::get_label_from_row(&row);
             lbl_child.set_text("Untitled 0");
         }
     }
@@ -187,9 +279,27 @@ impl FileList {
         {
             let row = row.clone();
             let list_box = self.list_box.clone();
+            let close_confirm_dialog = self.close_confirm_dialog.clone();
             let files = self.files.clone();
             ev_box.connect_button_press_event(move |ev_box, ev| {
                 println!("Close button pressed");
+                let curr_saved = if let Ok(files) = files.try_borrow() {
+                    if let Some(f) = files.get(row.get_index() as usize) {
+                        f.saved
+                    } else {
+                        println!("Unable to get file index");
+                        return glib::signal::Inhibit(true);
+                    }
+                } else {
+                    println!("Unable to acquire lock over files");
+                    return glib::signal::Inhibit(true);
+                };
+                if !curr_saved {
+                    let ans = close_confirm_dialog.run();
+                    if ans != ResponseType::Other(1) {
+                        return glib::signal::Inhibit(true);
+                    }
+                }
                 Self::remove_source(row.clone(), list_box.clone(), files.clone(), content_stack.clone(), sql_editor.clone());
                 glib::signal::Inhibit(true)
             });
@@ -211,29 +321,34 @@ impl FileList {
     /// the open Sql file window event yielded a successful SQL file path.
     pub fn add_disk_file(
         &self,
-        path : &str,
+        path : &Path,
+        list_name : &str,
         content_stack : Stack,
         query_toggle : ToggleButton,
         refresh_btn : Button,
         sql_editor : SqlEditor
     ) {
         let mut sql_content = String::new();
-        if let Ok(mut f) = File::open(path.clone()) {
+        if let Ok(mut f) = File::open(&path) {
             if let Err(e) = f.read_to_string(&mut sql_content) {
                 println!("{}", e);
             }
             if let Ok(mut files) = self.files.try_borrow_mut() {
-                files.push(path.to_string());
+                files.push(SqlFile{
+                    name : list_name.to_string(),
+                    path : Some(path.to_path_buf()),
+                    saved : true
+                });
             } else {
                 println!("Unable to borrow files mutably");
             }
             let n = self.list_box.get_children().len();
             println!("Adding queries_{}", n);
             content_stack.add_named(
-                &SqlEditor::new_source(&sql_content, &refresh_btn),
+                &SqlEditor::new_source(&sql_content, &refresh_btn, &self),
                 &format!("queries_{}", n)
             );
-            let row = self.add_file_row(path, content_stack.clone(), sql_editor);
+            let row = self.add_file_row(list_name, content_stack.clone(), sql_editor);
             self.list_box.select_row(Some(&row));
             if !query_toggle.get_active() {
                 query_toggle.set_active(true);

@@ -12,6 +12,8 @@ use crate::{status_stack::StatusStack};
 use crate::status_stack::*;
 use sourceview::View;
 use super::file_list::FileList;
+use std::io::Write;
+use std::path::Path;
 
 pub enum ExecStatus {
     File(String, usize),
@@ -21,15 +23,16 @@ pub enum ExecStatus {
 
 #[derive(Clone)]
 pub struct SqlEditor {
+    pub file_list : FileList,
 
     /// The view is dinamically changed whenever a new file is selected. All views are owned
     /// by the content_stack->ScrolledWindow at which they are inserted. Since the view can
     /// be mutated, we wrap it in a RefCell since this change will happen at an Fn closure when
     /// a new file is selected at FileList.
-
-    pub file_list : FileList,
     pub view : Rc<RefCell<View>>,
     pub sql_load_dialog : FileChooserDialog,
+    pub sql_save_dialog : FileChooserDialog,
+
     pub refresh_btn : Button,
     clear_btn : ToolButton,
     update_btn : ToggleButton,
@@ -52,6 +55,48 @@ pub struct SqlEditor {
 
 impl SqlEditor {
 
+    pub fn save_current(&self) {
+        if let Some(path) = self.file_list.current_selected_path() {
+            if let Ok(mut f) = File::open(path) {
+                let content = self.get_text();
+                f.write_all(content.as_bytes());
+                println!("Content written to file");
+                self.file_list.mark_current_saved();
+            } else {
+                println!("Unable to open file for writing");
+            }
+        } else {
+            self.sql_save_dialog.run();
+            self.sql_save_dialog.hide();
+        }
+    }
+
+    fn connect_sql_save(editor : &SqlEditor) {
+        let sql_save_dialog = editor.sql_save_dialog.clone();
+        let editor = editor.clone();
+        sql_save_dialog.connect_response(move |dialog, resp|{
+            match resp {
+                ResponseType::Other(1) => {
+                    if let Some(path) = dialog.get_filename() {
+                        let content = editor.get_text();
+                        if let Ok(mut f) = File::open(&path) {
+                            f.write_all(content.as_bytes());
+                            editor.file_list.set_current_selected_path(path.as_path());
+                            println!("Content written to file");
+                            editor.file_list.mark_current_saved();
+                        } else {
+                            println!("Unable to open file for writing");
+                        }
+                    } else {
+                        println!("Unable to retrieve path");
+                    }
+                },
+                _ => { },
+            }
+            dialog.hide();
+        });
+    }
+
     pub fn add_fresh_editor(&self, content_stack : Stack, query_toggle : ToggleButton) {
         if self.file_list.get_selected().is_none() {
             self.file_list.add_file_row(
@@ -69,11 +114,11 @@ impl SqlEditor {
         }
     }
 
-    pub fn new_source(content : &str, refresh_btn : &Button) -> ScrolledWindow {
+    pub fn new_source(content : &str, refresh_btn : &Button, file_list : &FileList) -> ScrolledWindow {
         let no_adj : Option<&Adjustment> = None;
         let sw = ScrolledWindow::new(no_adj, no_adj);
         let view = View::new();
-        Self::configure_view(&view, refresh_btn);
+        Self::configure_view(&view, refresh_btn, file_list.clone());
         view.get_buffer().map(|buf| buf.set_text(&content) );
         sw.add(&view);
         sw
@@ -313,7 +358,7 @@ impl SqlEditor {
         });
     }
 
-    fn configure_view(view : &View, refresh_btn : &Button) {
+    fn configure_view(view : &View, refresh_btn : &Button, file_list : FileList) {
         view.set_tab_width(4);
         view.set_indent_width(4);
         view.set_auto_indent(true);
@@ -328,6 +373,10 @@ impl SqlEditor {
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
         Self::connect_source_key_press(&view, &refresh_btn);
+        let buffer = view.get_buffer().unwrap();
+        buffer.connect_changed(move |buf| {
+            file_list.mark_current_unsaved();
+        });
     }
 
     pub fn build(
@@ -344,6 +393,7 @@ impl SqlEditor {
 
         let sql_stack : Stack = builder.get_object("sql_stack").unwrap();
         sql_stack.set_visible_child_name("empty");
+
         // let sql_new_btn : Button = builder.get_object("sql_new_btn").unwrap();
         //let sql_load_btn : Button = builder.get_object("sql_load_btn").unwrap();
         let query_file_label : Label = builder.get_object("query_file_label").unwrap();
@@ -379,7 +429,7 @@ impl SqlEditor {
         //sql_toolbar.insert(&update_btn, 1);
         sql_toolbar.show_all();
 
-        Self::configure_view(&view, &refresh_btn);
+        Self::configure_view(&view, &refresh_btn, file_list.clone());
 
         let update_clock = Rc::new(RefCell::new((false, 0, 0)));
         {
@@ -498,6 +548,8 @@ impl SqlEditor {
         }
 
         popover.set_relative_to(Some(&query_toggle));*/
+        let sql_save_dialog : FileChooserDialog =
+            builder.get_object("sql_save_dialog").unwrap();
 
         let sql_editor = Self {
             view : Rc::new(RefCell::new(view)),
@@ -506,6 +558,7 @@ impl SqlEditor {
             //popover,
             //query_toggle,
             sql_load_dialog,
+            sql_save_dialog,
             //sql_box,
             //extra_toolbar,
             // sql_toggle,
@@ -521,7 +574,7 @@ impl SqlEditor {
             //sql_load_btn,
             query_file_label,
             table_toggle,
-            file_list : file_list.clone()
+            file_list : file_list.clone(),
         };
 
         Self::connect_sql_load(
@@ -534,6 +587,8 @@ impl SqlEditor {
             sql_editor.refresh_btn.clone(),
             sql_editor.clone()
         );
+
+        Self::connect_sql_save(&sql_editor);
 
         sql_editor
     }
@@ -552,6 +607,19 @@ impl SqlEditor {
         }*/
     }
 
+    pub fn clip_name(path : &Path) -> Option<String> {
+        if let Some(name) = path.file_name().and_then(|n| n.to_str() ) {
+            if let Some(parent) = path.parent().and_then(|p| p.to_str() ) {
+                Some(format!("{}/{}", parent, name))
+            } else {
+                Some(name.to_string())
+            }
+        } else {
+            println!("Invalid path name");
+            None
+        }
+    }
+
     fn connect_sql_load(
         sql_load_dialog : FileChooserDialog,
         // table_env : Rc<RefCell<TableEnvironment>>,
@@ -568,23 +636,23 @@ impl SqlEditor {
             match resp {
                 ResponseType::Other(1) => {
                     if let Some(path) = dialog.get_filename() {
-                        if let Some(name) = path.file_name().and_then(|n| n.to_str() ) {
-                            // query_file_label.set_text(name);
+                        if let Some(name) = Self::clip_name(&path) {
+                            println!("Adding disk file: {:?}", name);
+                            file_list.add_disk_file(
+                                path.as_path(),
+                                &name[..],
+                                content_stack.clone(),
+                                query_toggle.clone(),
+                                refresh_btn.clone(),
+                                sql_editor.clone()
+                            );
                         } else {
-                            // query_file_label.set_text("(Unknown path)");
+                            println!("Could not retrieve name");
                         }
-                        file_list.add_disk_file(
-                            path.to_str().unwrap(),
-                            content_stack.clone(),
-                            query_toggle.clone(),
-                            refresh_btn.clone(),
-                            sql_editor.clone()
-                        );
-                        dialog.hide();
                     } else {
-                        // t_env.clear_queries();
-                        println!("Empty query sequence");
-                    }
+                        println!("Could not get path");
+                        return;
+                    };
                 },
                 _ => {
                     // sql_popover.set_view_mode();
@@ -592,6 +660,7 @@ impl SqlEditor {
                     // query_file_label.set_text("Empty query sequence");
                 }
             }
+            dialog.hide();
             /*} else {
                 println!("Unable to retrieve mutable reference to table environment");
                 query_file_label.set_text("Empty query sequence");

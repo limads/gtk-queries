@@ -31,8 +31,7 @@ pub struct MainMenu {
     layout_btn : ModelButton,
     save_img_btn : ModelButton,
     save_tbl_btn : ModelButton,
-    sql_open_dialog : FileChooserDialog,
-    sql_save_dialog : FileChooserDialog
+    // sql_open_dialog : FileChooserDialog,
     // library_list_box : ListBox,
     // fn_list_box : ListBox
 }
@@ -141,6 +140,13 @@ impl MainMenu {
         save_image_btn
     }
 
+    /*fn build_sql_open_dialog(builder : &Builder, editor : &SqlEditor) -> FileChooserDialog {
+        let sql_open_dialog FileChooserDialog =
+            builder.get_object("sql_open_dialog").unwrap();
+
+        sql_open_dialog
+    }*/
+
     pub fn build(
         builder : &Builder,
         sql_editor : &SqlEditor,
@@ -148,7 +154,8 @@ impl MainMenu {
         query_toggle : ToggleButton,
         view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook,
-        tbl_env : Rc<RefCell<TableEnvironment>>
+        tbl_env : Rc<RefCell<TableEnvironment>>,
+        editor : SqlEditor
     ) -> Self {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
         let sql_new_btn : ModelButton = builder.get_object("sql_new_btn").unwrap();
@@ -206,22 +213,22 @@ impl MainMenu {
 
         let save_img_btn = Self::build_save_image_btn(&builder, view);
         let save_tbl_btn = Self::build_save_table_btn(&builder, tbl_nb, tbl_env);
-        let sql_open_dialog : FileChooserDialog = builder.get_object("sql_open_dialog").unwrap();
-        let sql_save_dialog : FileChooserDialog = builder.get_object("sql_save_dialog").unwrap();
+        // let sql_open_dialog = Self::build_sql_open_dialog(&builder, &editor);
+        // let sql_save_dialog = Self::build_sql_save_dialog(&builder, &editor);
 
         {
-            let sql_open_dialog = sql_open_dialog.clone();
+            let sql_load_dialog = sql_editor.sql_load_dialog.clone();
             sql_open_btn.connect_clicked(move |_btn| {
-                sql_open_dialog.run();
-                sql_open_dialog.hide();
+                sql_load_dialog.run();
+                sql_load_dialog.hide();
             });
         }
 
         {
-            let sql_save_dialog = sql_save_dialog.clone();
+            // let sql_save_dialog = sql_editor.sql_save_dialog.clone();
+            let sql_editor = sql_editor.clone();
             sql_save_btn.connect_clicked(move |_btn| {
-                sql_save_dialog.run();
-                sql_save_dialog.hide();
+                sql_editor.save_current();
             });
         }
 
@@ -239,8 +246,8 @@ impl MainMenu {
             sql_save_btn,
             save_img_btn,
             save_tbl_btn,
-            sql_open_dialog,
-            sql_save_dialog,
+            // sql_open_dialog,
+            // sql_save_dialog,
         }
     }
 

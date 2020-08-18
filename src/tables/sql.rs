@@ -16,6 +16,9 @@ use super::sqlite;
 use crate::functions::{*, function::*, loader::*};
 use rusqlite::functions::*;
 use libloading::Symbol;
+use crate::tables::environment::{DBObject, DBType};
+use std::convert::TryInto;
+use std::collections::HashMap;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -35,248 +38,7 @@ pub enum QueryResult {
 // thread 'main' panicked at 'byte index 64 is not a char boundary; it is inside 'ç' (bytes 63..65) of
 // When using ç in a text field.
 
-/*pub fn as_text(r : &Row, ix : usize) -> String {
-    if let Ok(str_val) = r.try_get::<usize, Option<String>>(ix) {
-        match str_val {
-            Some(s) => s,
-            None => String::from("NULL"),
-        }
-    } else {
-        String::from("(Unable to parse)")
-    }
-}
-
-pub fn as_binary(r : &Row, ix : usize) -> String {
-    if let Ok(bin_val) = r.try_get::<usize, Option<String>>(ix) {
-        match bin_val {
-            Some(_) => String::from("(Binary)"),
-            None => String::from("NULL"),
-        }
-    } else {
-        String::from("(Unable to parse)")
-    }
-}
-
-pub fn as_bool(r : &Row, ix : usize) -> String {
-    if let Ok(bool_val) = r.try_get::<usize, Option<bool>>(ix) {
-        match bool_val {
-            Some(b) => {
-                if b {
-                    String::from("True")
-                } else {
-                    String::from("False")
-                }
-            }
-            None => String::from("NULL"),
-        }
-    } else {
-        String::from("(Unable to parse)")
-    }
-}*/
-
-/*pub fn as_to_string<'a, T>(r : &'a Row, ix : usize) -> String
-    where T : ToString + postgres::types::FromSql<'a>
-{
-    if let Ok(val) = r.try_get::<usize, Option<T>>(ix) {
-        match val {
-            Some(v) => v.to_string(),
-            None => String::from("NULL")
-        }
-    } else {
-        String::from("(Unable to parse)")
-    }
-}*/
-
-// PostgreSQL utility to pack several row results.
-/*pub fn pack_postgresql_results(rows : &Vec<&Row>) -> Vec<(String, Vec<String>)> {
-    let mut content = Vec::new();
-    if let Some(row1) = rows.iter().next() {
-        let cols = row1.columns();
-        let col_types : Vec<_> = cols.iter().map(|c| c.type_()).collect();
-        //let mut data : Vec<Vec<String>> = Vec::new();
-        for c in cols {
-            content.push( (c.name().to_string(), Vec::new()) );
-        }
-        // let types = cols.iter().map(|c| { c.type_})
-        for i in 0..cols.len() {
-            let is_bool = col_types[i] == &Type::BOOL;
-            let is_bytea = col_types[i] == &Type::BYTEA;
-            let is_text = col_types[i] == &Type::TEXT || col_types[i] == &Type::VARCHAR;
-            let is_double = col_types[i] == &Type::FLOAT8;
-            let is_float = col_types[i] == &Type::FLOAT4;
-            let is_int = col_types[i] == &Type::INT4;
-            let is_long = col_types[i] == &Type::INT8;
-            let is_smallint = col_types[i] == &Type::INT2;
-            let is_timestamp = col_types[i] == &Type::TIMESTAMP;
-            let is_date = col_types[i] == &Type::DATE;
-            let is_time = col_types[i] == &Type::TIME;
-            for r in rows.iter() {
-                if is_bool {
-                    content[i].1.push(as_bool(&r, i));
-                } else {
-                    if is_bytea {
-                        content[i].1.push(as_binary(&r, i));
-                    } else {
-                        if is_text {
-                            content[i].1.push(as_text(&r, i));
-                        } else {
-                            if is_double {
-                                content[i].1.push(as_to_string::<f64>(&r, i));
-                            } else {
-                                if is_float {
-                                    content[i].1.push(as_to_string::<f32>(&r, i));
-                                } else {
-                                    if is_int {
-                                        content[i].1.push(as_to_string::<i32>(&r, i));
-                                    } else {
-                                        if is_smallint {
-                                            content[i].1.push(as_to_string::<i16>(&r, i));
-                                        } else {
-                                            if is_long {
-                                                content[i].1.push(as_to_string::<i64>(&r, i));
-                                            } else {
-                                                if is_timestamp {
-                                                content[i].1.push(as_to_string::<chrono::NaiveDateTime>(&r, i));
-                                                } else {
-                                                    if is_date {
-                                                        content[i].1.push(as_to_string::<chrono::NaiveDate>(&r, i));
-                                                    } else {
-                                                        if is_time {
-                                                            content[i].1.push(as_to_string::<chrono::NaiveTime>(&r, i));
-                                                        } else {
-                                                            content[i].1.push(String::from("(Unable to parse)"));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        println!("No rows to show");
-    }
-    content
-}*/
-
-/*pub fn pack_sqlite3_results(
-    rows : &mut rusqlite::Rows
-) ->Vec<(String, Vec<String>)> {
-    let mut content = Vec::new();
-    let names = rows.column_names().unwrap_or(Vec::new());
-    let names : Vec<String> = names.iter()
-        .map(|c| c.to_string()).collect();
-    for n in &names {
-        content.push( (n.clone(), Vec::new()) );
-    }
-    while let Ok(row) = rows.next() {
-        match row {
-            Some(r) => {
-                for (i, n) in names.iter().enumerate() {
-                    let value = r.get::<&str, rusqlite::types::Value>(&n[..])
-                        .unwrap_or(rusqlite::types::Value::Null);
-                    let v_text = match value {
-                        rusqlite::types::Value::Null => String::from("Null"),
-                        rusqlite::types::Value::Integer(int_v) => int_v.to_string(),
-                        rusqlite::types::Value::Real(float_v) => float_v.to_string(),
-                        rusqlite::types::Value::Text(txt_v) => txt_v,
-                        rusqlite::types::Value::Blob(_) => String::from("(Binary)")
-                    };
-                    content[i].1.push(v_text);
-                }
-            },
-            None => { break; }
-        }
-    }
-    content
-}*/
-
-/*pub fn as_rows(&self) -> Vec<Vec<String>> {
-    let mut rows : Vec<Vec<String>> = Vec::new();
-    let keys : Vec<&String> = self.results.keys().collect();
-    if self.err_msg.is_none() && keys.len() >= 1 {
-        rows.push(keys.iter().map(|s| { s.to_string() }).collect());
-        if let Some(col1) = self.results.get(&rows[0][0]) {
-            let sz = col1.len();
-            for i in 0..sz {
-                let mut new_row = Vec::new();
-                for k in self.results.keys() {
-
-                    // TODO panic here
-                    new_row.push(self.results[k][i].clone());
-                }
-                rows.push(new_row);
-            }
-        }
-    }
-    rows
-}*/
-
-    /*pub fn run(&mut self, conn : &Connection) {
-        match conn.query(&self.query, &[]) {
-            Ok(rows) => {
-                let vec_rows : Vec<Row> = rows.iter().collect();
-                self.results = self.pack_results(&vec_rows);
-                self.err_msg = None;
-            }
-            Err(e) => {
-                self.err_msg = Some(e.to_string());
-            }
-        }
-    }*/
-
-    /* Given a vector of column names, return vector of numeric
-    results, taken from a vector of queries */
-    /*pub fn split_cols_from_queries<'a>(
-        queries : &Vec<PostgreQuery>,
-        cols : Vec<&str>)
-    -> Result<Vec<Vec<f64>>,&'a str> {
-            let mut res = Vec::new();
-
-            for c in cols {
-                for q in queries {
-                    let maybe_found = q.results.keys().find(|k| {
-                        *k == c
-                    });
-                    match maybe_found {
-                        Some(k) => {
-                            if let Ok(mut r) = q.cols_as_numbers(vec![k]) {
-                                if let Some(c) = r.pop() {
-                                    res.push(c);
-                                }
-                                break;
-                            } else {
-                                return Err("Impossible to parse column");
-                            }
-                         },
-                        None => { return Err("Key not found"); }
-                    };
-                };
-            }
-            Ok(res)
-    }*/
-
-    /*pub fn agg_queries_as_numbers(
-        queries : &Vec<PostgreQuery>,
-        cols : Vec<&str>) -> Result<Vec<Vec<f64>>,&str> {
-
-    }*/
-//}
-
-/*fn get_form_item<W>(bx : gtk::Box, r : usize, c : usize)
-    -> W where W : IsA<gtk::Widget> {
-    let row : gtk::Box = bx.get_children()[r]
-        .downcast().unwrap();
-    let w : W = row.get_children()[c].downcast().unwrap();
-    w
-}*/
-
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub struct Substitution {
     proj_ix : usize,
     func_name : String,
@@ -350,7 +112,7 @@ fn filter_single_function_out(stmt : &Statement) -> (Statement, Option<Substitut
         _ => None
     };
     (transf_stmt, sub)
-}
+}*/
 
 // TODO SQL parser is not accepting PostgreSQL double precision types
 // Use this if client-side parsing is desired.
@@ -659,7 +421,7 @@ impl SqlEngine {
                     None => {
                         if let Ok(q) = tbl.sql_string("transf_table") {
                             println!("{}", q);
-                            if let Err(e) = self.try_run(q, true, None) {
+                            if let Err(e) = self.try_run(q, true, /*None*/ ) {
                                 println!("{}", e);
                             }
                         } else {
@@ -677,52 +439,178 @@ impl SqlEngine {
         }
     }
 
-    /*pub fn get_table_names(&mut self) -> Option<Vec<DBObject>> {
-        match &self {
-            SqlEngine::Sqlite3{path : _, conn : _} => {
-                let ans = self.try_run(
-                    "select name from sqlite_master where type='table';".into()
-                ).map_err(|e| println!("{}", e) ).ok()?;
-                let q_res = ans.get(0)?;
-                match q_res {
-                    QueryResult::Valid(names) => {
-                        let names = names.get(0)?.1.clone();
-                        let mut objs = Vec::new();
-                        for name in names {
-                            let ans = self.try_run(format!("pragma table_info({});", name))
-                                .map_err(|e| println!("{}", e) ).ok()?;
-                            let q_res = ans.get(0)?;
-                            match q_res {
-                                QueryResult::Valid(col_info) => {
-                                    let names = &col_info.get(1)?.1;
-                                    let col_types = &col_info.get(2)?.1;
-                                    let info : Vec<(String, String)> =
-                                        names.iter().zip(col_types.iter())
-                                        .map(|(s1, s2)| (s1.clone(), s2.clone() ))
-                                        .collect();
-                                    let obj = DBObject::new_table(&name, info);
-                                    objs.push(obj);
-                                },
-                                QueryResult::Invalid(msg) => { println!("{}", msg); return None; },
-                                QueryResult::Statement(_) => { return None; }
-                            }
+    /// Get all SQLite table names.
+    fn get_sqlite_tbl_names(&mut self) -> Option<Vec<String>> {
+        let tbl_query = String::from("select name from sqlite_master where type='table';");
+        let ans = self.try_run(tbl_query, false)
+            .map_err(|e| println!("{}", e) ).ok()?;
+        if let Some(q_res) = ans.get(0) {
+            match q_res {
+                QueryResult::Valid(_, names) => {
+                    names.get_column(0).and_then(|c| {
+                        let s : Option<Vec<String>> = c.clone().try_into().ok();
+                        s
+                    })
+                },
+                QueryResult::Invalid(msg) => { println!("{}", msg); None },
+                _ => None
+            }
+        } else {
+            println!("Query for DB info did not yield any results");
+            None
+        }
+    }
+
+    fn pack_column_types(
+        col_names : Vec<String>,
+        col_types : Vec<String>
+    ) -> Option<Vec<(String, DBType)>> {
+        if col_names.len() != col_types.len() {
+            println!("Column names different than column types length");
+            return None;
+        }
+        let mut types = Vec::new();
+        for ty in col_types {
+            if let Ok(t) = ty.parse::<DBType>() {
+                types.push(t);
+            } else {
+                println!("Unable to parse type: {:?}", ty);
+                return None;
+            }
+        }
+        let cols : Vec<(String, DBType)> = col_names.iter()
+            .zip(types.iter())
+            .map(|(s1, s2)| (s1.clone(), s2.clone() ))
+            .collect();
+        Some(cols)
+    }
+
+    fn get_sqlite_columns(&mut self, tbl_name : &str) -> Option<DBObject> {
+        let col_query = format!("pragma table_info({});", tbl_name);
+        let ans = self.try_run(col_query, false).map_err(|e| println!("{}", e) ).ok()?;
+        let q_res = ans.get(0)?;
+        match q_res {
+            QueryResult::Valid(_, col_info) => {
+                let names = col_info.get_column(1)
+                    .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                let col_types = col_info.get_column(2)
+                    .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                let cols = Self::pack_column_types(names, col_types)?;
+                let obj = DBObject::Table{ name : tbl_name.to_string(), cols };
+                Some(obj)
+            },
+            QueryResult::Invalid(msg) => { println!("{}", msg); None },
+            QueryResult::Statement(_) => None
+        }
+    }
+
+    /// Return HashMap of Schema->Tables
+    fn get_postgre_schemata(&mut self) -> Option<HashMap<String, Vec<String>>> {
+        let tbl_query = String::from("select * from pg_catalog.pg_tables \
+            where schemaname != 'pg_catalog' and schemaname != 'information_schema;'");
+        let ans = self.try_run(tbl_query, false)
+            .map_err(|e| println!("{}", e) ).ok()?;
+        let q_res = ans.get(0)?;
+        match q_res {
+            QueryResult::Valid(_, tables) => {
+                let schemata = tables.get_column(0).and_then(|c| {
+                    let s : Option<Vec<String>> = c.clone().try_into().ok();
+                    s
+                });
+                let names = tables.get_column(1).and_then(|c| {
+                    let s : Option<Vec<String>> = c.clone().try_into().ok();
+                    s
+                });
+                if let Some(schemata) = schemata {
+                    if let Some(names) = names {
+                        let mut schem_hash = HashMap::new();
+                        for (schema, table) in schemata.iter().zip(names.iter()) {
+                            let mut tables = schem_hash.entry(schema.clone()).or_insert(Vec::new());
+                            tables.push(table.clone());
                         }
-                        Some(objs)
-                    },
-                    QueryResult::Invalid(msg) => {
-                        println!("{}", msg);
-                        None
-                    },
-                    QueryResult::Statement(_) => {
+                        Some(schem_hash)
+                    } else {
+                        println!("Could not load table names to String vector");
                         None
                     }
+                } else {
+                    println!("Could not load schema column to String vector");
+                    None
+                }
+            },
+            QueryResult::Invalid(msg) => { println!("{}", msg); None },
+            _ => None
+        }
+    }
+
+    fn get_postgre_columns(&mut self, tbl_name : &str) -> Option<DBObject> {
+        let col_query = format!("select column_name,data_type \
+            from information_schema.columns where table_name = '{}';", tbl_name);
+        let ans = self.try_run(col_query, false).map_err(|e| println!("{}", e) ).ok()?;
+        if let Some(q_res) = ans.get(0) {
+            match q_res {
+                QueryResult::Valid(_, col_info) => {
+                    let names = col_info.get_column(0)
+                        .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                    let col_types = col_info.get_column(1)
+                        .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                    let cols = Self::pack_column_types(names, col_types)?;
+                    let obj = DBObject::Table{ name : tbl_name.to_string(), cols };
+                    Some(obj)
+                },
+                QueryResult::Invalid(msg) => { println!("{}", msg); None },
+                QueryResult::Statement(_) => None
+            }
+        } else {
+            println!("Database info query did not return any results");
+            None
+        }
+    }
+
+    pub fn get_db_info(&mut self) -> Option<Vec<DBObject>> {
+        let mut top_objs = Vec::new();
+        match &self {
+            SqlEngine::Sqlite3{path : _, conn : _} => {
+                if let Some(names) = self.get_sqlite_tbl_names() {
+                    for name in names {
+                        if let Some(obj) = self.get_sqlite_columns(&name) {
+                            top_objs.push(obj);
+                        } else {
+                            println!("Failed to retrieve columns for table {}", name);
+                            return None;
+                        }
+                    }
+                } else {
+                    println!("Could not get SQLite table names");
+                    return None;
+                }
+                Some(top_objs)
+            },
+            SqlEngine::PostgreSql{..} => {
+                if let Some(schemata) = self.get_postgre_schemata() {
+                    for (schema, tbls) in schemata.iter() {
+                        let mut tbl_objs = Vec::new();
+                        for t in tbls.iter() {
+                            if let Some(tbl) = self.get_postgre_columns(&t[..]) {
+                                tbl_objs.push(tbl);
+                            } else {
+                                println!("Failed getting columns for {}", t);
+                                return None;
+                            }
+                        }
+                        top_objs.push(DBObject::Schema{ name : schema.to_string(), children : tbl_objs });
+                    }
+                    Some(top_objs)
+                } else {
+                    println!("Failed retrieving database schemata");
+                    None
                 }
             },
             _ => None
         }
-    }*/
+    }
 
-    /// Table is an expesive data structure, so we pass ownership to the function call
+    /*/// Table is an expesive data structure, so we pass ownership to the function call
     /// because it may be disassembled if the function is found, but we return it back to
     /// the user on an not-found error, since the caller will want to re-use it.
     fn try_client_function(sub : Substitution, tbl : Table, loader : &FunctionLoader) -> QueryResult {
@@ -738,7 +626,7 @@ impl SqlEngine {
                 QueryResult::Valid(String::new(), tbl)
             }
         }
-    }
+    }*/
 
     fn query_postgre(conn : &mut postgres::Client, q : &str) -> QueryResult {
         match conn.query(q, &[]) {
@@ -874,7 +762,7 @@ impl SqlEngine {
         &mut self,
         query_seq : String,
         parse : bool,
-        loader : Option<&FunctionLoader>
+        //loader : Option<&FunctionLoader>
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = match parse {
             true => match parse_sql(&query_seq) {
@@ -1051,7 +939,7 @@ impl SqlListener {
                 // try_run iff there are local functions matching the query.
                 match (cmd_rx.recv(), engine_c.lock(), loader.lock()) {
                     (Ok((cmd, parse)), Ok(mut eng), Ok(loader)) => {
-                        let result = eng.try_run(cmd, parse, Some(&loader));
+                        let result = eng.try_run(cmd, parse, /*Some(&loader)*/ );
                         match result {
                             Ok(ans) => {
                                 if let Err(e) = ans_tx.send(ans) {

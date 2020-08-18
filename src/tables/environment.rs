@@ -8,6 +8,7 @@ use super::table::*;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::functions::loader::*;
+use std::str::FromStr;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -40,6 +41,39 @@ pub struct TableEnvironment {
     last_update : Option<String>,
     history : Vec<EnvironmentUpdate>,
     loader : Arc<Mutex<FunctionLoader>>
+}
+
+#[derive(Debug, Clone)]
+pub enum DBType {
+    Integer,
+    Text,
+    Float,
+    Bytes
+}
+
+impl FromStr for DBType {
+
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "integer" | "int" | "INTEGER" | "INT" => Ok(Self::Integer),
+            "text" | "TEXT" => Ok(Self::Text),
+            "real" | "REAL" => Ok(Self::Float),
+            "blob" | "BLOB" => Ok(Self::Bytes),
+            _ => Err(())
+        }
+    }
+
+}
+
+pub enum DBObject {
+
+    // In practice, children will always hold table variants.
+    Schema{ name : String, children : Vec<DBObject> },
+
+    Table{ name : String, cols : Vec<(String, DBType)> }
+
 }
 
 impl TableEnvironment {
@@ -743,6 +777,15 @@ impl TableEnvironment {
         } else {
             println!("Unable to acquire lock over last commands");
             Vec::new()
+        }
+    }
+
+    pub fn db_info(&self) -> Option<Vec<DBObject>> {
+        if let Ok(mut engine) = self.listener.engine.lock() {
+            engine.get_db_info()
+        } else {
+            println!("Unable to acquire lock over SQL engine");
+            None
         }
     }
 
