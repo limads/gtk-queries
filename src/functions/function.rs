@@ -33,12 +33,9 @@ pub enum FunctionMode {
 pub struct Function {
     pub name : String,
     pub args : Vec<SqlType>,
-    // pub ret : Vec<SqlType>,
     pub ret : SqlType,
     pub doc : Option<String>,
-    // pub mode : FunctionMode,
     pub var_arg : bool,
-    // pub var_ret : bool
 }
 
 pub type SqlSymbol<'a, T> = Symbol<'a, unsafe extern fn(&Context)->rusqlite::Result<T,rusqlite::Error>>;
@@ -312,6 +309,7 @@ fn search_doc_at_item(item : Item, f : &str) -> Option<String> {
 /// If f is not found or does not have any documentation, returns none.
 fn search_doc_at_tree(content : &str, f : &str) -> Option<String> {
     let t : syn::File = syn::parse_str(content).ok()?;
+    println!("Parsed file: {:?}", t);
     for item in t.items {
         if let Some(doc) = search_doc_at_item(item, f) {
             return Some(doc);

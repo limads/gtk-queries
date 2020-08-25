@@ -155,7 +155,8 @@ pub fn split_sql(sql_text : String) -> Result<Vec<(String, bool)>, String> {
         println!("{}", stmt);
         let is_select = stmt.starts_with("select") || stmt.starts_with("SELECT") ||
             (stmt.starts_with("with") && (stmt.contains("select") || stmt.contains("SELECT"))) ||
-            (stmt.starts_with("WITH") && (stmt.contains("select") || stmt.contains("SELECT")));
+            (stmt.starts_with("WITH") && (stmt.contains("select") || stmt.contains("SELECT"))) ||
+            stmt.starts_with("pragma") || stmt.starts_with("PRAGMA");
         stmts.push((stmt.clone(), is_select));
     }
     Ok(stmts)
@@ -322,6 +323,21 @@ impl SqlEngine {
         }
     }
 
+    // Since we are handing over control of the function to the C
+    // SQLite API, we can't track the lifetime anymore. raw_fn is now
+    // assumed to stay alive while the last shared reference to the
+    // function loader is alive and the library has not been cleared
+    // from the "libs" array of loader. Two things mut happen to guarantee this:
+    // (1) The function is always removed when the library is removed, so this branch is
+    // not accessed;
+    // (2) The function is removed from the Sqlite connection via conn.remove_function(.)
+    // any time the library is de-activated.
+    // (3) No call to raw_fn must happen outside the TableEnvironment public API,
+    // (since TableEnvironment holds an Arc copy to FunctionLoader).
+    // Libraries that are not active but are loaded stay on main memory, but will not
+    // be registered by this function because load_functions return only active libraries.
+    // Perhaps only let the user add/remove/active libraries when there is no connection open
+    // for safety.
     fn bind_sqlite3_udfs(conn : &rusqlite::Connection, loader : &FunctionLoader) {
         println!("Function loader state (New Sqlite3 conn): {:?}", loader);
         match loader.load_functions() {
@@ -333,22 +349,7 @@ impl SqlEngine {
                         func.args.len() as i32
                     };
                     let created = match load_func {
-                        LoadedFunc::F64(f) => {
-                            // Since we are handing over control of the function to the C
-                            // SQLite API, we can't track the lifetime anymore. raw_fn is now
-                            // assumed to stay alive while the last shared reference to the
-                            // function loader is alive and the library has not been cleared
-                            // from the "libs" array of loader. Two things mut happen to guarantee this:
-                            // (1) The function is always removed when the library is removed, so this branch is
-                            // not accessed;
-                            // (2) The function is removed from the Sqlite connection via conn.remove_function(.)
-                            // any time the library is de-activated.
-                            // (3) No call to raw_fn must happen outside the TableEnvironment public API,
-                            // (since TableEnvironment holds an Arc copy to FunctionLoader).
-                            // Libraries that are not active but are loaded stay on main memory, but will not
-                            // be registered by this function because load_functions return only active libraries.
-                            // Perhaps only let the user add/remove/active libraries when there is no connection open
-                            // for safety.
+                        LoadedFunc::I32(f) => {
                             let raw_fn = unsafe { f.into_raw() };
                             conn.create_scalar_function(
                                 &func.name,
@@ -357,7 +358,33 @@ impl SqlEngine {
                                 move |ctx| { unsafe{ raw_fn(ctx) } }
                             )
                         },
-                        _ => unimplemented!()
+                        LoadedFunc::F64(f) => {
+                            let raw_fn = unsafe { f.into_raw() };
+                            conn.create_scalar_function(
+                                &func.name,
+                                n_arg,
+                                FunctionFlags::empty(),
+                                move |ctx| { unsafe{ raw_fn(ctx) } }
+                            )
+                        },
+                        LoadedFunc::Text(f) => {
+                            let raw_fn = unsafe { f.into_raw() };
+                            conn.create_scalar_function(
+                                &func.name,
+                                n_arg,
+                                FunctionFlags::empty(),
+                                move |ctx| { unsafe{ raw_fn(ctx) } }
+                            )
+                        },
+                        LoadedFunc::Bytes(f) => {
+                            let raw_fn = unsafe { f.into_raw() };
+                            conn.create_scalar_function(
+                                &func.name,
+                                n_arg,
+                                FunctionFlags::empty(),
+                                move |ctx| { unsafe{ raw_fn(ctx) } }
+                            )
+                        }
                     };
                     if let Err(e) = created {
                         println!("{:?}", e);

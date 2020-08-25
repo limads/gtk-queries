@@ -55,15 +55,24 @@ pub struct SqlEditor {
 
 impl SqlEditor {
 
+    fn save_file(path : &Path, content : String) -> bool {
+        if let Ok(mut f) = File::create(path) {
+            f.write_all(content.as_bytes());
+            println!("Content written to file");
+            true
+        } else {
+            println!("Unable to write into file");
+            false
+        }
+    }
+
     pub fn save_current(&self) {
         if let Some(path) = self.file_list.current_selected_path() {
-            if let Ok(mut f) = File::open(path) {
-                let content = self.get_text();
-                f.write_all(content.as_bytes());
-                println!("Content written to file");
+            if Self::save_file(&path, self.get_text()) {
                 self.file_list.mark_current_saved();
+                println!("Content written into file");
             } else {
-                println!("Unable to open file for writing");
+                println!("Unable to save file");
             }
         } else {
             self.sql_save_dialog.run();
@@ -78,14 +87,12 @@ impl SqlEditor {
             match resp {
                 ResponseType::Other(1) => {
                     if let Some(path) = dialog.get_filename() {
-                        let content = editor.get_text();
-                        if let Ok(mut f) = File::open(&path) {
-                            f.write_all(content.as_bytes());
+                        if Self::save_file(path.as_path(), editor.get_text()) {
                             editor.file_list.set_current_selected_path(path.as_path());
-                            println!("Content written to file");
                             editor.file_list.mark_current_saved();
+                            println!("Content written to file");
                         } else {
-                            println!("Unable to open file for writing");
+                            println!("Unable to write to file");
                         }
                     } else {
                         println!("Unable to retrieve path");

@@ -730,6 +730,8 @@ impl PlotArea {
         for i in (pos + 1)..n {
             let xpath = String::from("object[@index='") + &i.to_string()[..] +  "']";
             let mut nodes = self.node.findnodes(&xpath[..]).expect("No node with informed id");
+
+            // TODO panicking here at node removal
             let node = nodes.get_mut(0).expect("No first node with informed id");
             node.set_attribute("index", &((i - 1).to_string())[..]).expect("No index property");
         }

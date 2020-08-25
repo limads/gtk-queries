@@ -76,7 +76,7 @@ pub fn connect_update_entry_property(
                 }
             }
         }
-        Inhibit(false)
+        Inhibit(true)
     });
 }
 
@@ -106,7 +106,7 @@ pub fn connect_update_switch_property(
         } else {
             println!("Unable to retrieve reference to mapping name");
         }
-        Inhibit(false)
+        Inhibit(true)
     });
 }
 

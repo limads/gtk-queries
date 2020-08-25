@@ -99,18 +99,63 @@ impl FunctionLoader {
                     .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
                 let mut funcs = Vec::new();
                 let mut aggs = Vec::new();
+                let parse_str = |val : &toml::Value| {
+                    let s = toml::Value::try_into::<'_, String>(val.clone()).ok();
+                    s
+                };
+                let parse_seq = |val : &toml::Value| {
+                    let vs = toml::Value::try_into::<'_, Vec<String>>(val.clone()).ok();
+                    vs
+                };
+                let parse_type = |val : &String| {
+                    let ty : Option<SqlType> = (&val[..]).try_into().ok();
+                    ty
+                };
                 for f in func_vals.iter() {
-                    if let Ok(mut agg) = Aggregate::try_from(f.clone()) {
-                        println!("Found aggregate: {:?}", agg);
-                        aggs.push(agg);
-                    } else {
-                        let mut func = Function::try_from(f.clone())
-                            .map_err(|_| String::from("Invalid function signature"))?;
-                        println!("Searching doc at: {:?}", src_folder.as_path());
-                        func.doc = search_doc_at_dir(src_folder.as_path(), &func.name);
-                        println!("Found doc: {:?}", func.doc);
-                        println!("Found function: {:?}", func);
-                        funcs.push(func);
+                    let agg = f.get("aggregate").and_then(parse_str);
+                    let init_func = f.get("init").and_then(parse_str);
+                    let state_func = f.get("state").and_then(parse_str);
+                    let final_func = f.get("final").and_then(parse_str);
+                    match (agg, init_func, state_func, final_func) {
+                        (Some(name), Some(init_func), Some(state_func), Some(final_func)) => {
+                            let agg = Aggregate { name, init_func, state_func, final_func };
+                            println!("Found aggregate: {:?}", agg);
+                            aggs.push(agg);
+                        },
+                        _ => {
+                            let scalar = f.get("scalar").and_then(parse_str);
+                            let args = f.get("args")
+                                .and_then(parse_seq)
+                                .and_then(|args| {
+                                    let types = args.iter().filter_map(parse_type)
+                                        .collect::<Vec<_>>();
+                                    if types.len() == args.len() {
+                                        Some(types)
+                                    } else {
+                                        None
+                                    }
+                                });
+                            let ret = f.get("ret")
+                                .and_then(parse_str)
+                                .as_ref()
+                                .and_then(parse_type);
+                            match (scalar, args, ret) {
+                                (Some(name), Some(args), Some(ret)) => {
+                                    let var_arg = f.get("var_arg")
+                                        .and_then(|v| {
+                                            let b = toml::Value::try_into::<bool>(v.clone()).ok();
+                                            b
+                                        }).unwrap_or(false);
+                                    let mut func = Function{ name, args, ret, doc : None, var_arg };
+                                    func.doc = search_doc_at_dir(src_folder.as_path(), &func.name);
+                                    println!("Found function: {:?}", func);
+                                    funcs.push(func);
+                                },
+                                _ => {
+                                    return Err(format!("Invalid SQL metadata entry : {}", f));
+                                }
+                            }
+                        }
                     }
                 }
                 let src_path = v.get("lib")
@@ -124,7 +169,7 @@ impl FunctionLoader {
                     ).unwrap_or("src/lib.rs".to_string());
                 println!("Found source path: {}", src_path);
                 let lib_path = Self::search_lib_path(parent, &name)
-                    .ok_or(format!("Compiled library not found"))?;
+                    .ok_or(format!("No .so file found at target directory"))?;
                 println!("Found library path: {}", lib_path);
                 let src_path_str = src_path.as_str().to_string();
                 return Ok((name.to_string(), src_path_str, lib_path, funcs, aggs));

@@ -189,13 +189,14 @@ impl LayoutWindow {
             plot_view.clone()
         );
 
-        {
+        /*{
             let xml_load_dialog = xml_load_dialog.clone();
+            let plot_view = plot_view.clone();
             open_btn.connect_clicked(move |btn| {
                 xml_load_dialog.show();
                 xml_load_dialog.hide();
             });
-        }
+        }*/
 
         {
             let xml_save_dialog = xml_save_dialog.clone();
@@ -233,13 +234,13 @@ impl LayoutWindow {
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
-        layout_clear_btn : ToolButton,
+        // layout_clear_btn : ToolButton,
         plot_popover : PlotPopover,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
         plot_toggle : ToggleButton,
-        sidebar_stack : Stack,
+        // sidebar_stack : Stack,
         layout_window : LayoutWindow,
         layout_path : Rc<RefCell<Option<String>>>,
         xml_load_dialog : FileChooserDialog,
@@ -248,9 +249,11 @@ impl LayoutWindow {
         {
             let load_btn = load_btn.clone();
             let xml_load_dialog = xml_load_dialog.clone();
+            let plot_view = plot_view.clone();
             load_btn.connect_clicked(move |_| {
                 xml_load_dialog.run();
                 xml_load_dialog.hide();
+                plot_view.borrow().parent.queue_draw();
             });
         }
 
@@ -268,12 +271,13 @@ impl LayoutWindow {
                                             *(layout_path.borrow_mut()) = Some(string_path);
                                             true
                                         },
-                                        Err(e) => { println!("{}", e); false }
+                                        Err(e) => { println!("Unable to load layout: {}", e); false }
                                     }
                                 },
                                 Err(_) => { println!("Could not get mutable reference to Plot widget"); false }
                             };
                             if update_ok {
+                                println!("Updating mapping widgets");
                                 PlotWorkspace::update_mapping_widgets(
                                     plot_view.clone(),
                                     mapping_menus.clone(),
@@ -284,15 +288,19 @@ impl LayoutWindow {
                                     tbl_nb.clone(),
                                     status_stack.clone()
                                 );
+                                println!("Updating layout widgets");
                                 Self::update_layout_widgets(
                                     design_menu.clone(),
                                     scale_menus.clone(),
                                     plot_view.clone()
                                 );
+                                println!("Layout widgets saved");
                                 status_stack.try_show_alt();
                                 plot_toggle.set_active(true);
-                                sidebar_stack.set_visible_child_name("layout");
-                                layout_clear_btn.set_sensitive(true);
+                                // sidebar_stack.set_visible_child_name("layout");
+                                // layout_clear_btn.set_sensitive(true);
+                            } else {
+                                println!("Failed at loadig layout. Widgets will not be updated");
                             }
                         } else {
                             println!("Could not get filename from dialog");
@@ -309,19 +317,26 @@ impl LayoutWindow {
         scale_menus : (ScaleMenu, ScaleMenu),
         plot_view : Rc<RefCell<PlotView>>
     ) {
-        match plot_view.try_borrow_mut() {
+        let (design, info_x, info_y) = match plot_view.try_borrow() {
             Ok(pl) => {
-                design_menu.update(pl.plot_group.design_info());
-                scale_menus.0.update(pl.current_scale_info("x"));
-                scale_menus.1.update(pl.current_scale_info("y"));
+                let design = pl.plot_group.design_info();
+                let info_x = pl.current_scale_info("x");
+                let info_y = pl.current_scale_info("y");
+                (design, info_x, info_y)
             },
             _ => {
-                // TODO panicking here when loading layout.
-                panic!("Could not fetch plotview reference to update layout");
+                println!("Could not fetch plotview reference to update layout");
+                return;
             }
-        }
-    }
+        };
 
+        // It is important to call those updates outside the plot_view borrow because those updates
+        // will trigger the scale_set, entry_set, etc. signals inside each menu, which
+        // assume plot_view can be borrowed mutably.
+        design_menu.update(design);
+        scale_menus.0.update(info_x);
+        scale_menus.1.update(info_y);
+    }
 
 }
 

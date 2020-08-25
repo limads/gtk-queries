@@ -9,6 +9,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::functions::loader::*;
 use std::str::FromStr;
+use std::cmp::{Eq, PartialEq};
+use std::hash::Hash;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -43,7 +45,7 @@ pub struct TableEnvironment {
     loader : Arc<Mutex<FunctionLoader>>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DBType {
     Integer,
     Text,
@@ -130,6 +132,9 @@ impl TableEnvironment {
     }
 
     /// Check if there were any data changes since the last informed position.
+    /// TODO mapping not really being removed when table environment is updated with
+    /// query that yields similarly-named columns. Criteria for removal should be query
+    /// content, not query output (e.g. order by will preserve column names but return different data).
     pub fn preserved_since(&self, pos : usize) -> bool {
         println!("Current history: {:?}", self.history);
         if pos == self.history.len() - 1 {

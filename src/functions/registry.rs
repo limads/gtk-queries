@@ -299,7 +299,7 @@ impl FunctionRegistry {
                     println!("{} not in function Registry", name);
                 }
             } else {
-                self.fn_name_label.set_text("(No function selected)");
+                self.fn_name_label.set_text("");
                 self.fn_doc_label.set_text("");
             }
         } else {
