@@ -428,6 +428,10 @@ impl QueriesApp {
             table_env.clone(),
             sql_editor.clone()
         );
+        plot_workspace.layout_window.connect_window_show(
+            &main_menu.layout_window,
+            plot_workspace.layout_path.clone()
+        );
         Self {
             conn_popover,
             sql_editor,

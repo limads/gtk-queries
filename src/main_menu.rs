@@ -27,7 +27,7 @@ pub struct MainMenu {
     sql_new_btn : ModelButton,
     sql_save_btn : ModelButton,
     settings_window : Window,
-    layout_window : Window,
+    pub layout_window : Window,
     layout_btn : ModelButton,
     save_img_btn : ModelButton,
     save_tbl_btn : ModelButton,

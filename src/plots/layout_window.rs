@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use crate::tables::{ environment::TableEnvironment };
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
@@ -30,6 +30,9 @@ pub struct LayoutWindow {
     pub xml_load_dialog : FileChooserDialog,
     toggles : HashMap<GroupSplit, ToggleToolButton>,
     file_combo : ComboBoxText,
+
+    // Holds (File, Recent paths, file_updated)
+    pub recent : Rc<RefCell<(File, Vec<String>)>>,
 }
 
 const ALL_LAYOUTS : [GroupSplit; 8] = [
@@ -56,12 +59,80 @@ const ALL_PATHS : [&'static str; 8] = [
 
 impl LayoutWindow {
 
-    pub fn get_recent_paths() {
-
+    pub fn load_recent_paths(recent : Rc<RefCell<(File, Vec<String>)>>) {
+        if let Ok(mut t) = recent.try_borrow_mut() {
+            let (ref mut f, ref mut path_v) = *t;
+            let mut content = String::new();
+            if let Ok(_) = f.read_to_string(&mut content) {
+                path_v.clear();
+                path_v.extend(content.lines().map(|l| l.to_string()));
+            } else {
+                println!("Failed reading path sequence file");
+            }
+        } else {
+            println!("Failed acquiring reference to recent files");
+        }
     }
 
-    pub fn push_recent_path() {
+    pub fn update_recent_paths(
+        file_combo : ComboBoxText,
+        recent : Rc<RefCell<(File, Vec<String>)>>,
+        layout_path : Rc<RefCell<Option<String>>>
+    ) {
+        if let (Ok(t), Ok(opt_path)) = (recent.try_borrow_mut(), layout_path.try_borrow()) {
+            let (f, path_v) = &*t;
+            file_combo.remove_all();
+            let mut active_set = false;
+            for (i, path) in path_v.iter().enumerate() {
+                let id = format!("{}", i);
+                file_combo.append(Some(&id[..]), &path[..]);
+                if let Some(current_path) = &*opt_path {
+                    if &path[..] == &current_path[..] {
+                        if !file_combo.set_active_id(Some(&id[..])) {
+                            println!("Error setting file combo id");
+                            return;
+                        }
+                        active_set = true;
+                    }
+                }
+            }
+            if !active_set {
+                file_combo.set_active_iter(None);
+            }
+        } else {
+            println!("Could not read recent file contents");
+        }
+    }
 
+    pub fn push_recent_path(recent : Rc<RefCell<(File, Vec<String>)>>, path : String) {
+        if let Ok(mut t) = recent.try_borrow_mut() {
+            let (ref mut f, ref mut path_v) = *t;
+            if let Some(pos) = path_v.iter().position(|p| &p[..] == &path[..]) {
+                path_v.remove(pos);
+            }
+            path_v.push(path.clone());
+            if path_v.len() >= 11 {
+                path_v.remove(0);
+            }
+            let mut path_file = String::new();
+            for p in path_v.iter() {
+                path_file += &format!("{}\n", p)[..];
+            }
+            if let Err(e) = f.write_all(&path_file.into_bytes()) {
+                println!("{}", e);
+                return;
+            }
+        } else {
+            println!("Could not get mutable reference to recent layouts file for writing");
+        }
+    }
+
+    pub fn connect_window_show(&self, win : &Window, layout_path : Rc<RefCell<Option<String>>>) {
+        let file_combo = self.file_combo.clone();
+        let recent = self.recent.clone();
+        win.connect_show(move |_| {
+            Self::update_recent_paths(file_combo.clone(), recent.clone(), layout_path.clone());
+        });
     }
 
     pub fn set_sensitive_at_index(menus : &[MappingMenu], ix : usize) {
@@ -80,7 +151,10 @@ impl LayoutWindow {
         builder : &Builder,
         save_btn : Button,
         layout_file_combo : ComboBoxText,
-        pl_view : Rc<RefCell<PlotView>>
+        pl_view : Rc<RefCell<PlotView>>,
+        file_combo : ComboBoxText,
+        recent : Rc<RefCell<(File, Vec<String>)>>,
+        layout_path : Rc<RefCell<Option<String>>>
     ) -> FileChooserDialog {
         let xml_save_dialog : FileChooserDialog = builder.get_object("xml_save_dialog").unwrap();
         xml_save_dialog.connect_response(move |dialog, resp| {
@@ -91,7 +165,16 @@ impl LayoutWindow {
                             match ext {
                                 "xml" => {
                                     if let Ok(pl) = pl_view.try_borrow() {
-                                        if let Ok(mut f) = File::create(path) {
+                                        if let Ok(mut f) = File::create(&path) {
+                                            let path_str = path.to_str()
+                                                .map(|s| s.to_string())
+                                                .unwrap_or(String::new());
+                                            Self::push_recent_path(recent.clone(), path_str.clone());
+                                            Self::update_recent_paths(
+                                                file_combo.clone(),
+                                                recent.clone(),
+                                                layout_path.clone()
+                                            );
                                             let content = pl.plot_group.get_layout_as_text();
                                             if let Err(e) = f.write_all(&content.into_bytes()) {
                                                 println!("{}", e);
@@ -126,10 +209,7 @@ impl LayoutWindow {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_stack : Stack,
-        _glade_def : Rc<HashMap<String, String>>,
-        _tbl_nb : TableNotebook,
-        _data_source : Rc<RefCell<TableEnvironment>>,
-        _status_stack : StatusStack,
+        layout_path : Rc<RefCell<Option<String>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu)
     ) -> LayoutWindow {
@@ -176,6 +256,12 @@ impl LayoutWindow {
             });
         }
 
+        let f = OpenOptions::new()
+            .write(true)
+            .open("assets/plot_layout/recent_paths.csv")
+            .unwrap();
+        let recent = Rc::new(RefCell::new((f, Vec::new())));
+        Self::load_recent_paths(recent.clone());
         let open_btn : Button = builder.get_object("layout_open_btn").unwrap();
         let save_btn : Button = builder.get_object("layout_save_btn").unwrap();
         let clear_btn : Button = builder.get_object("layout_clear_btn").unwrap();
@@ -186,7 +272,10 @@ impl LayoutWindow {
             &builder,
             save_btn.clone(),
             file_combo.clone(),
-            plot_view.clone()
+            plot_view.clone(),
+            file_combo.clone(),
+            recent.clone(),
+            layout_path.clone()
         );
 
         /*{
@@ -214,43 +303,50 @@ impl LayoutWindow {
             query_btn,
             xml_save_dialog,
             xml_load_dialog,
-            file_combo
+            file_combo,
+            recent
         }
     }
 
     pub fn reset(&self, split : GroupSplit) {
         let toggle = &self.toggles[&split];
-        if toggle.get_active() {
-            toggle.set_active(false);
-        } else {
+        if !toggle.get_active() {
             toggle.set_active(true);
+        }
+        for (key, toggle) in self.toggles.iter() {
+            if *key != split {
+                toggle.set_active(false);
+            }
         }
     }
 
-    pub fn connect_layout_load_button(
+    pub fn connect_clear(&self, ws : &PlotWorkspace) {
+        let ws = ws.clone();
+        self.clear_btn.connect_clicked(move |btn| {
+            ws.clear();
+        });
+    }
+
+    pub fn connect_layout_load(
         glade_def : Rc<HashMap<String, String>>,
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
         data_source : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
-        // layout_clear_btn : ToolButton,
         plot_popover : PlotPopover,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
         plot_toggle : ToggleButton,
-        // sidebar_stack : Stack,
         layout_window : LayoutWindow,
-        layout_path : Rc<RefCell<Option<String>>>,
-        xml_load_dialog : FileChooserDialog,
-        load_btn : Button
+        layout_path : Rc<RefCell<Option<String>>>
     ) {
         {
-            let load_btn = load_btn.clone();
-            let xml_load_dialog = xml_load_dialog.clone();
+            let open_btn = layout_window.open_btn.clone();
+            let xml_load_dialog = layout_window.xml_load_dialog.clone();
             let plot_view = plot_view.clone();
-            load_btn.connect_clicked(move |_| {
+            open_btn.connect_clicked(move |_| {
                 xml_load_dialog.run();
                 xml_load_dialog.hide();
                 plot_view.borrow().parent.queue_draw();
@@ -258,47 +354,73 @@ impl LayoutWindow {
         }
 
         {
-            xml_load_dialog.connect_response(move |dialog, resp|{
+            let plot_view = plot_view.clone();
+            let layout_path = layout_path.clone();
+            let mapping_menus = mapping_menus.clone();
+            let design_menu = design_menu.clone();
+            let scale_menus = scale_menus.clone();
+            let plot_popover = plot_popover.clone();
+            let glade_def = glade_def.clone();
+            let data_source = data_source.clone();
+            let tbl_nb = tbl_nb.clone();
+            let status_stack = status_stack.clone();
+            let layout_window = layout_window.clone();
+            let plot_toggle = plot_toggle.clone();
+            layout_window.file_combo.clone().connect_changed(move |combo| {
+                let combo_txt = combo.clone().downcast::<ComboBoxText>().unwrap();
+                let path_str = combo_txt.get_active_text()
+                    .map(|s| s.as_str().to_string() )
+                    .unwrap_or(String::new());
+                let load_ok = Self::load_layout(
+                    plot_view.clone(),
+                    layout_path.clone(),
+                    path_str.clone(),
+                    mapping_menus.clone(),
+                    design_menu.clone(),
+                    scale_menus.clone(),
+                    plot_popover.clone(),
+                    glade_def.clone(),
+                    data_source.clone(),
+                    tbl_nb.clone(),
+                    status_stack.clone(),
+                    layout_window.clone(),
+                    plot_toggle.clone()
+                );
+                if !load_ok {
+                    println!("Error loading layout");
+                }
+            });
+        }
+
+        {
+            let recent = layout_window.recent.clone();
+            layout_window.xml_load_dialog.clone().connect_response(move |dialog, resp|{
                 match resp {
                     ResponseType::Other(1) => {
                         if let Some(path) = dialog.get_filename() {
-                            let update_ok = match plot_view.try_borrow_mut() {
-                                Ok(mut pl) => {
-                                    let string_path : String = path.to_str().unwrap_or("").into();
-                                    match pl.plot_group.load_layout(string_path.clone()) {
-                                        Ok(_) => {
-                                            layout_window.reset(pl.group_split());
-                                            *(layout_path.borrow_mut()) = Some(string_path);
-                                            true
-                                        },
-                                        Err(e) => { println!("Unable to load layout: {}", e); false }
-                                    }
-                                },
-                                Err(_) => { println!("Could not get mutable reference to Plot widget"); false }
-                            };
-                            if update_ok {
-                                println!("Updating mapping widgets");
-                                PlotWorkspace::update_mapping_widgets(
-                                    plot_view.clone(),
-                                    mapping_menus.clone(),
-                                    //plot_notebook.clone(),
-                                    plot_popover.clone(),
-                                    glade_def.clone(),
-                                    data_source.clone(),
-                                    tbl_nb.clone(),
-                                    status_stack.clone()
+                            let path_str = path.to_str().unwrap_or("").to_string();
+                            let load_ok = Self::load_layout(
+                                plot_view.clone(),
+                                layout_path.clone(),
+                                path_str.clone(),
+                                mapping_menus.clone(),
+                                design_menu.clone(),
+                                scale_menus.clone(),
+                                plot_popover.clone(),
+                                glade_def.clone(),
+                                data_source.clone(),
+                                tbl_nb.clone(),
+                                status_stack.clone(),
+                                layout_window.clone(),
+                                plot_toggle.clone()
+                            );
+                            if load_ok {
+                                Self::push_recent_path(recent.clone(), path_str);
+                                Self::update_recent_paths(
+                                    layout_window.file_combo.clone(),
+                                    recent.clone(),
+                                    layout_path.clone()
                                 );
-                                println!("Updating layout widgets");
-                                Self::update_layout_widgets(
-                                    design_menu.clone(),
-                                    scale_menus.clone(),
-                                    plot_view.clone()
-                                );
-                                println!("Layout widgets saved");
-                                status_stack.try_show_alt();
-                                plot_toggle.set_active(true);
-                                // sidebar_stack.set_visible_child_name("layout");
-                                // layout_clear_btn.set_sensitive(true);
                             } else {
                                 println!("Failed at loadig layout. Widgets will not be updated");
                             }
@@ -310,6 +432,58 @@ impl LayoutWindow {
                 }
             });
         }
+    }
+
+    fn load_layout(
+        plot_view : Rc<RefCell<PlotView>>,
+        layout_path : Rc<RefCell<Option<String>>>,
+        string_path : String,
+        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        design_menu : DesignMenu,
+        scale_menus : (ScaleMenu, ScaleMenu),
+        plot_popover : PlotPopover,
+        glade_def : Rc<HashMap<String, String>>,
+        data_source : Rc<RefCell<TableEnvironment>>,
+        tbl_nb : TableNotebook,
+        status_stack : StatusStack,
+        layout_window : LayoutWindow,
+        plot_toggle : ToggleButton
+    ) -> bool {
+        let update_ok = match plot_view.try_borrow_mut() {
+            Ok(mut pl) => {
+                match pl.plot_group.load_layout(string_path.clone()) {
+                    Ok(_) => {
+                        layout_window.reset(pl.group_split());
+                        *(layout_path.borrow_mut()) = Some(string_path);
+                        true
+                    },
+                    Err(e) => { println!("Unable to load layout: {}", e); false }
+                }
+            },
+            Err(_) => { println!("Could not get mutable reference to Plot widget"); false }
+        };
+        if update_ok {
+            println!("Updating mapping widgets");
+            PlotWorkspace::update_mapping_widgets(
+                plot_view.clone(),
+                mapping_menus.clone(),
+                plot_popover.clone(),
+                glade_def.clone(),
+                data_source.clone(),
+                tbl_nb.clone(),
+                status_stack.clone()
+            );
+            println!("Updating layout widgets");
+            Self::update_layout_widgets(
+                design_menu.clone(),
+                scale_menus.clone(),
+                plot_view.clone()
+            );
+            println!("Layout widgets saved");
+            status_stack.try_show_alt();
+            plot_toggle.set_active(true);
+        }
+        update_ok
     }
 
     fn update_layout_widgets(

@@ -25,17 +25,14 @@ pub struct PlotWorkspace {
     pub design_menu : DesignMenu,
     pub scale_menus : (ScaleMenu, ScaleMenu),
     pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-    //pub notebook : Notebook,
     pub sidebar_stack : Stack,
     pub pl_view : Rc<RefCell<PlotView>>,
     pub plot_popover : PlotPopover,
     pub layout_toolbar : LayoutToolbar,
     new_layout_btn : Button,
-    // load_layout_btn : Button,
     glade_def : Rc<HashMap<String, String>>,
-    // xml_load_dialog : FileChooserDialog,
-    layout_window : LayoutWindow,
-    layout_path : Rc<RefCell<Option<String>>>
+    pub layout_window : LayoutWindow,
+    pub layout_path : Rc<RefCell<Option<String>>>
 }
 
 impl PlotWorkspace {
@@ -203,10 +200,7 @@ impl PlotWorkspace {
             pl_view.clone(),
             mapping_menus.clone(),
             plot_popover.mapping_stack.clone(),
-            glade_def.clone(),
-            tbl_nb.clone(),
-            table_env.clone(),
-            status_stack.clone(),
+            layout_path.clone(),
             design_menu.clone(),
             scale_menus.clone()
         );
@@ -257,24 +251,20 @@ impl PlotWorkspace {
             plot_toggle.clone(),
             layout_path.clone()
         );
-        LayoutWindow::connect_layout_load_button(
+        LayoutWindow::connect_layout_load(
             glade_def.clone(),
             builder.clone(),
             pl_view.clone(),
             table_env.clone(),
             tbl_nb.clone(),
             status_stack.clone(),
-            // layout_toolbar.clear_layout_btn.clone(),
             plot_popover.clone(),
             mapping_menus.clone(),
             design_menu.clone(),
             (scale_menus.0.clone(), scale_menus.1.clone()),
             plot_toggle,
-            // sidebar_stack.clone(),
             layout_window.clone(),
-            layout_path.clone(),
-            layout_window.xml_load_dialog.clone(),
-            layout_window.open_btn.clone()
+            layout_path.clone()
         );
 
         {
@@ -295,7 +285,7 @@ impl PlotWorkspace {
         } else {
             println!("Failed acquiring reference to plot view");
         }
-        Self {
+        let ws = Self {
             design_menu,
             scale_menus,
             mapping_menus,
@@ -309,7 +299,9 @@ impl PlotWorkspace {
             layout_window,
             layout_path,
             plot_popover
-        }
+        };
+        ws.layout_window.connect_clear(&ws);
+        ws
     }
 
     /// Add mapping from a type string description, attributing to its

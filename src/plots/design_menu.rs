@@ -17,7 +17,8 @@ pub struct DesignMenu {
 impl DesignMenu {
 
     pub fn update(&self, properties : HashMap<String, String>) {
-        self.grid_thickness_scale.get_adjustment().set_value(properties["grid_width"].parse().unwrap());
+        self.grid_thickness_scale.get_adjustment()
+            .set_value(properties["grid_width"].parse().unwrap());
         let bc : gdk::RGBA = properties["bg_color"].parse().unwrap();
         self.bg_color_btn.set_rgba(&bc);
         let gc : gdk::RGBA = properties["grid_color"].parse().unwrap();
