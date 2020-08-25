@@ -139,13 +139,32 @@ impl PlotWorkspace {
             (1, _) => 0,
             (2, GroupSplit::Horizontal) => if y < h / 2 { 0 } else { 1 },
             (2, GroupSplit::Vertical) => if x < w / 2 { 0 } else { 1 },
+            (3, GroupSplit::ThreeLeft) => match (x < w / 2, y < h / 2) {
+                (true, _) => 0,
+                (false, true) => 1,
+                (false, false) => 2,
+            },
+            (3, GroupSplit::ThreeTop) => match (x < w / 2, y < h / 2) {
+                (_, true) => 0,
+                (true, false) => 1,
+                (false, false) => 2,
+            },
+            (3, GroupSplit::ThreeRight) => match (x < w / 2, y < h / 2) {
+                (true, false) => 0,
+                (false, _) => 1,
+                (true, true) => 2,
+            },
+            (3, GroupSplit::ThreeBottom) => match (x < w / 2, y < h / 2) {
+                (true, false) => 0,
+                (false, false) => 1,
+                (_, true) => 2,
+            },
             (4, _) => match (x < w / 2, y < h / 2) {
                     (true, true) => 0,
                     (true, false) => 1,
                     (false, true) => 2,
                     (false, false) => 3,
             },
-            // TODO panicking here
             _ => panic!("Undefined plot size")
         }
     }
@@ -490,7 +509,7 @@ impl PlotWorkspace {
         }
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
             pl_view.change_active_area(0);
-            pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-single.xml")));
+            pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-unique.xml")));
         } else {
             println!("Failed to borrow mutable reference to plotview.");
         }

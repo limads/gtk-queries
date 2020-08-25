@@ -19,6 +19,7 @@ use crate::status_stack::*;
 use std::default::Default;
 use super::plot_workspace::PlotWorkspace;
 use std::io::Write;
+use std::io::{Seek, SeekFrom};
 
 #[derive(Clone)]
 pub struct LayoutWindow {
@@ -65,7 +66,7 @@ impl LayoutWindow {
             let mut content = String::new();
             if let Ok(_) = f.read_to_string(&mut content) {
                 path_v.clear();
-                path_v.extend(content.lines().map(|l| l.to_string()));
+                path_v.extend(content.lines().map(|l| { println!("line: {:?}", l); l.to_string() }));
             } else {
                 println!("Failed reading path sequence file");
             }
@@ -79,38 +80,39 @@ impl LayoutWindow {
         recent : Rc<RefCell<(File, Vec<String>)>>,
         layout_path : Rc<RefCell<Option<String>>>
     ) {
+        let mut opt_active : Option<String> = None;
         if let (Ok(t), Ok(opt_path)) = (recent.try_borrow_mut(), layout_path.try_borrow()) {
             let (f, path_v) = &*t;
             file_combo.remove_all();
-            let mut active_set = false;
             for (i, path) in path_v.iter().enumerate() {
                 let id = format!("{}", i);
                 file_combo.append(Some(&id[..]), &path[..]);
                 if let Some(current_path) = &*opt_path {
                     if &path[..] == &current_path[..] {
-                        if !file_combo.set_active_id(Some(&id[..])) {
-                            println!("Error setting file combo id");
-                            return;
-                        }
-                        active_set = true;
+                        opt_active = Some(id.clone());
                     }
                 }
             }
-            if !active_set {
-                file_combo.set_active_iter(None);
-            }
         } else {
             println!("Could not read recent file contents");
+        }
+        if let Some(active_id) = opt_active {
+            file_combo.set_active_id(Some(&active_id[..]));
+        } else {
+            file_combo.set_active_iter(None);
         }
     }
 
     pub fn push_recent_path(recent : Rc<RefCell<(File, Vec<String>)>>, path : String) {
         if let Ok(mut t) = recent.try_borrow_mut() {
             let (ref mut f, ref mut path_v) = *t;
+            println!("Current paths: {:?}", path_v);
+            println!("New path: {:?}", path);
             if let Some(pos) = path_v.iter().position(|p| &p[..] == &path[..]) {
                 path_v.remove(pos);
             }
             path_v.push(path.clone());
+            println!("Path vector = {:?}", path_v);
             if path_v.len() >= 11 {
                 path_v.remove(0);
             }
@@ -118,7 +120,13 @@ impl LayoutWindow {
             for p in path_v.iter() {
                 path_file += &format!("{}\n", p)[..];
             }
+            f.seek(SeekFrom::Start(0)).unwrap();
+            println!("Path file: {:?}", path_file);
             if let Err(e) = f.write_all(&path_file.into_bytes()) {
+                println!("Error writing to file: {}", e);
+                return;
+            }
+            if let Err(e) = f.flush() {
                 println!("{}", e);
                 return;
             }
@@ -131,7 +139,11 @@ impl LayoutWindow {
         let file_combo = self.file_combo.clone();
         let recent = self.recent.clone();
         win.connect_show(move |_| {
-            Self::update_recent_paths(file_combo.clone(), recent.clone(), layout_path.clone());
+            Self::update_recent_paths(
+                file_combo.clone(),
+                recent.clone(),
+                layout_path.clone()
+            );
         });
     }
 
@@ -161,30 +173,38 @@ impl LayoutWindow {
             match resp {
                 ResponseType::Other(1) => {
                     if let Some(path) = dialog.get_filename() {
-                        if let Some(ext) = path.as_path().extension().map(|ext| ext.to_str().unwrap_or("")) {
+                        let ext = path.as_path()
+                            .extension()
+                            .map(|ext| ext.to_str().unwrap_or(""));
+                        if let Some(ext) = ext {
                             match ext {
                                 "xml" => {
                                     if let Ok(pl) = pl_view.try_borrow() {
                                         if let Ok(mut f) = File::create(&path) {
-                                            let path_str = path.to_str()
-                                                .map(|s| s.to_string())
-                                                .unwrap_or(String::new());
-                                            Self::push_recent_path(recent.clone(), path_str.clone());
-                                            Self::update_recent_paths(
-                                                file_combo.clone(),
-                                                recent.clone(),
-                                                layout_path.clone()
-                                            );
                                             let content = pl.plot_group.get_layout_as_text();
                                             if let Err(e) = f.write_all(&content.into_bytes()) {
                                                 println!("{}", e);
+                                                return;
                                             }
+                                            pl.parent.queue_draw();
                                         } else {
                                             println!("Unable to create file");
+                                            return;
                                         }
                                     } else {
                                         println!("Unable to retrieve reference to plot");
+                                        return;
                                     }
+                                    let path_str = path.to_str()
+                                        .map(|s| s.to_string())
+                                        .unwrap_or(String::new());
+                                    Self::push_recent_path(recent.clone(), path_str.clone());
+                                    *(layout_path.borrow_mut()) = Some(path_str.clone());
+                                    Self::update_recent_paths(
+                                        file_combo.clone(),
+                                        recent.clone(),
+                                        layout_path.clone()
+                                    );
                                 },
                                 _ => { println!("Layout extension should be .xml"); }
                             }
@@ -256,17 +276,21 @@ impl LayoutWindow {
             });
         }
 
+        let file_combo : ComboBoxText = builder.get_object("layout_file_combo").unwrap();
         let f = OpenOptions::new()
+            .read(true)
             .write(true)
+            .append(false)
             .open("assets/plot_layout/recent_paths.csv")
             .unwrap();
         let recent = Rc::new(RefCell::new((f, Vec::new())));
         Self::load_recent_paths(recent.clone());
+        Self::update_recent_paths(file_combo.clone(), recent.clone(), layout_path.clone());
         let open_btn : Button = builder.get_object("layout_open_btn").unwrap();
         let save_btn : Button = builder.get_object("layout_save_btn").unwrap();
         let clear_btn : Button = builder.get_object("layout_clear_btn").unwrap();
         let query_btn : Button = builder.get_object("layout_query_btn").unwrap();
-        let file_combo : ComboBoxText = builder.get_object("layout_file_combo").unwrap();
+
         let xml_load_dialog : FileChooserDialog = builder.get_object("xml_load_dialog").unwrap();
         let xml_save_dialog = Self::build_save_dialog(
             &builder,
@@ -322,8 +346,12 @@ impl LayoutWindow {
 
     pub fn connect_clear(&self, ws : &PlotWorkspace) {
         let ws = ws.clone();
+        let file_combo = self.file_combo.clone();
+        let toggles = self.toggles.clone();
         self.clear_btn.connect_clicked(move |btn| {
             ws.clear();
+            file_combo.set_active_iter(None);
+            toggles[&GroupSplit::Unique].set_active(true);
         });
     }
 
@@ -366,11 +394,24 @@ impl LayoutWindow {
             let status_stack = status_stack.clone();
             let layout_window = layout_window.clone();
             let plot_toggle = plot_toggle.clone();
+            // TODO must not emit this changed when the combo is set by some reason other than
+            // the user pressing it.
             layout_window.file_combo.clone().connect_changed(move |combo| {
                 let combo_txt = combo.clone().downcast::<ComboBoxText>().unwrap();
-                let path_str = combo_txt.get_active_text()
-                    .map(|s| s.as_str().to_string() )
-                    .unwrap_or(String::new());
+                let opt_path_str = combo_txt.get_active_text()
+                    .map(|s| s.as_str().to_string() );
+                let path_str = match opt_path_str {
+                    Some(path) => {
+                        // Only accept changes from a user-derived action (i.e. not pointing
+                        // to "clean" layouts shipped with queries)
+                        if !path.starts_with("assets/plot_layout/layout-") {
+                            path
+                        } else {
+                            return;
+                        }
+                    },
+                    None => return
+                };
                 let load_ok = Self::load_layout(
                     plot_view.clone(),
                     layout_path.clone(),
@@ -415,7 +456,7 @@ impl LayoutWindow {
                                 plot_toggle.clone()
                             );
                             if load_ok {
-                                Self::push_recent_path(recent.clone(), path_str);
+                                Self::push_recent_path(recent.clone(), path_str.clone());
                                 Self::update_recent_paths(
                                     layout_window.file_combo.clone(),
                                     recent.clone(),
@@ -482,6 +523,11 @@ impl LayoutWindow {
             println!("Layout widgets saved");
             status_stack.try_show_alt();
             plot_toggle.set_active(true);
+            if let Ok(pl_view) = plot_view.try_borrow() {
+                pl_view.parent.queue_draw();
+            } else {
+                println!("Unable to get reference to plot view");
+            }
         }
         update_ok
     }
