@@ -299,7 +299,11 @@ impl PlotWorkspace {
         }
         if let Ok(pl_view) = pl_view.try_borrow() {
             if !pl_view.parent.get_realized() {
+                // Confirm the parent has been set to visible, or else plot_popover
+                // will appear at the wrong position if the plot stack child hasn't been
+                // selected before its first appearance.
                 pl_view.parent.realize();
+                // pl_view.parent.show();
             }
         } else {
             println!("Failed acquiring reference to plot view");

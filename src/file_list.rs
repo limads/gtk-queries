@@ -70,8 +70,6 @@ impl FileList {
             let txt = lbl.get_text();
             if txt.as_str().ends_with("*") {
                 lbl.set_text(&txt[0..(txt.len()-1)]);
-            } else {
-                println!("Text already marked as saved");
             }
         } else {
             println!("No selected row");
@@ -85,7 +83,7 @@ impl FileList {
             if !txt.as_str().ends_with("*") {
                 lbl.set_text(&format!("{}*", txt));
             } else {
-                println!("Text already marked as unsaved");
+                // println!("Text already marked as unsaved");
             }
         } else {
             println!("No selected row");
@@ -97,8 +95,16 @@ impl FileList {
             if let Ok(mut files) = self.files.try_borrow_mut() {
                 if let Some(mut f) = files.get_mut(sel_ix) {
                     if let Some(name) = SqlEditor::clip_name(&path) {
-                        f.name = name;
+                        f.name = name.clone();
                         f.path = Some(path.to_path_buf());
+                        if let Some(row) = self.list_box.get_selected_row() {
+                            let lbl = Self::get_label_from_row(&row);
+                            if lbl.get_text().as_str().starts_with("Untitled ") {
+                                lbl.set_text(&name);
+                            }
+                        } else {
+                            println!("Unable to get current selected row");
+                        }
                     } else {
                         println!("Invalid name");
                     }
@@ -138,12 +144,19 @@ impl FileList {
                     if !query_toggle.get_active() {
                         query_toggle.set_active(true);
                     }
-                    let new_child = content_stack.get_child_by_name(&new_name).unwrap();
+
+                    // It is important that the child is visible before setting the visible
+                    // child.
+                    let new_child = content_stack
+                        .get_child_by_name(&new_name)
+                        .unwrap();
+                    new_child.show();
                     content_stack.set_visible_child(&new_child);
                     content_stack.show_all();
+                    content_stack.queue_draw();
                     println!("Set stack visible to {:?}", new_name);
                     let set_name = content_stack.get_visible_child_name().unwrap();
-                    println!("New name: {}", set_name);
+                    println!("Set name: {}", set_name);
                     println!("---");
                     // }
 
@@ -170,18 +183,22 @@ impl FileList {
         file_list
     }
 
+    fn get_n_untitled(&self) -> usize {
+        self.files.borrow().iter()
+            .filter(|f| f.name.starts_with("Untitled") )
+            .filter_map(|f| f.name.split(' ').nth(1) )
+            .last()
+            .and_then(|n| n.parse::<usize>().ok() )
+            .unwrap_or(0)
+    }
+
     pub fn add_fresh_source(
         &self,
         content_stack : Stack,
         sql_editor : SqlEditor,
         query_toggle : ToggleButton
     ) {
-        let n_untitled = self.files.borrow().iter()
-            .filter(|f| f.name.starts_with("Untitled") )
-            .filter_map(|f| f.name.split(' ').nth(1) )
-            .last()
-            .and_then(|n| n.parse::<usize>().ok() )
-            .unwrap_or(0);
+        let n_untitled = self.get_n_untitled();
         let title = &format!("Untitled {}", n_untitled + 1);
         println!("New title: {}", title);
         self.files.borrow_mut().push(SqlFile{
@@ -300,13 +317,18 @@ impl FileList {
                         return glib::signal::Inhibit(true);
                     }
                 }
-                Self::remove_source(row.clone(), list_box.clone(), files.clone(), content_stack.clone(), sql_editor.clone());
+                Self::remove_source(
+                    row.clone(),
+                    list_box.clone(),
+                    files.clone(),
+                    content_stack.clone(),
+                    sql_editor.clone()
+                );
                 glib::signal::Inhibit(true)
             });
         }
 
         bx.pack_start(&ev_box, false, false, 0);
-
         row.add(&bx);
         row.set_selectable(true);
         // row.set_margin_top(6);
@@ -343,11 +365,18 @@ impl FileList {
                 println!("Unable to borrow files mutably");
             }
             let n = self.list_box.get_children().len();
-            println!("Adding queries_{}", n);
-            content_stack.add_named(
-                &SqlEditor::new_source(&sql_content, &refresh_btn, &self),
-                &format!("queries_{}", n)
-            );
+            if n == 0 {
+                sql_editor.set_text(&sql_content);
+                content_stack.set_visible_child_name("queries_0");
+            } else {
+                let new_name = format!("queries_{}", n);
+                println!("Adding {} to content stack", new_name);
+                content_stack.add_named(
+                    &SqlEditor::new_source(&sql_content, &refresh_btn, &self),
+                    &new_name
+                );
+                content_stack.set_visible_child_name(&new_name);
+            }
             let row = self.add_file_row(list_name, content_stack.clone(), sql_editor);
             self.list_box.select_row(Some(&row));
             if !query_toggle.get_active() {
@@ -356,6 +385,8 @@ impl FileList {
         } else {
             println!("Unable to access informed path");
         }
+        content_stack.show_all();
+        self.select_last();
     }
 
     pub fn get_selected(&self) -> Option<usize> {
@@ -367,6 +398,15 @@ impl FileList {
                 .unwrap_or(0);
             println!("Selected row: {:?}", row);
             Some(row)
+        }
+    }
+
+    fn select_last(&self) {
+        let n = self.list_box.get_children().len();
+        if let Some(row) = self.list_box.get_row_at_index(n as i32 - 1) {
+            self.list_box.select_row(Some(&row));
+        } else {
+            println!("No row to be selected");
         }
     }
 

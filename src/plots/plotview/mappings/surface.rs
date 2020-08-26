@@ -3,16 +3,11 @@ use gdk::RGBA;
 use cairo::{Context, MeshCorner};
 use super::super::context_mapper::ContextMapper;
 use std::collections::HashMap;
-// use std::f64::consts::PI;
 use super::utils;
 use super::super::context_mapper::Coord2D;
-// use cairo::ScaledFont;
-// use super::super::text::{FontData, draw_label};
 use super::*;
 use cairo::Mesh;
-use bayes::signal::interp::{ /*interpolate2d,*/ Interpolation2D};
-// use std::cmp::Ord;
-// use std::f64::*;
+use bayes::signal::interp::{Interpolation2D};
 
 //#[derive(Debug)]
 pub struct SurfaceMapping {
@@ -63,7 +58,17 @@ impl SurfaceMapping {
         ];
         let interp_task = None;
         let source = String::new();
-        let mut mapping = SurfaceMapping{color, color_final, x, y, z, col_names, z_lims, _interp_task : interp_task, source };
+        let mut mapping = SurfaceMapping{
+            color,
+            color_final,
+            x,
+            y,
+            z,
+            col_names,
+            z_lims,
+            _interp_task : interp_task,
+            source
+        };
         mapping.update_layout(node);
         mapping
     }
@@ -102,6 +107,7 @@ impl SurfaceMapping {
     }
 
     fn calc_color_ratios(&self, mut patch : CoordPatch, interp_task : &Interpolation2D) -> CoordPatch {
+        // TODO use logarithmic color progression
         let red_distance = (self.color_final.red - self.color.red).abs();
         let green_distance = (self.color_final.green - self.color.green).abs();
         let blue_distance = (self.color_final.blue - self.color.blue).abs();
@@ -140,10 +146,11 @@ impl Mapping for SurfaceMapping {
         }
 
         ctx.save();
-        ctx.set_source_rgb(
+        ctx.set_source_rgba(
             self.color.red,
             self.color.green,
-            self.color.blue
+            self.color.blue,
+            self.color.alpha
         );
         // (1) Create uniform mesh of given resolution
         let density = 5;
@@ -178,28 +185,28 @@ impl Mapping for SurfaceMapping {
                 patch.colors[0].0,
                 patch.colors[0].1,
                 patch.colors[0].2,
-                1.0
+                self.color.alpha
             );
             mesh.set_corner_color_rgba(
                 MeshCorner::MeshCorner1,
                 patch.colors[1].0,
                 patch.colors[1].1,
                 patch.colors[1].2,
-                1.0
+                self.color.alpha
             );
             mesh.set_corner_color_rgba(
                 MeshCorner::MeshCorner2,
                 patch.colors[2].0,
                 patch.colors[2].1,
                 patch.colors[2].2,
-                1.0
+                self.color.alpha
             );
             mesh.set_corner_color_rgba(
                 MeshCorner::MeshCorner3,
                 patch.colors[3].0,
                 patch.colors[3].1,
                 patch.colors[3].2,
-                1.0
+                self.color.alpha
             );
             mesh.end_patch();
         }
@@ -305,8 +312,8 @@ impl Mapping for SurfaceMapping {
         let props = utils::children_as_hash(node, "property");
         self.color = props["color"].parse().unwrap();
         self.color_final = props["final_color"].parse().unwrap();
-        self.color.alpha = props["opacity"].parse().unwrap();
-        self.color_final.alpha = props["opacity"].parse().unwrap();
+        self.color.alpha = props["opacity"].parse::<f64>().unwrap() / 100.0;
+        self.color_final.alpha = props["opacity"].parse::<f64>().unwrap() / 100.0;
         let z_min = props["z_min"].parse().unwrap();
         let z_max = props["z_max"].parse().unwrap();
         self.z_lims = (z_min, z_max);

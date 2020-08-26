@@ -69,7 +69,10 @@ impl MainMenu {
             match resp {
                 ResponseType::Other(1) => {
                     if let Some(path) = dialog.get_filename() {
-                        if let Some(ext) = path.as_path().extension().map(|ext| ext.to_str().unwrap_or("")) {
+                        let ext = path.as_path()
+                            .extension()
+                            .map(|ext| ext.to_str().unwrap_or(""));
+                        if let Some(ext) = ext {
                             if let Ok(t) = tbl_env.try_borrow() {
                                 match ext {
                                     "db" | "sqlite" | "sqlite3" => {
@@ -194,13 +197,13 @@ impl MainMenu {
         }
 
         let sql_open_btn : ModelButton = builder.get_object("sql_open_btn").unwrap();
-        {
+        /*{
             let sql_editor = sql_editor.clone();
             sql_open_btn.connect_clicked(move |btn| {
                 sql_editor.sql_load_dialog.run();
                 //sql_editor.sql_load_dialog.hide();
             });
-        }
+        }*/
 
         {
             let sql_editor = sql_editor.clone();

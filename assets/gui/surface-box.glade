@@ -2,12 +2,7 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
-  <object class="GtkAdjustment">
-    <property name="upper">100</property>
-    <property name="step_increment">1</property>
-    <property name="page_increment">10</property>
-  </object>
-  <object class="GtkAdjustment" id="adjustment_surface_opacity">
+  <object class="GtkAdjustment" id="surface_adjustment_opacity">
     <property name="upper">100</property>
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
@@ -149,8 +144,8 @@
             <property name="margin_right">6</property>
             <property name="margin_top">6</property>
             <property name="margin_bottom">6</property>
-            <property name="adjustment">adjustment_surface_opacity</property>
-            <property name="fill_level">1</property>
+            <property name="adjustment">surface_adjustment_opacity</property>
+            <property name="fill_level">100</property>
             <property name="round_digits">1</property>
           </object>
           <packing>

@@ -100,7 +100,7 @@ impl MappingMenu {
         );
         if let Some(prop) = properties {
             if let Err(e) = m.update_widget_values(prop) {
-                println!("{}", e);
+                println!("Error updating widget values: {}", e);
             }
         }
         Ok(m)
@@ -238,6 +238,7 @@ impl MappingMenu {
         self.design_widgets.insert(color_id, color_btn.upcast());
         match &self.mapping_type[..] {
             "line" => {
+
                 let width_scale : Scale =
                     builder.get_object("line_width_scale").unwrap();
                 connect_update_scale_property(
@@ -248,6 +249,7 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("line_width_scale".into(), width_scale.upcast());
+
                 let dash_scale : Scale =
                     builder.get_object("line_dash_scale").unwrap();
                 connect_update_scale_property(
@@ -272,6 +274,7 @@ impl MappingMenu {
                 self.design_widgets.insert("scatter_radius_scale".into(), radius_scale.upcast());
             },
             "bar" => {
+
                 let anchor_switch : Switch
                     = builder.get_object("bar_anchor_switch").unwrap();
                 connect_update_switch_property(
@@ -282,6 +285,7 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_anchor_switch".into(), anchor_switch.upcast());
+
                 let horizontal_switch : Switch
                     = builder.get_object("bar_horizontal_switch").unwrap();
                 connect_update_switch_property(
@@ -292,6 +296,7 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_horizontal_switch".into(), horizontal_switch.upcast());
+
                 let width_scale : Scale =
                     builder.get_object("bar_width_scale").unwrap();
                 connect_update_scale_property(
@@ -314,6 +319,7 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("bar_origin_x_entry".into(), origin_x_entry.upcast());
+
                 let origin_y_entry : Entry =
                     builder.get_object("bar_origin_y_entry").unwrap();
                 connect_update_entry_property(
@@ -323,7 +329,9 @@ impl MappingMenu {
                     "origin_y".into(),
                     "mapping"
                 );
+
                 self.design_widgets.insert("bar_origin_y_entry".into(), origin_y_entry.upcast());
+
                 let spacing_entry : Entry =
                     builder.get_object("bar_spacing_entry").unwrap();
                 connect_update_entry_property(
@@ -336,7 +344,16 @@ impl MappingMenu {
                 self.design_widgets.insert("bar_spacing_entry".into(), spacing_entry.upcast());
             },
             "text" => {
-
+                let font_btn : FontButton =
+                    builder.get_object("text_mapping_font_btn").unwrap();
+                connect_update_font_property(
+                    &font_btn,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "font".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("text_mapping_font_btn".into(), font_btn.upcast());
             },
             "area" => {
                 let opacity_scale : Scale =
@@ -361,6 +378,39 @@ impl MappingMenu {
                     "mapping"
                 );
                 self.design_widgets.insert("surface_opacity_scale".into(), opacity_scale.upcast());
+
+                let final_color_btn : ColorButton =
+                    builder.get_object("surface_color_final_btn").unwrap();
+                connect_update_color_property(
+                    &final_color_btn,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "final_color".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("surface_color_final_btn".into(), final_color_btn.upcast());
+
+                let surface_baseline_entry : Entry =
+                    builder.get_object("surface_baseline_entry").unwrap();
+                connect_update_entry_property(
+                    &surface_baseline_entry,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "z_min".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("surface_baseline_entry".into(), surface_baseline_entry.upcast());
+
+                let surface_maximum_entry : Entry =
+                    builder.get_object("surface_maximum_entry").unwrap();
+                connect_update_entry_property(
+                    &surface_maximum_entry,
+                    view.clone(),
+                    self.mapping_name.clone(),
+                    "z_max".into(),
+                    "mapping"
+                );
+                self.design_widgets.insert("surface_maximum_entry".into(), surface_maximum_entry.upcast());
             },
             _ => { }
         }
