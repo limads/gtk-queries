@@ -96,9 +96,6 @@ impl MappingType {
 pub trait Mapping {
 
     // Mapping-specific impl.
-    //fn new(node : Node&) -> Self;
-
-    // Mapping-specific impl.
     fn draw(&self, mapper : &ContextMapper, ctx : &Context);// { }
 
     // Mapping-specific impl.
@@ -113,8 +110,6 @@ pub trait Mapping {
     fn mapping_type(&self) -> String;
 
     fn get_col_name(&self, col : &str) -> String;
-
-    //fn get_ordered_col_ids(&self) -> Vec<String>;
 
     fn get_ordered_col_names(&self) -> Vec<(String, String)>;
 

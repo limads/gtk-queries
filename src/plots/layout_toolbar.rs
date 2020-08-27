@@ -182,11 +182,13 @@ impl LayoutToolbar {
                     wid.set_sensitive(true);
                 }
 
-                let selected = tbl_nb.full_selected_cols();
+                let (tbl_ix, selected_ix) = tbl_nb.selected_table_and_cols()
+                    .unwrap_or((0, Vec::new()));
                 layout_toolbar.set_add_or_edit_mapping_sensitive(
                     mapping_menus.clone(),
                     &plot_popover,
-                    &selected[..]
+                    &selected_ix[..],
+                    tbl_ix
                 );
             });
         }
@@ -299,12 +301,13 @@ impl LayoutToolbar {
             .for_each(|(_, btn)| btn.set_active(true) );
     }
 
-    /// Check which types are mapped to this set of column positions (linear index).
+    /// Check which types are mapped to this set of column positions.
     /// Returns the types that are mapped to this set of columns (if any), the respective
     /// plot position, and mapping (linear) position. Returns an empty vector otherwise.
     /// If a mapping type is not passed, the search is performed over all possible mapping types.
     fn check_mapped(
         selected : &[usize],
+        tbl_ix : usize,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_type : Option<&str>
     ) -> Vec<(String, usize, usize)> {
@@ -312,16 +315,18 @@ impl LayoutToolbar {
         if let Ok(menus) = mapping_menus.try_borrow() {
             for (i, m) in menus.iter().enumerate() {
                 if let Ok(source) = m.source.try_borrow() {
-                    let len_match = selected.len() == source.ixs.len();
-                    let col_match = selected.iter()
-                        .zip(source.ixs.iter())
-                        .all(|(s, i)| *s == *i);
-                    let type_match = match mapping_type {
-                        Some(ty) => ty == &m.mapping_type[..],
-                        None => true
-                    };
-                    if len_match && col_match && type_match {
-                        mapped.push((m.mapping_type.clone(), m.plot_ix, i));
+                    if tbl_ix == source.tbl_pos.unwrap() {
+                        let len_match = selected.len() == source.tbl_ixs.len();
+                        let col_match = selected.iter()
+                            .zip(source.tbl_ixs.iter())
+                            .all(|(s, i)| *s == *i);
+                        let type_match = match mapping_type {
+                            Some(ty) => ty == &m.mapping_type[..],
+                            None => true
+                        };
+                        if len_match && col_match && type_match {
+                            mapped.push((m.mapping_type.clone(), m.plot_ix, i));
+                        }
                     }
                 } else {
                     println!("Failed acquiring reference to data source");
@@ -392,7 +397,8 @@ impl LayoutToolbar {
                 let tbl_nb = tbl_nb.clone();
                 btn.connect_toggled(move |btn| {
                     println!("{} toggled to {}", mapping_name, btn.get_active());
-                    let selected = tbl_nb.full_selected_cols();
+                    let (tbl_ix, selected_ix) = tbl_nb.selected_table_and_cols()
+                        .unwrap_or((0, Vec::new()));
                     let toggled_btns : Vec<_> = mapping_btns.iter()
                         .filter(|(name, btn)| btn.get_active() )
                         .map(|(name, _)| name.to_string() )
@@ -407,14 +413,15 @@ impl LayoutToolbar {
                     // mapping type exists for any set of selected columns.
 
                     let this_mapped = Self::check_mapped(
-                        &selected[..],
+                        &selected_ix[..],
+                        tbl_ix,
                         mapping_menus.clone(),
                         Some(&mapping_name)
                     );
                     Self::config_toggles_sensitive(
                         &add_mapping_btn,
                         &mapping_btns,
-                        selected.len()
+                        selected_ix.len()
                     );
                     if btn.get_active() {
                         println!("This mapped: {:?}", this_mapped);
@@ -425,7 +432,7 @@ impl LayoutToolbar {
                             println!("Failed to acquire mutable reference to selected mapping");
                         }
                         //println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
-                        match (this_mapped.len(), selected.len()) {
+                        match (this_mapped.len(), selected_ix.len()) {
                             (0, n) => {
                                 add_mapping_btn.set_sensitive(true);
                                 edit_mapping_btn.set_sensitive(false);
@@ -452,7 +459,8 @@ impl LayoutToolbar {
                     } else {
                         println!("any_mapped");
                         let any_mapped = Self::check_mapped(
-                            &selected[..],
+                            &selected_ix[..],
+                            tbl_ix,
                             mapping_menus.clone(),
                             None
                         );
@@ -611,6 +619,7 @@ impl LayoutToolbar {
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_popover : &PlotPopover,
         selected : &[usize],
+        tbl_ix : usize
     ) {
         let map_len = if let Ok(mappings) = mapping_menus.try_borrow(){
             mappings.len()
@@ -618,8 +627,7 @@ impl LayoutToolbar {
             println!("Failed to acquire reference to mapping menus (to recover len)");
             return;
         };
-        println!("add_or_edit_sensitive");
-        let mapped = Self::check_mapped(&selected[..], mapping_menus.clone(), None);
+        let mapped = Self::check_mapped(&selected[..], tbl_ix, mapping_menus.clone(), None);
         let types : Vec<_> = mapped.iter().map(|(t, _, _)| t.as_str() ).collect();
         println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
 

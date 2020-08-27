@@ -14,6 +14,7 @@ use sourceview::View;
 use super::file_list::FileList;
 use std::io::Write;
 use std::path::Path;
+use crate::schema_tree::SchemaTree;
 
 pub enum ExecStatus {
     File(String, usize),
@@ -270,20 +271,21 @@ impl SqlEditor {
 
     pub fn connect_result_arrived<F>(
         &self,
-        //tbl_env_c : Rc<RefCell<TableEnvironment>>,
+        schema_tree : SchemaTree,
         mut f : F
     )
-        where
-            F : FnMut(&TableEnvironment, &EnvironmentUpdate) -> Result<(), String> + 'static
+    where
+        F : FnMut(&TableEnvironment, &EnvironmentUpdate) -> Result<(), String> + 'static
     {
         let tbl_env_c = self.t_env.clone();
         let status_stack = self.status_stack.clone();
         let view_c = self.view.clone();
-        let sql_popover = self.clone();
+        let sql_editor = self.clone();
         let table_toggle = self.table_toggle.clone();
         let file_list = self.file_list.clone();
         gtk::timeout_add(16, move || {
-            if let Ok(mut sent) = sql_popover.query_sent.try_borrow_mut() {
+            let mut req_tree_update = false;
+            if let Ok(mut sent) = sql_editor.query_sent.try_borrow_mut() {
                 if *sent {
                     println!("Sent");
                     //println!("{}", sql_popover.query_sent.borrow());
@@ -326,6 +328,10 @@ impl SqlEditor {
                                     Some(ans) => {
                                         match ans {
                                             Ok(msg) => {
+                                                let is_create = msg.starts_with("Create");
+                                                let is_alter = msg.starts_with("Alter");
+                                                let is_drop = msg.starts_with("Drop");
+                                                req_tree_update = is_create || is_alter || is_drop;
                                                 status_stack.update(Status::StatementExecuted(msg));
                                                 table_toggle.set_active(true);
                                             },
@@ -356,11 +362,19 @@ impl SqlEditor {
                         } else {
                             println!("Not updated yet");
                         }
-                    }
+                    } else {
+                        println!("Unable to retrieve mutable reference to table environment");
+                        return glib::source::Continue(true);
+                    };
                 }
             } else {
                 println!("Unable to retrieve reference to query sent status");
             }
+
+            if req_tree_update {
+                schema_tree.repopulate(tbl_env_c.clone());
+            }
+
             glib::source::Continue(true)
         });
     }

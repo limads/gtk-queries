@@ -169,7 +169,8 @@ impl StatusStack {
             return;
         }
         match status {
-            Status::Ok => {
+            Status::Ok | Status::Connected => {
+                // if self.parent_stack.get_visible_child_name()
                 self.parent_stack.set_visible_child(&self.alt_wid);
                 return;
             },

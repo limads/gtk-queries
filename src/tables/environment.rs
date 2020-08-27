@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read, /*BufReader*/ };
+use std::io::{Read};
 use std::path::PathBuf;
 use crate::tables::sql::*;
 use super::source::*;
@@ -424,7 +424,7 @@ impl TableEnvironment {
                     self.history.push(EnvironmentUpdate::Clear);
                     opt_err = Some(msg.clone());
                 },
-                QueryResult::Statement(_) => {
+                QueryResult::Statement(_) | QueryResult::Modification(_) => {
                     self.tables.clear();
                     self.history.push(EnvironmentUpdate::Clear);
                 }
@@ -460,14 +460,15 @@ impl TableEnvironment {
         }
     }
 
-    pub fn result_last_statement(&self) -> Option<Result<String,String>> {
+    pub fn result_last_statement(&self) -> Option<Result<String, String>> {
         let results = self.listener.maybe_get_result()?;
         if let Some(r) = results.last() {
             println!("Last statement: {:?}", r);
             match r {
                 QueryResult::Statement(s) => Some(Ok(s.clone())),
                 QueryResult::Invalid(e) => Some(Err(e.clone())),
-                QueryResult::Valid(_, _) => None
+                QueryResult::Modification(m) => Some(Ok(m.clone())),
+                QueryResult::Valid(_, _) => None,
             }
         } else {
             None

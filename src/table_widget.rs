@@ -1,7 +1,7 @@
 use gtk::*;
 use gtk::prelude::*;
 use std::rc::Rc;
-use std::cell::{RefCell /*, RefMut*/ };
+use std::cell::{RefCell};
 use crate::tables::table::*;
 use crate::utils;
 use gdk::prelude::*;
@@ -157,7 +157,7 @@ impl TableWidget {
     }
 
     /// Returns selected columns, as a continuous index from the first
-    /// column from the first table
+    /// column of the current table
     pub fn selected_cols(&self) -> Vec<usize> {
         if let Ok(sel) = self.selected.try_borrow() {
             sel.iter().filter(|s| s.2 == true ).map(|s| s.1 ).collect()

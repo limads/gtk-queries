@@ -84,7 +84,7 @@ impl TableNotebook {
                 // let layout_toolbar = sidebar.layout_toolbar.clone();
                 // let plot_popover = sidebar.plot_popover.clone();
                 table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
-                    println!("Selected: {:?}", selected);
+                    println!("Selected columns (left click): {:?}", selected);
                     // mapping_popover.set_relative_to(Some(ev_bx));
                     mapping_popover.hide();
                     glib::signal::Inhibit(false)
@@ -97,15 +97,24 @@ impl TableNotebook {
                 let mapping_menus = workspace.mapping_menus.clone();
                 let layout_toolbar = workspace.layout_toolbar.clone();
                 let plot_popover = workspace.plot_popover.clone();
+
+                // Assume the table is static at the same position through all calls of
+                // set_selected_action. This is valid because for now the whole table
+                // environment is cleared when there are any query changes. Note we use
+                // len here and not len-1 becaues the element will effectively be added
+                // to the tbls vector only at the end of this method.
+                let curr_tbl_ix = self.len();
+
                 table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
-                    println!("All selected: {:?}", selected);
-                    println!("Currently selected: {}", curr);
+                    println!("Selected column set via left click: {:?}", selected);
+                    println!("Currently selected column via right click: {}", curr);
                     if selected.iter().find(|s| **s == curr).is_some() {
                         mapping_popover.set_relative_to(Some(ev_bx));
                         layout_toolbar.set_add_or_edit_mapping_sensitive(
                             mapping_menus.clone(),
                             &plot_popover,
                             &selected,
+                            curr_tbl_ix
                         );
                     }
                     mapping_popover.show();
@@ -143,19 +152,19 @@ impl TableNotebook {
         cols
     }
 
-    /// Returns selected columns, as a pair of (table, selected column).
-    pub fn selected_table_and_cols(&self) -> Vec<(usize, usize)> {
-        let mut sel = Vec::new();
+    /// Returns selected columns, as a pair of (table, selected columns).
+    pub fn selected_table_and_cols(&self) -> Option<(usize, Vec<usize>)> {
         if let Ok(tbls) = self.tbls.try_borrow() {
             for (i, t) in tbls.iter().enumerate() {
-                for s in t.selected_cols() {
-                    sel.push((i, s));
+                let sel = t.selected_cols();
+                if sel.len() > 0 {
+                    return Some((i, sel));
                 }
             }
         } else {
             println!("Unable to retrieve reference to tables");
         }
-        sel
+        None
     }
 
     /// Get selected cols at the current selected page. Indices are relative to
@@ -215,6 +224,10 @@ impl TableNotebook {
             .skip(ix)
             .next()
             .cloned()
+    }
+
+    pub fn len(&self) -> usize {
+        self.tbls.borrow().len()
     }
 
 }

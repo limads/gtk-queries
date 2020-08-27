@@ -1,6 +1,3 @@
-// use cairo::Context;
-// use std::collections::HashMap;
-// use std::f64::consts::PI;
 use std::ops::Add;
 
 #[derive(Clone, Copy, Debug)]

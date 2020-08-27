@@ -29,8 +29,17 @@ use datafusion::datasource::csv::{CsvFile, CsvReadOptions};
 // Carries a result (arranged over columns)
 #[derive(Debug)]
 pub enum QueryResult {
+
+    // Returns a valid executed query with its table represented over columns.
     Valid(String, Table),
+
+    // Returns the result of a successful insert/update/delete statement.
     Statement(String),
+
+    // Returns the result of a successful create/drop/alter statement.
+    Modification(String),
+
+    // Returns a query/statement rejected by the database engine, carrying its error message.
     Invalid(String)
 }
 
@@ -140,17 +149,18 @@ fn remove_string_literals(text : &str) -> String {
     out
 }*/
 
-/// Parse a SQL String, separating the queries.
-/// Use this if no client-side parsing is desired.
+/// Parse a SQL String, separating the statements and verifying if they are a select
+/// or another kind of query. Use this if no client-side parsing is desired.
 /// TODO remove ; from text literals "" and $$ $$ when doing the
 /// analysis. Returns true for each statement if the resulting statement
-/// is a select.
+/// is a select. This is a crude fallible approach, used as fallbach when
+/// sqlparser is unable to parse a query due to engine-specific SQL extensions.
 pub fn split_sql(sql_text : String) -> Result<Vec<(String, bool)>, String> {
     let stmts_strings : Vec<_> = sql_text.split(";")
         .filter(|c| c.len() > 0 && *c != "\n" && *c != " " && *c != "\t")
         .map(|c| c.trim_start().trim_end().to_string()).collect();
     let mut stmts = Vec::new();
-    // TODO this will break if literals contain select/with statements.
+    // TODO this will break if string literals contain select/with statements within them.
     for stmt in stmts_strings {
         println!("{}", stmt);
         let is_select = stmt.starts_with("select") || stmt.starts_with("SELECT") ||
@@ -178,6 +188,11 @@ pub enum SqlEngine {
 
     #[cfg(feature="arrowext")]
     Arrow{ ctx : ExecutionContext }
+}
+
+enum AnyStatement {
+    Parsed(Statement),
+    Raw(String)
 }
 
 #[derive(Debug)]
@@ -467,8 +482,12 @@ impl SqlEngine {
     }
 
     /// Get all SQLite table names.
+    /// TODO This will break if there is a table under the temp schema with the same name
+    /// as a table under the global schema.
     fn get_sqlite_tbl_names(&mut self) -> Option<Vec<String>> {
-        let tbl_query = String::from("select name from sqlite_master where type='table';");
+        let tbl_query = String::from("select name from sqlite_master where type = 'table' union \
+            select name from temp.sqlite_master where type = 'table';");
+        // select * from temp.sqlite_master;
         let ans = self.try_run(tbl_query, false)
             .map_err(|e| println!("{}", e) ).ok()?;
         if let Some(q_res) = ans.get(0) {
@@ -527,7 +546,7 @@ impl SqlEngine {
                 Some(obj)
             },
             QueryResult::Invalid(msg) => { println!("{}", msg); None },
-            QueryResult::Statement(_) => None
+            _ => None
         }
     }
 
@@ -586,7 +605,7 @@ impl SqlEngine {
                     Some(obj)
                 },
                 QueryResult::Invalid(msg) => { println!("{}", msg); None },
-                QueryResult::Statement(_) => None
+                _ => None
             }
         } else {
             println!("Database info query did not return any results");
@@ -655,6 +674,46 @@ impl SqlEngine {
         }
     }*/
 
+    /// After the statement execution status returned from the SQL engine,
+    /// build a message to display to the user.
+    fn build_statement_result(any_stmt : &AnyStatement, n : usize) -> QueryResult {
+        match any_stmt {
+            AnyStatement::Parsed(stmt) => match stmt {
+                Statement::CreateView{..} => QueryResult::Modification(format!("Create view")),
+                Statement::CreateTable{..} | Statement::CreateVirtualTable{..} => {
+                    QueryResult::Modification(format!("Create table"))
+                },
+                Statement::CreateIndex{..} => QueryResult::Modification(format!("Create index")),
+                Statement::CreateSchema{..} => QueryResult::Modification(format!("Create schema")),
+                Statement::AlterTable{..} => QueryResult::Modification(format!("Alter table")),
+                Statement::Drop{..} => QueryResult::Modification(format!("Drop table")),
+                Statement::Copy{..} => QueryResult::Modification(format!("Copy")),
+                _ => QueryResult::Statement(format!("{} row(s) modified", n))
+            },
+            AnyStatement::Raw(s) => {
+                if s.contains("create table") || s.contains("CREATE TABLE") {
+                    return QueryResult::Modification(format!("Create table"));
+                }
+                if s.contains("create virtual table") || s.contains("CREATE VIRTUAL TABLE") {
+                    return QueryResult::Modification(format!("Create table"));
+                }
+                if s.contains("create temporary table") || s.contains("CREATE TEMPORARY TABLE") {
+                    return QueryResult::Modification(format!("Create table"));
+                }
+                if s.contains("drop table") || s.contains("DROP TABLE") {
+                    return QueryResult::Modification(format!("Drop table"));
+                }
+                if s.contains("alter table") || s.contains("ALTER TABLE") {
+                    return QueryResult::Modification(format!("Alter table"));
+                }
+                if s.contains("create schema") || s.contains("CREATE SCHEMA") {
+                    return QueryResult::Modification(format!("Create schema"));
+                }
+                QueryResult::Statement(format!("{} row(s) modified", n))
+            }
+        }
+    }
+
     fn query_postgre(conn : &mut postgres::Client, q : &str) -> QueryResult {
         match conn.query(q, &[]) {
             Ok(rows) => {
@@ -697,16 +756,30 @@ impl SqlEngine {
         }
     }
 
-    fn exec_postgre(conn : &mut postgres::Client, e : &str) -> QueryResult {
-        match conn.execute(e, &[]) {
-            Ok(n) => QueryResult::Statement(format!("{} row(s) modified", n)),
+    fn exec_postgre(conn : &mut postgres::Client, stmt : &AnyStatement) -> QueryResult {
+        let ans = match stmt {
+            AnyStatement::Parsed(e) => {
+                let s = format!("{}", e);
+                conn.execute(&s[..], &[])
+            },
+            AnyStatement::Raw(s) => conn.execute(&s[..], &[])
+        };
+        match ans {
+            Ok(n) => Self::build_statement_result(&stmt, n as usize),
             Err(e) => QueryResult::Invalid(e.to_string())
         }
     }
 
-    fn exec_sqlite(conn : &mut rusqlite::Connection, e : &str) -> QueryResult {
-        match conn.execute(e, rusqlite::NO_PARAMS) {
-            Ok(n) => QueryResult::Statement(format!("{} row(s) modified", n)),
+    fn exec_sqlite(conn : &mut rusqlite::Connection, stmt : &AnyStatement) -> QueryResult {
+        let ans = match stmt {
+            AnyStatement::Parsed(e) => {
+                let s = format!("{}", e);
+                conn.execute(&s[..], rusqlite::NO_PARAMS)
+            },
+            AnyStatement::Raw(s) => conn.execute(&s[..], rusqlite::NO_PARAMS)
+        };
+        match ans {
+            Ok(n) => Self::build_statement_result(&stmt, n),
             Err(e) => QueryResult::Invalid(e.to_string())
         }
     }
@@ -761,14 +834,14 @@ impl SqlEngine {
                     if is_select {
                         results.push(Self::query_postgre(conn, &format!("{}", stmt)));
                     } else {
-                        results.push(Self::exec_postgre(conn, &format!("{}", stmt)));
+                        results.push(Self::exec_postgre(conn, &AnyStatement::Raw(format!("{}", stmt))));
                     }
                 },
                 SqlEngine::Sqlite3{ path : _, conn} | SqlEngine::Local{ conn } => {
                     if is_select {
                         results.push(Self::query_sqlite(conn, &format!("{}", stmt)));
                     } else {
-                        results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
+                        results.push(Self::exec_sqlite(conn, &AnyStatement::Raw(format!("{}", stmt))));
                     }
                 },
 
@@ -788,8 +861,7 @@ impl SqlEngine {
     pub fn try_run(
         &mut self,
         query_seq : String,
-        parse : bool,
-        //loader : Option<&FunctionLoader>
+        parse : bool
     ) -> Result<Vec<QueryResult>, String> {
         let stmts = match parse {
             true => match parse_sql(&query_seq) {
@@ -813,7 +885,7 @@ impl SqlEngine {
                             results.push(Self::query_postgre(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            results.push(Self::exec_postgre(conn, &format!("{}", stmt)));
+                            results.push(Self::exec_postgre(conn, &AnyStatement::Parsed(stmt)));
                         }
                     }
                 }
@@ -829,7 +901,7 @@ impl SqlEngine {
                             results.push(Self::query_sqlite(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            results.push(Self::exec_sqlite(conn, &format!("{}", stmt)));
+                            results.push(Self::exec_sqlite(conn, &AnyStatement::Parsed(stmt)));
                         }
                     }
                 }

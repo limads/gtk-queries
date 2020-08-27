@@ -156,16 +156,6 @@ impl PlotPopover {
                 } else {
                     println!("Child not found at index {:?}", sel);
                 }
-
-
-                // Moved to update_nav_sensitive
-                /*if forward && sel.curr_ix == (sel.valid_ix[sel.plot_ix].len() - 1) {
-                    btn.set_sensitive(false);
-                } else {
-                    if !forward && sel.curr_ix == 0 {
-                        btn.set_sensitive(false);
-                    }
-                }*/
                 println!("Current selection (navigate): {:?}", sel);
             } else {
                 println!("Extrapolated plot index (Curr ix : {:?})", sel);

@@ -1,14 +1,10 @@
-// use crate::tables::sql::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
-//use postgres::{Connection, TlsMode};
 use std::collections::HashMap;
 use crate::tables::environment::TableEnvironment;
-// use crate::tables::sql::{SqlListener};
 use crate::tables::source::EnvironmentSource;
-// use gtk::prelude::*;
 use std::path::PathBuf;
 use std::fs::File;
 use std::io::Read;
@@ -28,52 +24,14 @@ pub struct ConnPopover {
     conn_switch : Switch,
     db_file_btn : Button,
     db_file_dialog : FileChooserDialog,
-    //query_file_dialog : FileChooserDialog,
     db_file_img : Image,
     db_path : Rc<RefCell<Vec<PathBuf>>>,
-    //query_update_combo : ComboBoxText,
-    //query_upload_btn : Button,
-    //query_update_btn : Button
 }
-
-/*
-Widgets that go together can be represented inside
-small structs. Structs can then derive clone (which
-will clone widgets recursively).
-*/
-/*#[derive(Clone)]
-struct Conn {
-    switch : Switch,
-    conn : Option<Connection>
-}*/
-
-/*fn build_ui(app: &gtk::Application) {
-    let builder = Builder::new_from_file("assets/gui/gtk-tables-2.glade");
-    let win : Window = builder.get_object("main_window")
-        .expect("Could not recover window");
-    win.set_application(Some(app));
-    let queries_app = QueriesApp::new_from_builder(&builder, win.clone());
-    win.show_all();
-}*/
 
 impl ConnPopover {
 
-    /*fn new(btn : gtk::Button, popover : gtk::Popover) -> ConnPopover {
-        let host_entry : gtk::Entry =
-        builder.get_object("host_entry");
-       ConnPopover{btn, popover, conn}
-    }*/
     /* Load popover from a path to a glade file */
-    /* It is important to notice ConnPopover will take ownership
-    of btn here */
-    pub fn new_from_glade(
-        builder : Builder,
-        btn : gtk::Button,
-        _path : &str
-    )
-        //conn : &'a mut Option<Connection>,
-        /*conn_switch : &'a mut gtk::Switch)*/ -> ConnPopover {
-        //let builder = Builder::new_from_file(path);
+    pub fn new_from_glade(builder : Builder, btn : gtk::Button) -> ConnPopover {
         let popover : gtk::Popover =
             builder.get_object("conn_popover").unwrap();
         popover.set_relative_to(Some(&btn));
@@ -91,19 +49,10 @@ impl ConnPopover {
             builder.get_object("conn_switch").unwrap();
         let db_file_dialog : FileChooserDialog =
             builder.get_object("db_file_dialog").unwrap();
-        //let query_file_dialog : FileChooserDialog =
-        //    builder.get_object("query_file_dialog").unwrap();
         let db_file_btn : Button =
             builder.get_object("db_file_btn").unwrap();
-        //let query_upload_btn : Button =
-        //    builder.get_object("query_upload_btn").unwrap();
-        //let query_update_btn : Button =
-        //    builder.get_object("query_update_btn").unwrap();
         let db_file_img : Image =
             builder.get_object("db_file_img").unwrap();
-        //let query_update_combo : ComboBoxText =
-        //    builder.get_object("query_update_combo").unwrap();
-
         {
             let db_file_dialog = db_file_dialog.clone();
             db_file_btn.connect_clicked(move |_btn| {
@@ -113,42 +62,6 @@ impl ConnPopover {
             });
         }
 
-        /*{
-            let query_file_dialog = query_file_dialog.clone();
-            query_upload_btn.connect_clicked(move |_btn| {
-                println!("Here");
-                query_file_dialog.run();
-                query_file_dialog.hide();
-            });
-        }*/
-
-        /*{
-            let query_upload_btn = query_upload_btn.clone();
-            let query_update_btn = query_update_btn.clone();
-            let query_file_dialog = query_file_dialog.clone();
-            query_update_combo.connect_changed(move |combo|{
-                if let Some(txt) = combo.get_active_text().map(|txt| txt.to_string()) {
-                    match &txt[..] {
-                        "Query off" => {
-                            query_upload_btn.set_sensitive(false);
-                            query_update_btn.set_sensitive(false);
-                            query_file_dialog.unselect_all();
-                            // TODO if auto-update, stop here.
-                        },
-                        other => {
-                            query_upload_btn.set_sensitive(true);
-                            query_update_btn.set_sensitive(true);
-                            match other {
-                                "1 Second" => { },
-                                "5 Seconds" => { },
-                                "10 Seconds" => { },
-                                _ => { }
-                            }
-                        },
-                    }
-                }
-            });
-        }*/
         let db_path = Rc::new(RefCell::new(Vec::new()));
         ConnPopover{
             btn,
@@ -158,11 +71,7 @@ impl ConnPopover {
             db_file_btn,
             db_file_dialog,
             db_path,
-            db_file_img,
-            //query_update_combo,
-            //query_upload_btn,
-            //query_update_btn,
-            //query_file_dialog
+            db_file_img
         }
     }
 
@@ -270,12 +179,12 @@ impl ConnPopover {
     }
 
     fn clear_session(
-        sql_popover : SqlEditor,
+        sql_editor : SqlEditor,
         workspace : PlotWorkspace,
         table_notebook : TableNotebook,
         t_env : &mut TableEnvironment
     ) {
-        sql_popover.set_active(false);
+        sql_editor.set_active(false);
         workspace.set_active(false);
         table_notebook.clear();
         workspace.clear();
@@ -292,7 +201,7 @@ impl ConnPopover {
         table_env : Rc<RefCell<TableEnvironment>>,
         table_notebook : TableNotebook,
         status : StatusStack,
-        sql_popover : SqlEditor,
+        sql_editor : SqlEditor,
         workspace : PlotWorkspace,
         fn_reg : FunctionRegistry,
         schema_tree : SchemaTree
@@ -386,7 +295,7 @@ impl ConnPopover {
                     conn_popover.clear_entries();
                     status.update(Status::Disconnected);
                     Self::clear_session(
-                        sql_popover.clone(),
+                        sql_editor.clone(),
                         workspace.clone(),
                         table_notebook.clone(),
                         &mut t_env
@@ -398,7 +307,7 @@ impl ConnPopover {
             if let Some(status) = status.get_status() {
                 match status {
                     Status::Connected => {
-                        sql_popover.set_active(true);
+                        sql_editor.set_active(true);
                         workspace.set_active(true);
                         fn_reg.set_sensitive(false);
                         schema_tree.repopulate(table_env.clone());
@@ -408,7 +317,7 @@ impl ConnPopover {
                         schema_tree.clear();
                         if let Ok(mut t_env) = table_env.try_borrow_mut() {
                             Self::clear_session(
-                                sql_popover.clone(),
+                                sql_editor.clone(),
                                 workspace.clone(),
                                 table_notebook.clone(),
                                 &mut t_env
@@ -485,17 +394,6 @@ impl ConnPopover {
             entry.set_text("");
         }
     }
-
-    /*/// Assume there is a 1:1 correspondence between table names
-    /// and tables at the database. Select all rows of all tables.
-    fn select_all_tables(t_env : &mut TableEnvironment) {
-        /*let names : Vec<_> =  t_env.all_tables().iter()
-            .map(|t| t.name.clone().unwrap_or("tbl".into()) ).collect();
-        for name in names {
-            let sql = format !("select * from {};", name);
-            t_env.send_query(sql);
-        }*/
-    }*/
 
     fn create_csv_vtab(path : PathBuf, t_env : &mut TableEnvironment, status_stack : StatusStack, switch : Switch) {
         let opt_name = path.clone().file_name()
@@ -628,50 +526,5 @@ impl ConnPopover {
     }
 
 }
-
-    /*fn try_connect(entries : &[gtk::Entry; 4])
-        -> Result<Connection,String>
-    {
-        let mut conn_str = String::new();
-        let fields = [" host=", " user=", " password=", " dbname="];
-        for (entry, field) in entries.iter().zip(fields.iter()) {
-            if let Some(s) = entry.get_text() {
-                let value = s.as_str();
-
-                if !value.is_empty() {
-                    conn_str += field;
-                    if field == &" host=" {
-                        let spl_port : Vec<&str> = value.split(":").collect();
-                        if spl_port.len() >= 2 {
-                            conn_str += spl_port[0];
-                            conn_str += " port=";
-                            conn_str += spl_port[1];
-                        } else {
-                            conn_str += spl_port[0];
-                        }
-                    } else {
-                        conn_str += value;
-                    }
-                }
-            }
-        }
-        if conn_str.chars().count() > 1 {
-            conn_str = conn_str[1..conn_str.len()].to_string();
-        }
-
-        conn_str = "'".to_owned() + &conn_str + "'";
-
-        println!("{}", conn_str);
-
-        let tls_mode = TlsMode::None;
-        match Connection::connect(conn_str, tls_mode) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(e.to_string())
-        }
-    }*/
-
-// Make switch sensitive again
-// gtk::timeout_add(16, move || {
-//    if !search_entry_c.is_sensitive() {
 
             

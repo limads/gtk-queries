@@ -287,8 +287,7 @@ impl QueriesApp {
         let schema_tree = SchemaTree::build(&builder);
         let conn_popover = ConnPopover::new_from_glade(
             builder.clone(),
-            conn_btn,
-            &popover_path[..]
+            conn_btn
         );
         let pl_da : DrawingArea = builder.get_object("plot").unwrap();
         let plot_workspace = Self::build_plots_widgets(
@@ -415,7 +414,7 @@ impl QueriesApp {
                // }
             };
             //let table_env = table_env.clone();
-            sql_editor.connect_result_arrived(f);
+            sql_editor.connect_result_arrived(schema_tree.clone(), f);
         }
 
         let main_menu = MainMenu::build(
