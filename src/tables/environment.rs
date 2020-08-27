@@ -342,8 +342,10 @@ impl TableEnvironment {
         };
         println!("Schema: {}", schema); //schema='{}'
         let sql = format!("create virtual table temp.{} using \
-            csv(filename='{}', header='YES', schema='{}');", name, path.to_str().unwrap(), schema );
-        self.prepare_and_send_query(sql, false)
+            csv(filename='{}', header='YES', schema='{}');", name, path.to_str().unwrap(), schema
+        );
+        self.prepare_and_send_query(sql, false)?;
+        Ok(())
     }
 
     pub fn clear_queries(&mut self) {
@@ -392,6 +394,10 @@ impl TableEnvironment {
             }
         }
         None
+    }
+
+    pub fn clear_results(&mut self) {
+        self.listener.clear_results();
     }
 
     /// Try to update the tables, potentially returning the first error

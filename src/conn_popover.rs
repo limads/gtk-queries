@@ -191,6 +191,7 @@ impl ConnPopover {
         //if let Ok(mut t_env) = table_env.try_borrow_mut() {
         t_env.clear();
         t_env.clear_queries();
+        t_env.clear_results();
         //} else {
         //    println!("Unable to retrieve lock ove table environment");
         //}

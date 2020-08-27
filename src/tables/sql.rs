@@ -1076,6 +1076,7 @@ impl SqlListener {
     pub fn send_command(&self, sql : String, parse : bool) -> Result<(), String> {
         if let Ok(mut last_cmd) = self.last_cmd.lock() {
             last_cmd.clear();
+            self.clear_results();
             match parse {
                 true => {
                     match parse_sql(&sql[..]) {
@@ -1121,6 +1122,12 @@ impl SqlListener {
             Some(full_ans)
         } else {
             None
+        }
+    }
+
+    pub fn clear_results(&self) {
+        while let Ok(mut res) = self.ans_receiver.try_recv() {
+            let _ = res;
         }
     }
 }

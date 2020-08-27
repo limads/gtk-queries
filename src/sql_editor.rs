@@ -290,7 +290,9 @@ impl SqlEditor {
                     println!("Sent");
                     //println!("{}", sql_popover.query_sent.borrow());
                     if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
-                        let updated = if let Some(last_cmd) = t_env.last_commands().last() {
+                        let last_cmds = t_env.last_commands();
+                        println!("Last commands: {:?}", last_cmds);
+                        let updated = if let Some(last_cmd) = last_cmds.last() {
                             println!("Query updated");
                             println!("Last command: {}", last_cmd);
                             if &last_cmd[..] == "select" {
@@ -298,13 +300,13 @@ impl SqlEditor {
                                     Some(ans) => {
                                         match ans {
                                             Ok(ref update) => {
-                                                match update {
+                                                /*match update {
                                                     EnvironmentUpdate::Refresh => {
                                                         // Re-call user functions here
                                                         // t_env.execute_saved_funcs(reg);
                                                     },
                                                     _ => { }
-                                                }
+                                                }*/
                                                 if let Err(e) = f(&t_env, update) {
                                                     println!("{}", e);
                                                     status_stack.update(Status::SqlErr(e));

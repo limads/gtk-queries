@@ -368,10 +368,8 @@ impl QueriesApp {
         );
 
         {
-            //let table_env_c = table_env.clone();
             let tables_nb = tables_nb.clone();
             let fn_reg = fn_reg.clone();
-            //let fn_popover = fn_popover.clone();
             let workspace = plot_workspace.clone();
             let status_stack = status_stack.clone();
             let query_toggle = query_toggle.clone();
@@ -380,23 +378,32 @@ impl QueriesApp {
             let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             let file_list = file_list.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
-                //if let Ok(t_env) = table_env_c.try_borrow() {
-                utils::set_tables(
-                    &t_env,
-                    &mut tables_nb.clone(),
-                    mapping_popover.clone(),
-                    workspace.clone(),
-                    //fn_popover.clone()
-                );
-                // TODO update all mappings to NULL data and set mappings as insensitive
-                // if new table output is different than old table output.
                 match update {
-                    EnvironmentUpdate::Refresh => {
-                        workspace.update_all_mappings(&t_env,status_stack.clone())
+                    EnvironmentUpdate::Clear => {
+                        tables_nb.clear();
+                        workspace.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
+                    },
+                    EnvironmentUpdate::NewTables(_) => {
+                        utils::set_tables(
+                            &t_env,
+                            &mut tables_nb.clone(),
+                            mapping_popover.clone(),
+                            workspace.clone(),
+                        );
+                        workspace.clear_all_mappings()
                             .map_err(|e| println!("{}", e) ).ok();
                     },
-                    _ => {
-                        workspace.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
+                    EnvironmentUpdate::Refresh => {
+                        utils::set_tables(
+                            &t_env,
+                            &mut tables_nb.clone(),
+                            mapping_popover.clone(),
+                            workspace.clone(),
+                        );
+                        workspace.update_all_mappings(
+                            &t_env,
+                            status_stack.clone()
+                        ).map_err(|e| println!("{}", e) ).ok();
                     }
                 }
                 tables_nb.nb.set_sensitive(true);
@@ -409,11 +416,7 @@ impl QueriesApp {
                     workspace.pl_view.clone()
                 );
                 Ok(())
-                //} else {
-                //    Err(String::from("Error retrieving reference to table environment"))
-               // }
             };
-            //let table_env = table_env.clone();
             sql_editor.connect_result_arrived(schema_tree.clone(), f);
         }
 
