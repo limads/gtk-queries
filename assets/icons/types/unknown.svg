@@ -15,7 +15,7 @@
    y="0px"
    viewBox="0 0 16 16"
    xml:space="preserve"
-   sodipodi:docname="text.svg"
+   sodipodi:docname="unknown.svg"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
    width="16"
    height="16"><metadata
@@ -35,9 +35,9 @@
    inkscape:window-height="1016"
    id="namedview53"
    showgrid="false"
-   inkscape:zoom="27.040962"
-   inkscape:cx="-12.840318"
-   inkscape:cy="10.986895"
+   inkscape:zoom="13.520481"
+   inkscape:cx="-24.632339"
+   inkscape:cy="-0.9101148"
    inkscape:window-x="0"
    inkscape:window-y="27"
    inkscape:window-maximized="1"
@@ -58,14 +58,15 @@
 	<text
    xml:space="preserve"
    style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.11164856px;line-height:1;font-family:'Ubuntu mono';-inkscape-font-specification:'Ubuntu mono';letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.5277912"
-   x="2.546875"
-   y="15.287031"
+   x="3.328125"
+   y="15.3925"
    id="text839"><tspan
      sodipodi:role="line"
      id="tspan837"
-     x="2.546875"
-     y="15.287031"
-     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:16px;font-family:Serif;-inkscape-font-specification:Serif;stroke-width:0.5277912;fill:#3d3d3d;fill-opacity:1">T</tspan></text>
+     x="3.328125"
+     y="15.3925"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:16px;font-family:Sans;-inkscape-font-specification:Sans;fill:#3d3d3d;fill-opacity:1;stroke-width:0.5277912">?</tspan></text>
+
 
 
 

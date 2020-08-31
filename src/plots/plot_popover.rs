@@ -137,6 +137,24 @@ impl PlotPopover {
         plot_popover
     }
 
+    pub fn clear(&self) {
+        self.mapping_stack.set_visible_child_name("empty");
+        self.mapping_stack.show_all();
+        let stack_children = self.mapping_stack.get_children();
+        for child in stack_children.iter().skip(1) {
+            self.mapping_stack.remove(child);
+        }
+        let mut sel = self.sel_mapping.borrow_mut();
+        sel.plot_ix = 0;
+        for ix_vec in sel.valid_ix.iter_mut() {
+            ix_vec.clear();
+        }
+        sel.curr_ix = 0;
+        self.forward_btn.set_sensitive(false);
+        self.backward_btn.set_sensitive(false);
+        self.tbl_btn.set_sensitive(false);
+    }
+
     fn navigate(
         sel_mapping : Rc<RefCell<MappingSelection>>,
         mapping_stack : Stack,
@@ -270,7 +288,7 @@ impl PlotPopover {
         self.update_nav_sensitive();
     }
 
-    /// Removes the selected mapping and returns its old index.
+    /// Removes the selected mapping
     pub fn remove_mapping_at_ix(&self, ix : usize) {
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             // let offset_mapping_ix = sel_mapping.valid_ix[pl_ix][curr_ix];
@@ -396,3 +414,5 @@ impl PlotPopover {
     }
 
 }
+
+

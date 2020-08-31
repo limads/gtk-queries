@@ -119,7 +119,12 @@ impl FileList {
         }
     }
 
-    pub fn connect_selected(&self, sql_editor : &SqlEditor, content_stack : Stack, query_toggle : ToggleButton) {
+    pub fn connect_selected(
+        &self,
+        sql_editor : &SqlEditor,
+        content_stack : Stack,
+        query_toggle : ToggleButton
+    ) {
         let sql_editor = sql_editor.clone();
         let files = self.files.clone();
         let last_ix = self.last_ix.clone();
@@ -336,6 +341,7 @@ impl FileList {
         let n = self.list_box.get_children().len();
         self.list_box.insert(&row, n as i32);
         self.list_box.show_all();
+        row.set_property_height_request(24);
         row
     }
 

@@ -21,6 +21,7 @@ use gtk_queries::main_menu::MainMenu;
 use gtk_queries::plots::layout_toolbar::*;
 use gtk_queries::file_list::FileList;
 use gtk_queries::schema_tree::SchemaTree;
+use gtk_queries::jobs::JobManager;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -278,6 +279,7 @@ impl QueriesApp {
         let (fn_reg, fn_loader) = FunctionRegistry::new(
             builder
         );
+        // let job_manager = JobManager::build(&builder);
 
         let env_source = EnvironmentSource::File("".into(),"".into());
         let table_env = Rc::new(RefCell::new(TableEnvironment::new(env_source, fn_loader)));
@@ -381,7 +383,8 @@ impl QueriesApp {
                 match update {
                     EnvironmentUpdate::Clear => {
                         tables_nb.clear();
-                        workspace.clear_all_mappings().map_err(|e| println!("{}", e) ).ok();
+                        workspace.clear_mappings()
+                            .map_err(|e| println!("{}", e) ).ok();
                     },
                     EnvironmentUpdate::NewTables(_) => {
                         utils::set_tables(
@@ -390,7 +393,7 @@ impl QueriesApp {
                             mapping_popover.clone(),
                             workspace.clone(),
                         );
-                        workspace.clear_all_mappings()
+                        workspace.clear_mappings()
                             .map_err(|e| println!("{}", e) ).ok();
                     },
                     EnvironmentUpdate::Refresh => {
@@ -400,7 +403,7 @@ impl QueriesApp {
                             mapping_popover.clone(),
                             workspace.clone(),
                         );
-                        workspace.update_all_mappings(
+                        workspace.update_mapping_data(
                             &t_env,
                             status_stack.clone()
                         ).map_err(|e| println!("{}", e) ).ok();

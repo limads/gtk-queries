@@ -75,8 +75,11 @@ impl FunctionLoader {
     }
 
     /// Returns (name, source path, lib path, parsed_functions, parsed aggregates) if successful.
-    fn parse_toml(path : &Path) -> Result<(String, String, String, Vec<Function>, Vec<Aggregate>), String> {
-        let parent = path.parent().ok_or(String::from("Path does not have parent"))?;
+    fn parse_toml(
+        path : &Path
+    ) -> Result<(String, String, String, Vec<Function>, Vec<Aggregate>, Vec<Job>), String> {
+        let parent = path.parent()
+            .ok_or(String::from("Path does not have parent"))?;
         let mut src_folder = parent.to_path_buf();
         src_folder.push("src");
         let mut content = String::new();
@@ -99,6 +102,8 @@ impl FunctionLoader {
                     .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
                 let mut funcs = Vec::new();
                 let mut aggs = Vec::new();
+                let mut jobs = Vec::new();
+                let mut docs : HashMap<String, Option<String>> = HashMap::new();
                 let parse_str = |val : &toml::Value| {
                     let s = toml::Value::try_into::<'_, String>(val.clone()).ok();
                     s
@@ -147,12 +152,19 @@ impl FunctionLoader {
                                             b
                                         }).unwrap_or(false);
                                     let mut func = Function{ name, args, ret, doc : None, var_arg };
-                                    func.doc = search_doc_at_dir(src_folder.as_path(), &func.name);
                                     println!("Found function: {:?}", func);
+                                    docs.insert(func.name.clone(), None);
                                     funcs.push(func);
                                 },
                                 _ => {
-                                    return Err(format!("Invalid SQL metadata entry : {}", f));
+                                    let job_name = f.get("job").and_then(parse_str);
+                                    match job_name {
+                                        Some(name) => {
+                                            docs.insert(name.clone(), None);
+                                            jobs.push(Job{name, doc : None});
+                                        },
+                                        None => return Err(format!("Invalid SQL metadata entry : {}", f))
+                                    }
                                 }
                             }
                         }
@@ -172,7 +184,23 @@ impl FunctionLoader {
                     .ok_or(format!("No .so file found at target directory"))?;
                 println!("Found library path: {}", lib_path);
                 let src_path_str = src_path.as_str().to_string();
-                return Ok((name.to_string(), src_path_str, lib_path, funcs, aggs));
+
+                /// Load documentation
+                search_doc_at_dir(src_folder.as_path(), &mut docs);
+                for func in funcs.iter_mut() {
+                    match docs.get(&func.name) {
+                        Some(Some(doc)) => func.doc = Some(doc.clone()),
+                        _ => { }
+                    }
+                }
+                for job in jobs.iter_mut() {
+                    match docs.get(&job.name) {
+                        Some(Some(doc)) => job.doc = Some(doc.clone()),
+                        _ => { }
+                    }
+                }
+
+                return Ok((name.to_string(), src_path_str, lib_path, funcs, aggs, jobs));
             } else {
                 return Err(String::from("Could not get crate name"));
             }
@@ -258,16 +286,90 @@ impl FunctionLoader {
         Ok(())
     }
 
+    fn search_func_id(&mut self, err_qual : &str, func_name : &str) -> Result<i64, String> {
+        let mut stmt = self.conn.prepare("select id from function where name = $1;").unwrap();
+        let id = stmt.query_row(&[&func_name as &dyn ToSql], |row| {
+            let id : i64 = row.get(0)?;
+            Ok(id)
+        }).map_err(|e| format!("Error retrieving {}: {}", err_qual, e) )?;
+        Ok(id)
+    }
+
+    fn insert_aggregates(&mut self, id : i64, aggs : &[Aggregate]) -> Result<(), String> {
+        for agg in aggs.iter() {
+            let id_init = self.search_func_id(
+                &format!("Init function of {} ({})", agg.name, agg.init_func),
+                &agg.init_func
+            )?;
+            let id_state = self.search_func_id(
+                &format!("State function of {} ({})", agg.name, agg.state_func),
+                &agg.state_func
+            )?;
+            let id_final = self.search_func_id(
+                &format!("Final function of {} ({})", agg.name, agg.final_func),
+                &agg.final_func
+            )?;
+            let mut stmt_agg = self.conn.prepare("insert into aggregate \
+                (lib_id, name, init, state, final) \
+                values (?1, ?2, ?3, ?4, ?5);"
+            ).unwrap();
+            stmt_agg.execute(&[
+                &id as &dyn ToSql,
+                &agg.name as &dyn ToSql,
+                &id_init as &dyn ToSql,
+                &id_state as &dyn ToSql,
+                &id_final as &dyn ToSql
+            ]).map_err(|e| format!("{}", e))?;
+        }
+        Ok(())
+    }
+
+    fn insert_jobs(&mut self, id : i64, jobs : &[Job]) -> Result<(), String> {
+        let mut stmt_job = self.conn.prepare("insert into job \
+            (name, doc) values (?1, ?2);").unwrap();
+        for job in jobs.iter() {
+            stmt_job.execute(&[
+                &job.name as &dyn ToSql,
+                &job.doc as &dyn ToSql,
+            ]).map_err(|e| format!("{}", e))?;
+        }
+        Ok(())
+    }
+
     /// Returns the number of recovered functions if successful, or an error
     /// message if unsucessful. This is used every time the user clicks the
     /// "Add library" button, and maps to an insertion into the registry
     /// database.
     pub fn add_crate(&mut self, path_str : &str) -> Result<usize, String> {
         let path = Path::new(path_str);
-        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
-            return Err(String::from("Should inform .toml file"));
-        }
-        let (lib_name, src_path, lib_path, funcs, aggs) = Self::parse_toml(path)?;
+        let mut opt_toml_path = None;
+        if path.is_dir() {
+            if let Ok(dir_content) = path.read_dir() {
+                for entry in dir_content {
+                    if let Ok(entry_path) = entry.map(|entry| entry.path()) {
+                        if entry_path.extension().and_then(|e| e.to_str()) == Some("toml") {
+                            opt_toml_path = Some(entry_path.to_path_buf());
+                        }
+                    } else {
+                        return Err(String::from("Error reading entry path"));
+                    }
+                }
+            } else {
+                return Err(String::from("Could not read directory"));
+            }
+        } else {
+            if path.extension().and_then(|e| e.to_str()) == Some("toml") {
+                opt_toml_path = Some(path.to_path_buf());
+            } else {
+                return Err(String::from("Should inform .toml file"));
+            }
+        };
+        let toml_path = if let Some(toml_path) = opt_toml_path {
+            toml_path
+        } else {
+            return Err(String::from(".toml manifest not found"));
+        };
+        let (lib_name, src_path, lib_path, funcs, aggs, jobs) = Self::parse_toml(&toml_path)?;
         self.remove_crate(&lib_name)?;
         let id = {
             let mut stmt = self.conn
@@ -278,9 +380,9 @@ impl FunctionLoader {
                 .map_err(|e| format!("{}", e) )?;
             self.conn.last_insert_rowid()
         };
-        //if let Some(id) = opt_id {
-        let cloned_funcs = funcs.clone();
-        self.insert_functions(id, &cloned_funcs[..])?;
+        self.insert_functions(id, &funcs[..])?;
+        self.insert_aggregates(id, &aggs[..])?;
+        self.insert_jobs(id, &jobs[..])?;
         let n = funcs.len();
         let lib = Library::new(lib_path).map_err(|e| format!("Library not found: {}", e) )?;
         self.libs.push(FunctionLibrary {
@@ -290,6 +392,7 @@ impl FunctionLoader {
             remote_path : None,
             name : lib_name.to_string(),
             lib,
+            jobs,
             active : true
         });
         Ok(n)
@@ -376,6 +479,7 @@ impl FunctionLoader {
                 let mut lib = FunctionLibrary {
                     funcs : Vec::new(),
                     aggs : Vec::new(),
+                    jobs : Vec::new(),
                     local_path : path,
                     remote_path : None,
                     name : name,
@@ -386,6 +490,9 @@ impl FunctionLoader {
                     println!("{}", e);
                 }
                 if let Err(e) = lib.reload_aggregates(&conn) {
+                    println!("{}", e);
+                }
+                if let Err(e) = lib.reload_jobs(&conn) {
                     println!("{}", e);
                 }
                 libs.push(lib);
@@ -526,12 +633,17 @@ pub struct FunctionLibrary {
     pub active : bool,
     funcs : Vec<Function>,
     aggs : Vec<Aggregate>,
+    jobs : Vec<Job>,
     local_path : String,
     remote_path : Option<String>,
     lib : Library
 }
 
 impl FunctionLibrary {
+
+    pub fn function_names(&self) -> Vec<&str> {
+        self.funcs.iter().map(|f| &f.name[..] ).collect()
+    }
 
     /*pub fn retrieve_all<'a>(
         &'a self
@@ -590,7 +702,7 @@ impl FunctionLibrary {
     }
 
     pub fn reload_aggregates(&mut self, conn : &Connection) -> Result<(), &'static str> {
-        self.aggs.clear();
+        println!("Reloading aggregates");
         let mut agg_stmt = conn.prepare(
             "select aggregate.name, init, state, final \
             from aggregate inner join library \
@@ -613,6 +725,7 @@ impl FunctionLibrary {
             Ok(agg)
         });
         if let Ok(res_agg) = agg_result {
+            self.aggs.clear();
             for agg in res_agg {
                 if let Ok(agg) = agg {
                     let init_found = self.funcs.iter()
@@ -640,7 +753,6 @@ impl FunctionLibrary {
     }
 
     pub fn reload_functions(&mut self, conn : &Connection) -> Result<(), &'static str> {
-        self.funcs.clear();
         println!("Reloading functions");
         let mut fn_stmt = conn.prepare(
             "select function.id, function.name, doc, \
@@ -658,7 +770,7 @@ impl FunctionLibrary {
             Ok((id, name, doc, var_arg, ret))
         });
         if let Ok(res_libs) = fn_result {
-            let mut funcs = Vec::new();
+            self.funcs.clear();
             for fn_row in res_libs {
                 if let Ok(fn_data) = fn_row {
                     let func_id : i64 = fn_data.0;
@@ -669,19 +781,46 @@ impl FunctionLibrary {
                     let var_arg = fn_data.3;
                     let ret = fn_data.4;
                     let args = Self::get_type_info(&conn, func_id, "arg");
-                    //let ret = Self::get_type_info(&conn, func_id, "ret");
+                    // let ret = Self::get_type_info(&conn, func_id, "ret");
                     let ret = SqlType::try_from(&ret[..])
                         .map_err(|_| "Failed at converting return type")?;
                     println!("Recovered function name: {:?}", name);
                     println!("Recovered args: {:?}", args);
                     println!("Recovered ret: {:?}", ret);
-                    funcs.push(Function {name, args, doc, ret, /*mode,*/ var_arg, /*var_ret*/ });
+                    self.funcs.push(Function {name, args, doc, ret, /*mode,*/ var_arg, /*var_ret*/ });
                 } else {
                     return Err("Error retrieving nth row");
                 }
             }
-            println!("Lib funcs vector: {:?}", funcs);
-            self.funcs.extend(funcs);
+            println!("Lib funcs vector: {:?}", self.funcs);
+            Ok(())
+        } else {
+            Err("Error mapping argument query results")
+        }
+    }
+
+    pub fn reload_jobs(&mut self, conn : &Connection) -> Result<(), &'static str> {
+        println!("Reloading jobs");
+        let mut fn_stmt = conn.prepare(
+            "select job.name, job.doc \
+            from job inner join library \
+            on library.id = job.lib_id \
+            where library.name = ?1;"
+        ).unwrap();
+        let job_result = fn_stmt.query_map(&[&self.name], |row| {
+            let name = row.get::<usize, String>(0)?;
+            let doc = row.get::<usize, Option<String>>(1)?;
+            Ok((name, doc))
+        });
+        if let Ok(jobs) = job_result {
+            self.jobs.clear();
+            for res_job in jobs {
+                if let Ok(job) = res_job {
+                    let name : String = job.0;
+                    let doc : Option<String> = job.1;
+                    self.jobs.push(Job{ name, doc });
+                }
+            }
             Ok(())
         } else {
             Err("Error mapping argument query results")

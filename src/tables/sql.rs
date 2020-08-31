@@ -27,7 +27,7 @@ use datafusion::execution::context::ExecutionContext;
 use datafusion::datasource::csv::{CsvFile, CsvReadOptions};
 
 // Carries a result (arranged over columns)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum QueryResult {
 
     // Returns a valid executed query with its table represented over columns.
@@ -552,8 +552,9 @@ impl SqlEngine {
 
     /// Return HashMap of Schema->Tables
     fn get_postgre_schemata(&mut self) -> Option<HashMap<String, Vec<String>>> {
-        let tbl_query = String::from("select * from pg_catalog.pg_tables \
-            where schemaname != 'pg_catalog' and schemaname != 'information_schema;'");
+        let tbl_query = String::from("select schemaname::text, tablename::text \
+            from pg_catalog.pg_tables \
+            where schemaname != 'pg_catalog' and schemaname != 'information_schema';");
         let ans = self.try_run(tbl_query, false)
             .map_err(|e| println!("{}", e) ).ok()?;
         let q_res = ans.get(0)?;
@@ -589,9 +590,12 @@ impl SqlEngine {
         }
     }
 
-    fn get_postgre_columns(&mut self, tbl_name : &str) -> Option<DBObject> {
+    // TODO get PK/FK constraints
+    // select * from information_schema.constraint_column_usage where table_name='experiment';
+
+    fn get_postgre_columns(&mut self, schema_name : &str, tbl_name : &str) -> Option<DBObject> {
         let col_query = format!("select column_name,data_type \
-            from information_schema.columns where table_name = '{}';", tbl_name);
+            from information_schema.columns where table_name = '{}' and table_schema='{}';", tbl_name, schema_name);
         let ans = self.try_run(col_query, false).map_err(|e| println!("{}", e) ).ok()?;
         if let Some(q_res) = ans.get(0) {
             match q_res {
@@ -634,10 +638,11 @@ impl SqlEngine {
             },
             SqlEngine::PostgreSql{..} => {
                 if let Some(schemata) = self.get_postgre_schemata() {
+                    println!("Obtained schemata: {:?}", schemata);
                     for (schema, tbls) in schemata.iter() {
                         let mut tbl_objs = Vec::new();
                         for t in tbls.iter() {
-                            if let Some(tbl) = self.get_postgre_columns(&t[..]) {
+                            if let Some(tbl) = self.get_postgre_columns(&schema[..], &t[..]) {
                                 tbl_objs.push(tbl);
                             } else {
                                 println!("Failed getting columns for {}", t);
@@ -756,6 +761,8 @@ impl SqlEngine {
         }
     }
 
+    // TODO postgres will panick if the user pass any $1 argument, since it will be interpreted
+    // as a parameter to the empty slice.
     fn exec_postgre(conn : &mut postgres::Client, stmt : &AnyStatement) -> QueryResult {
         let ans = match stmt {
             AnyStatement::Parsed(e) => {
@@ -1023,7 +1030,7 @@ pub struct SqlListener {
 
 impl SqlListener {
 
-    pub fn launch(loader : Arc<Mutex<FunctionLoader>>) -> Self {
+    pub fn launch( /*loader : Arc<Mutex<FunctionLoader>>*/ ) -> Self {
         let (cmd_tx, cmd_rx) = mpsc::channel::<(String, bool)>();
         let (ans_tx, ans_rx) = mpsc::channel::<Vec<QueryResult>>();
 
@@ -1032,12 +1039,12 @@ impl SqlListener {
 
         // Must join on structure desctruction.
         let r_thread = thread::spawn(move ||  {
-            let loader = loader.clone();
+            //let loader = loader.clone();
             loop {
                 // TODO perhaps move SQL parsing to here so loader is passed to
                 // try_run iff there are local functions matching the query.
-                match (cmd_rx.recv(), engine_c.lock(), loader.lock()) {
-                    (Ok((cmd, parse)), Ok(mut eng), Ok(loader)) => {
+                match (cmd_rx.recv(), engine_c.lock() /*, loader.lock()*/ ) {
+                    (Ok((cmd, parse)), Ok(mut eng) /*, Ok(loader)*/ ) => {
                         let result = eng.try_run(cmd, parse, /*Some(&loader)*/ );
                         match result {
                             Ok(ans) => {

@@ -26,26 +26,43 @@ pub struct SchemaTree {
     schema_icon : Pixbuf
 }
 
-const ALL_TYPES : [DBType; 4] = [
-    DBType::Integer,
-    DBType::Float,
+const ALL_TYPES : [DBType; 15] = [
+    DBType::Bool,
+    DBType::I16,
+    DBType::I32,
+    DBType::I64,
+    DBType::F32,
+    DBType::F64,
+    DBType::Numeric,
     DBType::Text,
-    DBType::Bytes
-];
-
-const TYPE_PATHS : [&'static str; 4] = [
-    "integer.svg",
-    "real.svg",
-    "text.svg",
-    "binary.svg",
+    DBType::Date,
+    DBType::Time,
+    DBType::Bytes,
+    DBType::Json,
+    DBType::Xml,
+    DBType::Array,
+    DBType::Unknown
 ];
 
 impl SchemaTree {
 
     pub fn build(builder : &Builder) -> Self {
         let mut type_icons = HashMap::new();
-        for (ty, path) in ALL_TYPES.iter().zip(TYPE_PATHS.iter()) {
-            let pix = Pixbuf::from_file_at_scale(&format!("assets/icons/{}", path), 16, 16, true).unwrap();
+        for ty in ALL_TYPES.iter() {
+            let path = match ty {
+                DBType::Bool => "boolean.svg",
+                DBType::I16 | DBType::I32 | DBType::I64 => "integer.svg",
+                DBType::F32 | DBType::F64 | DBType::Numeric => "real.svg",
+                DBType::Text => "text.svg",
+                DBType::Date => "date.svg",
+                DBType::Time => "time.svg",
+                DBType::Json => "json.svg",
+                DBType::Xml => "xml.svg",
+                DBType::Bytes => "binary.svg",
+                DBType::Array => "array.svg",
+                DBType::Unknown => "unknown.svg"
+            };
+            let pix = Pixbuf::from_file_at_scale(&format!("assets/icons/types/{}", path), 16, 16, true).unwrap();
             type_icons.insert(*ty, pix);
         }
         let tbl_icon = Pixbuf::from_file_at_scale("assets/icons/grid-black.svg", 16, 16, true).unwrap();
@@ -55,7 +72,9 @@ impl SchemaTree {
         let model = TreeStore::new(&[Pixbuf::static_type(), Type::String]);
         tree_view.set_model(Some(&model));
         let pix_renderer = CellRendererPixbuf::new();
+        pix_renderer.set_property_height(24);
         let txt_renderer = CellRendererText::new();
+        txt_renderer.set_property_height(24);
         // renderer.set_property_font(&self, font: Option<&str>)
         // renderer.set_property_foreground_rgba(Some(&gdk::RGBA{ red: 0.0, green : 0.0, blue : 0.0, alpha : 1.0}));
         // let area = CellAreaContext::new();
@@ -119,6 +138,12 @@ impl SchemaTree {
         } else {
             println!("Failed acquiring reference to table environment");
         }
+        self.model.foreach(|model, path, iter| {
+            if path.get_depth() == 1 {
+                self.tree_view.expand_row(path, false);
+            }
+            false
+        });
     }
 
     pub fn clear(&self) {

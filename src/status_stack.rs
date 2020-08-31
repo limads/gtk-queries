@@ -1,21 +1,10 @@
-// use crate::tables::sql::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
-//use postgres::{Connection, TlsMode};
-// use std::collections::HashMap;
-// use crate::tables::environment::TableEnvironment;
-// use crate::tables::sql::{SqlListener};
-// use crate::tables::source::EnvironmentSource;
-// use gtk::prelude::*;
-// use std::path::PathBuf;
-// use std::fs::File;
-// use std::io::Read;
-// use crate::tables::table::*;
-// use crate::{utils, table_widget::TableWidget, table_notebook::TableNotebook };
+use std::cmp::{Eq, PartialEq};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Status {
     Disconnected,
 
@@ -169,10 +158,21 @@ impl StatusStack {
             return;
         }
         match status {
-            Status::Ok | Status::Connected => {
-                // if self.parent_stack.get_visible_child_name()
+            Status::Ok => {
                 self.parent_stack.set_visible_child(&self.alt_wid);
                 return;
+            },
+            Status::Connected => {
+                let editor_selected = self.parent_stack
+                    .get_visible_child_name()
+                    .map(|c| c.starts_with("queries"))
+                    .unwrap_or(false);
+                if editor_selected {
+                    self.parent_stack.set_visible_child(&self.alt_wid);
+                } else {
+                    self.parent_stack.set_visible_child(&self.status_stack);
+                }
+                self.status_stack.set_visible_child(&self.status_boxes[status.index()]);
             },
             status => {
                 self.parent_stack.set_visible_child(&self.status_stack);

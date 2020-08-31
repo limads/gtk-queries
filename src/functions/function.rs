@@ -17,6 +17,7 @@ use std::cmp::PartialEq;
 use std::str::FromStr;
 use rusqlite::{self, functions::Context };
 use libloading::Symbol;
+use std::collections::HashMap;
 
 /*#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionMode {
@@ -53,6 +54,12 @@ pub struct Aggregate {
     pub init_func : String,
     pub state_func : String,
     pub final_func : String
+}
+
+#[derive(Debug, Clone)]
+pub struct Job {
+    pub name : String,
+    pub doc : Option<String>
 }
 
 impl TryFrom<toml::Value> for Aggregate {
@@ -255,7 +262,7 @@ fn get_simple_type(ts : TokenStream) -> Result<(SqlType, bool), String> {
     }
 }
 
-fn search_doc_at_item(item : Item, f : &str) -> Option<String> {
+fn search_doc_at_item(item : Item, docs : &mut HashMap<String, Option<String>>) {
     match item {
         Item::Mod(item_mod) => {
             match item_mod.vis {
@@ -264,82 +271,100 @@ fn search_doc_at_item(item : Item, f : &str) -> Option<String> {
                     if let Some((_, items)) = item_mod.content {
                         for item in items {
                             println!("Searching doc at item: {:?}", item);
-                            if let Some(doc) = search_doc_at_item(item, f) {
+                            search_doc_at_item(item, docs);
+                            /*if let Some(doc) =  {
                                 return Some(doc);
-                            }
+                            }*/
                         }
-                        None
-                    } else {
-                        None
                     }
                 },
-                _ => None
+                _ => { }
             }
         },
         Item::Fn(item_fn) => {
             match item_fn.vis {
                 Visibility::Public(_) => {
                     println!("Found function at source: {}", item_fn.sig.ident.to_string());
-                    if &item_fn.sig.ident.to_string()[..] == f {
-                        let mut doc_content = String::new();
-                        for attr in &item_fn.attrs {
-                            let ident = attr.path.get_ident().to_token_stream().to_string();
-                            match &ident[..] {
-                                "doc" => doc_content += &attr.tokens.to_string()[..],
-                                _ => { }
+                    let fn_name = item_fn.sig.ident.to_string();
+                    if let Some(mut val) = docs.get_mut(&fn_name) {
+                        if val.is_none() {
+                            let mut doc_content = String::new();
+                            for attr in &item_fn.attrs {
+                                let ident = attr.path.get_ident().to_token_stream().to_string();
+                                match &ident[..] {
+                                    "doc" => doc_content += &attr.tokens.to_string()[..],
+                                    _ => { }
+                                }
                             }
+                            doc_content = doc_content.clone().chars()
+                                .filter(|c| *c != '"' && *c != '=')
+                                .collect();
+                            doc_content = doc_content.clone().trim_matches(' ').to_string();
+                            let mut break_next = false;
+                            for i in 1..doc_content.len() {
+                                if i % 45 == 0  {
+                                    break_next = true;
+                                }
+                                if break_next && doc_content.chars().nth(i) == Some(' ') {
+                                    doc_content.replace_range(i..i+1, "\n");
+                                    break_next = false;
+                                }
+                            }
+                            *val = Some(doc_content);
                         }
-                        doc_content = doc_content.clone().chars()
-                            .filter(|c| *c != '"' && *c != '=')
-                            .collect();
-                        doc_content = doc_content.clone().trim_matches(' ').to_string();
-                        Some(doc_content)
-                    } else {
-                        None
                     }
-                },
-                _ => None
+                }
+                _ => { }
             }
         },
-        _ => None
+        _ => { }
     }
 }
 
 /// Searches the source tree for the documentation of the function named f.
 /// If f is not found or does not have any documentation, returns none.
-fn search_doc_at_tree(content : &str, f : &str) -> Option<String> {
-    let t : syn::File = syn::parse_str(content).ok()?;
-    println!("Parsed file: {:?}", t);
-    for item in t.items {
-        if let Some(doc) = search_doc_at_item(item, f) {
-            return Some(doc);
+fn search_doc_at_tree(content : &str, docs : &mut HashMap<String, Option<String>>) {
+    let res_content : Result<syn::File,_> = syn::parse_str(content);
+    if let Ok(t) = res_content {
+        println!("Parsed file: {:?}", t);
+        for item in t.items {
+            search_doc_at_item(item, docs);
+            /*if let Some(doc) =
+                return Some(doc);
+            }*/
         }
     }
-    None
+    //None
 }
 
-pub fn search_doc_at_dir(dir : &Path, f : &str) -> Option<String> {
-    for entry in dir.read_dir().ok()? {
-        if let Ok(entry) = entry {
-            if entry.path().is_dir() {
-                println!("Found directory: {:?}", entry);
-                if let Some(doc) = search_doc_at_dir(&entry.path(), f) {
-                    return Some(doc);
-                }
-            } else {
-                if entry.path().extension().and_then(|e| e.to_str()) == Some("rs") {
-                    println!("Found rs file: {:?}", entry);
-                    let mut content = String::new();
-                    let mut file = fs::File::open(&entry.path()).ok()?;
-                    file.read_to_string(&mut content);
-                    if let Some(doc) = search_doc_at_tree(&content, f) {
-                        return Some(doc);
+pub fn search_doc_at_dir(dir : &Path, docs : &mut HashMap<String, Option<String>>) {
+    if let Ok(dir_content) = dir.read_dir() {
+        for entry in dir_content {
+            if let Ok(entry) = entry {
+                if entry.path().is_dir() {
+                    println!("Found directory: {:?}", entry);
+                    search_doc_at_dir(&entry.path(), docs);
+                    //if let Some(doc) =  {
+                    //    return Some(doc);
+                    //}
+                } else {
+                    if entry.path().extension().and_then(|e| e.to_str()) == Some("rs") {
+                        println!("Found rs file: {:?}", entry);
+                        let mut content = String::new();
+                        if let Ok(mut file) = fs::File::open(&entry.path()) {
+                            file.read_to_string(&mut content);
+                            search_doc_at_tree(&content, docs);
+                        } else {
+                            println!("Error reading file at {:?}", entry);
+                        }
+                        //if let Some(doc) =  {
+                        //    return Some(doc);
+                        //}
                     }
                 }
             }
         }
     }
-    None
 }
 
 /*/// Returns function mode and doc attributes

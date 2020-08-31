@@ -18,6 +18,7 @@ use super::sql_type::*;
 use super::loader::*;
 use super::function::*;
 use std::sync::{Arc, Mutex};
+use crate::utils;
 
 // use crate::table_list::*;
 /*#[derive(Clone)]
@@ -97,12 +98,14 @@ pub struct FunctionViewer<'a> {
     }
 }*/
 
+// TODO window is being blocked at the sequence select function -> select library
+
 #[derive(Clone)]
 pub struct FunctionRegistry {
     search_entry : Entry,
     // completion_list_store : ListStore,
     lib_list_box : ListBox,
-    fn_list_box : ListBox,
+    // fn_list_box : ListBox,
     loader : Arc<Mutex<FunctionLoader>>,
     lib_update_btn : Button,
     lib_remove_btn : Button,
@@ -112,10 +115,12 @@ pub struct FunctionRegistry {
     so_file_chooser : FileChooserDialog,
     lib_info : InfoBar,
     info_lbl : Label,
-    sensitive : Rc<Cell<bool>>
+    sensitive : Rc<Cell<bool>>,
     // fn_arg_box : Box,
     // src_entry : Entry,
     // dst_entry : Entry
+    fn_doc_popover : Popover,
+    fn_doc_btn : ToggleButton
 }
 
 impl FunctionRegistry {
@@ -279,15 +284,20 @@ impl FunctionRegistry {
             let row = child.downcast::<ListBoxRow>().unwrap();
             let wid = row.get_child().unwrap();
             let bx = wid.downcast::<gtk::Box>().unwrap();
-            let check = &bx.get_children()[0].clone()
+            /*let check = &bx.get_children()[0].clone()
                 .downcast::<CheckButton>().unwrap();
-            check.set_sensitive(state);
+            check.set_sensitive(state);*/
         }
     }
 
     fn update_fn_info(&self, name : Option<&str>) {
-        if let Ok(loader) = self.loader.lock() {
-            if let Some(name) = name {
+        if self.loader.is_poisoned() {
+            println!("Lock for function registry is poisoned.");
+            return;
+        }
+        // TODO potential deadlock between here->lib_row_selected
+        if let Some(name) = name {
+            if let Ok(loader) = self.loader.lock() {
                 if loader.has_func_name(&name[..]) {
                     self.fn_name_label.set_text(name);
                     if let Some(doc) = loader.get_doc(name) {
@@ -299,52 +309,78 @@ impl FunctionRegistry {
                     println!("{} not in function Registry", name);
                 }
             } else {
-                self.fn_name_label.set_text("");
-                self.fn_doc_label.set_text("");
+                println!("Unable to lock loader");
             }
         } else {
-            println!("Unable to borrow loader");
+            self.fn_name_label.set_text("");
+            self.fn_doc_label.set_text("");
         }
     }
 
     fn reload_lib_list(
         lib_list_box : &ListBox,
-        fn_list_box : &ListBox,
+        //fn_list_box : &ListBox,
         loader : &Arc<Mutex<FunctionLoader>>,
         prefix : Option<&str>
     ) {
         for child in lib_list_box.get_children() {
             lib_list_box.remove(&child);
         }
-        for child in fn_list_box.get_children() {
-            fn_list_box.remove(&child);
+        //for child in fn_list_box.get_children() {
+        //    fn_list_box.remove(&child);
+        //}
+        if loader.is_poisoned() {
+            println!("Lock for function registry is poisoned.");
+            return;
         }
-        let lib_list : Vec<(String, bool)> = if let Ok(loader) = loader.lock() {
+        let lib_list : Vec<(String, Vec<String>, bool)> = if let Ok(loader) = loader.lock() {
             loader.lib_list()
                 .iter()
-                .map(|lib| (lib.name.to_string(), lib.active) )
-                .collect()
+                .map(|lib| {
+                    let lib_name = lib.name.to_string();
+                    let lib_fns = lib.function_names().iter().map(|n| n.to_string()).collect();
+                    (lib_name, lib_fns, lib.active)
+                }).collect()
         } else {
             println!("Failed acquiring lock over function loader");
             Vec::new()
         };
-        for (i, (lib, active)) in lib_list.iter().enumerate() {
-            if prefix.map(|p| lib.starts_with(p) ).unwrap_or(true) {
+        for (i, (lib, fn_names, active)) in lib_list.iter().enumerate() {
+            let lib_prefix = prefix
+                .map(|p| lib.starts_with(p) )
+                .unwrap_or(true);
+            let valid_fn_prefix = prefix
+                .map(|p| fn_names.iter().filter(|name| name.starts_with(p) ).next().is_some())
+                .unwrap_or(false);
+            if lib_prefix || valid_fn_prefix {
+                let fn_prefix = match valid_fn_prefix {
+                    true => prefix,
+                    false => None
+                };
                 // println!("Must add: {}", lib);
-                let n = lib_list_box.get_children().len();
-                lib_list_box.insert(&Self::build_lib_item(lib, &loader, *active), n as i32);
+                // let n = lib_list_box.get_children().len();
+                Self::build_lib_items(&lib_list_box, lib, fn_prefix, &loader, /* *active*/ );
             }
         }
         lib_list_box.show_all();
     }
 
-    fn build_lib_item(name : &str, loader : &Arc<Mutex<FunctionLoader>>, active : bool) -> ListBoxRow {
-        let bx = Box::new(Orientation::Horizontal, 0);
-        let check = CheckButton::new();
-        check.set_active(active);
+    fn build_lib_items(
+        lib_list_box : &ListBox,
+        lib_name : &str,
+        fn_prefix : Option<&str>,
+        loader : &Arc<Mutex<FunctionLoader>>,
+        // active : bool
+    ) /*-> ListBoxRow*/ {
+
+        // let check = CheckButton::new();
+        // check.set_active(active);
         let loader = loader.clone();
-        let name_string = name.to_string();
-        check.connect_toggled(move |btn| {
+        // let name_string = name.to_string();
+        if loader.is_poisoned() {
+            panic!("Lock for function registry is poisoned.");
+        }
+        /*check.connect_toggled(move |btn| {
             if let Ok(mut loader) = loader.lock() {
                 if let Err(e) = loader.set_active_status(&name_string[..], btn.get_active()) {
                     println!("{}", e);
@@ -352,14 +388,31 @@ impl FunctionRegistry {
             } else {
                 println!("Not possible to lock loader");
             }
-        });
-        let lbl = Label::new(Some(name));
-        bx.pack_start(&check, false, false, 0);
-        bx.pack_start(&lbl, false, false, 0);
-        let row = ListBoxRow::new();
-        row.add(&bx);
-        row.set_selectable(true);
-        row
+        });*/
+        let mut n = lib_list_box.get_children().len() as i32; - 1;
+        if let Ok(mut loader) = loader.lock() {
+            for f in loader.fn_list_for_lib(&lib_name[..]) {
+                if fn_prefix.map(|p| f.name.starts_with(p) ).unwrap_or(true) {
+                    let bx = Box::new(Orientation::Horizontal, 0);
+                    let lbl_lib_name = Label::new(Some(lib_name));
+                    let lbl_fn_name = Label::new(Some(&f.name));
+                    lbl_lib_name.set_property_width_request(120);
+                    lbl_fn_name.set_property_width_request(120);
+                    bx.pack_start(&lbl_fn_name, true, true, 0);
+                    bx.pack_start(&lbl_lib_name, true, true, 0);
+                    let row = ListBoxRow::new();
+                    row.add(&bx);
+                    row.set_selectable(true);
+                    row.set_property_height_request(36);
+                    lib_list_box.insert(&row, n);
+                    n += 1;
+                }
+            }
+        } else {
+            println!("Unable to lock loader");
+            return;
+        }
+        lib_list_box.show_all();
     }
 
     fn get_row_name(row : &ListBoxRow, label_ix : usize) -> Option<String> {
@@ -377,7 +430,9 @@ impl FunctionRegistry {
         for (i, f) in funcs.iter().enumerate() {
             println!("Must add function: {:?}", f);
             let n = list_box.get_children().len();
-            list_box.insert(&Label::new(Some(&f.name[..])), n as i32);
+            let lbl = Label::new(Some(&f.name[..]));
+            lbl.set_property_height_request(24);
+            list_box.insert(&lbl, n as i32);
         }
         list_box.show_all();
     }
@@ -408,14 +463,24 @@ impl FunctionRegistry {
         let loader = Arc::new(Mutex::new(FunctionLoader::load().map_err(|e| { println!("{}", e); e }).unwrap()));
         let lib_info : InfoBar = builder.get_object("lib_info").unwrap();
         let info_lbl : Label = builder.get_object("info_label").unwrap();
+        lib_info.connect_response(move |info_bar, res| {
+            if let ResponseType::Close = res {
+                info_bar.set_visible(false);
+            }
+        });
         let lib_list_box : ListBox = builder.get_object("lib_list_box").unwrap();
-        let fn_list_box : ListBox = builder.get_object("fn_list_box").unwrap();
+        // let fn_list_box : ListBox = builder.get_object("fn_list_box").unwrap();
         let lib_add_btn : Button = builder.get_object("lib_add_btn").unwrap();
         let lib_remove_btn : Button = builder.get_object("lib_remove_btn").unwrap();
         let lib_update_btn : Button = builder.get_object("lib_update_btn").unwrap();
         let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
         let so_file_chooser : FileChooserDialog = builder.get_object("so_file_chooser").unwrap();
+
+        let fn_doc_popover : Popover = builder.get_object("fn_doc_popover").unwrap();
+        let fn_doc_btn : ToggleButton = builder.get_object("fn_doc_btn").unwrap();
+        utils::show_popover_on_toggle(&fn_doc_popover, &fn_doc_btn);
+
         let sensitive = Rc::new(Cell::new(false));
         {
             let loader = loader.clone();
@@ -423,7 +488,7 @@ impl FunctionRegistry {
             let search_entry = search_entry.clone();
             let lib_info = lib_info.clone();
             let info_lbl = info_lbl.clone();
-            let fn_list_box = fn_list_box.clone();
+            // let fn_list_box = fn_list_box.clone();
             so_file_chooser.connect_response(move |dialog, resp|{
                 match resp {
                     ResponseType::Other(1) => {
@@ -432,11 +497,13 @@ impl FunctionRegistry {
                                 if let Err(e) = loader.add_crate(&path[..]) {
                                     println!("{}", e);
                                     lib_info.set_visible(true);
+                                    // lib_info.set_revealed(true);
                                     lib_info.set_message_type(MessageType::Error);
                                     info_lbl.set_text(&format!("{}", e));
                                 } else {
                                     lib_info.set_message_type(MessageType::Info);
                                     lib_info.set_visible(true);
+                                    // lib_info.set_revealed(true);
                                     info_lbl.set_text("Library loaded");
                                     println!("Library loaded");
                                 }
@@ -444,7 +511,7 @@ impl FunctionRegistry {
                                 println!("Could not lock function loader");
                             }
                             search_entry.set_text("");
-                            Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
+                            Self::reload_lib_list(&lib_list_box, /*&fn_list_box,*/ &loader, None);
                         } else {
                             println!("Could not retrieve file path");
                         }
@@ -465,7 +532,10 @@ impl FunctionRegistry {
         {
             let loader = loader.clone();
             let lib_list_box = lib_list_box.clone();
-            let fn_list_box = fn_list_box.clone();
+            //let fn_list_box = fn_list_box.clone();
+            if loader.is_poisoned() {
+                panic!("Lock for function registry is poisoned.");
+            }
             lib_update_btn.connect_clicked(move |_| {
                 if let Ok(mut loader) = loader.lock() {
                     if let Err(e) = loader.reload_libs() {
@@ -476,14 +546,17 @@ impl FunctionRegistry {
                 } else {
                     println!("Could not lock function loader");
                 }
-                Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
+                Self::reload_lib_list(&lib_list_box, /*&fn_list_box,*/ &loader, None);
             });
         }
 
         {
             let loader = loader.clone();
             let lib_list_box = lib_list_box.clone();
-            let fn_list_box = fn_list_box.clone();
+            //let fn_list_box = fn_list_box.clone();
+            if loader.is_poisoned() {
+                panic!("Lock for function registry is poisoned.");
+            }
             lib_remove_btn.connect_clicked(move |_| {
                 match (loader.lock(), lib_list_box.get_selected_row()) {
                     (Ok(mut loader), Some(row)) => {
@@ -501,7 +574,7 @@ impl FunctionRegistry {
                         println!("Error removing function");
                     }
                 }
-                Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
+                Self::reload_lib_list(&lib_list_box, /*&fn_list_box,*/ &loader, None);
             });
         }
 
@@ -516,7 +589,7 @@ impl FunctionRegistry {
         }
 
         {
-            let fn_list_box = fn_list_box.clone();
+            //let fn_list_box = fn_list_box.clone();
             let loader = loader.clone();
             let (lib_remove_btn, lib_update_btn) = (lib_remove_btn.clone(), lib_update_btn.clone());
             let sensitive = sensitive.clone();
@@ -525,6 +598,11 @@ impl FunctionRegistry {
                     lib_remove_btn.set_sensitive(true);
                     lib_update_btn.set_sensitive(true);
                 }
+                if loader.is_poisoned() {
+                    println!("Lock for function registry is poisoned.");
+                    return;
+                }
+                // TODO deadlock ocurring here after select fn -> select lib
                 if let Ok(loader) = loader.lock() {
                     if let Some(row) = opt_row {
                         if let Some(child) = row.get_child() {
@@ -534,7 +612,7 @@ impl FunctionRegistry {
                             let text = label.get_text().to_string();
                             let funcs = loader.fn_list_for_lib(&text[..]);
                             println!("Function list for {}: {:?}", text, funcs);
-                            Self::reload_fn_list(&fn_list_box, &funcs[..]);
+                            // Self::reload_fn_list(&fn_list_box, &funcs[..]);
 
                             //else {
                             //    Self::reload_fn_list(&fn_list_box, &[]);
@@ -554,21 +632,11 @@ impl FunctionRegistry {
             });
         }
 
-        {
-            let fn_list_box = fn_list_box.clone();
-            let (lib_remove_btn, lib_update_btn) = (lib_remove_btn.clone(), lib_update_btn.clone());
-            lib_list_box.connect_unselect_all(move |_| {
-                lib_remove_btn.set_sensitive(false);
-                lib_update_btn.set_sensitive(false);
-                Self::reload_fn_list(&fn_list_box, &[]);
-            });
-        }
-
         let fn_reg = Self {
             search_entry : search_entry.clone(),
             loader : loader.clone(),
             lib_list_box : lib_list_box.clone(),
-            fn_list_box : fn_list_box.clone(),
+            // fn_list_box : fn_list_box.clone(),
             lib_add_btn,
             lib_update_btn : lib_update_btn.clone(),
             lib_remove_btn,
@@ -577,17 +645,36 @@ impl FunctionRegistry {
             so_file_chooser,
             info_lbl,
             lib_info,
-            sensitive
+            sensitive,
+            fn_doc_popover,
+            fn_doc_btn
         };
-        Self::reload_lib_list(&fn_reg.lib_list_box, &fn_reg.fn_list_box, &fn_reg.loader, None);
+
+        {
+            // let fn_list_box = fn_list_box.clone();
+            let (lib_remove_btn, lib_update_btn) = (fn_reg.lib_remove_btn.clone(), fn_reg.lib_update_btn.clone());
+            let fn_reg = fn_reg.clone();
+            fn_reg.lib_list_box.clone().connect_unselect_all(move |_| {
+                lib_remove_btn.set_sensitive(false);
+                lib_update_btn.set_sensitive(false);
+                fn_reg.update_fn_info(None);
+                // Self::reload_fn_list(&fn_list_box, &[]);
+            });
+        }
+
+
+        Self::reload_lib_list(&fn_reg.lib_list_box, /*&fn_reg.fn_list_box,*/ &fn_reg.loader, None);
 
         {
             let fn_reg = fn_reg.clone();
-            let lib_list_box = fn_reg.lib_list_box.clone();
-            fn_list_box.connect_row_selected(move |ls_bx, opt_row| {
+            // let lib_list_box = fn_reg.lib_list_box.clone();
+            lib_list_box.connect_row_selected(move |ls_bx, opt_row| {
                 if let Some(row) = opt_row {
-                    if let Some(label) = row.get_child().and_then(|child| child.downcast::<gtk::Label>().ok() ) {
-                        //let label = child.get_children()[1].clone().downcast::<Label>().unwrap();
+                    let fn_label = row.get_child()
+                        .and_then(|child| child.downcast::<gtk::Box>().ok() )
+                        .and_then(|bx| { let wid = bx.get_children()[0].clone(); wid.downcast::<gtk::Label>().ok() });
+                    if let Some(label) = fn_label {
+                        // let label = child.get_children()[1].clone().downcast::<Label>().unwrap();
                         let text = label.get_text().to_string();
                         if text.len() >= 1 {
                             fn_reg.update_fn_info(Some(&text[..]));
@@ -607,13 +694,13 @@ impl FunctionRegistry {
             let lib_update_btn = lib_update_btn.clone();
             let loader = fn_reg.loader.clone();
             let lib_list_box = fn_reg.lib_list_box.clone();
-            let fn_list_box = fn_list_box.clone();
+            // let fn_list_box = fn_list_box.clone();
             search_entry.connect_key_release_event(move |entry, _ev_key| {
                 let name = entry.get_text().to_string();
                 if name.len() >= 1 {
-                    Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, Some(&name[..]));
+                    Self::reload_lib_list(&lib_list_box, /*&fn_list_box,*/ &loader, Some(&name[..]));
                 } else {
-                    Self::reload_lib_list(&lib_list_box, &fn_list_box, &loader, None);
+                    Self::reload_lib_list(&lib_list_box, /*&fn_list_box,*/ &loader, None);
                 }
                 glib::signal::Inhibit(false)
             });

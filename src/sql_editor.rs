@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::Read;
 use gdk::{self, keys};
 use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
-use sourceview::*;
+use sourceview::{self, *};
 use gtk::prelude::*;
 use crate::{status_stack::StatusStack};
 use crate::status_stack::*;
@@ -298,15 +298,11 @@ impl SqlEditor {
                             if &last_cmd[..] == "select" {
                                 match t_env.maybe_update_from_query_results() {
                                     Some(ans) => {
+                                        if t_env.any_modification_result() {
+                                            req_tree_update = true;
+                                        }
                                         match ans {
                                             Ok(ref update) => {
-                                                /*match update {
-                                                    EnvironmentUpdate::Refresh => {
-                                                        // Re-call user functions here
-                                                        // t_env.execute_saved_funcs(reg);
-                                                    },
-                                                    _ => { }
-                                                }*/
                                                 if let Err(e) = f(&t_env, update) {
                                                     println!("{}", e);
                                                     status_stack.update(Status::SqlErr(e));
@@ -328,12 +324,15 @@ impl SqlEditor {
                             } else {
                                 match t_env.result_last_statement() {
                                     Some(ans) => {
+                                        if t_env.any_modification_result() {
+                                            req_tree_update = true;
+                                        }
                                         match ans {
                                             Ok(msg) => {
-                                                let is_create = msg.starts_with("Create");
+                                                /*let is_create = msg.starts_with("Create");
                                                 let is_alter = msg.starts_with("Alter");
                                                 let is_drop = msg.starts_with("Drop");
-                                                req_tree_update = is_create || is_alter || is_drop;
+                                                req_tree_update = is_create || is_alter || is_drop;*/
                                                 status_stack.update(Status::StatementExecuted(msg));
                                                 table_toggle.set_active(true);
                                             },
@@ -381,17 +380,23 @@ impl SqlEditor {
         });
     }
 
+    // TODO Query the folders /usr/share/gtksourceview-4/styles or
+    // /usr/local/share/gtksourceview-4/styles for styles
     fn configure_view(view : &View, refresh_btn : &Button, file_list : FileList) {
-        view.set_tab_width(4);
-        view.set_indent_width(4);
-        view.set_auto_indent(true);
-        view.set_insert_spaces_instead_of_tabs(true);
-        view.set_right_margin(80);
-        view.set_highlight_current_line(true);
-        view.set_indent_on_tab(true);
-        view.set_show_line_marks(true);
         let buffer = view.get_buffer().unwrap()
             .downcast::<sourceview::Buffer>().unwrap();
+        let manager = StyleSchemeManager::new();
+        let available = println!("available schemes: {:?}", manager.get_scheme_ids());
+        let scheme = manager.get_scheme("queries").unwrap();
+        buffer.set_style_scheme(Some(&scheme));
+        buffer.set_highlight_syntax(true);
+        // view.reset_style();
+        println!("{:?}", buffer.get_style_scheme().unwrap().get_id());
+        let provider = CssProvider::new();
+        provider.load_from_data(b"textview { font-family: \"Ubuntu Mono\"; font-size: 13pt; }").unwrap();
+        let ctx = view.get_style_context();
+        ctx.add_provider(&provider, 800);
+
         let lang_manager = LanguageManager::get_default().unwrap();
         let lang = lang_manager.get_language("sql").unwrap();
         buffer.set_language(Some(&lang));
@@ -400,6 +405,19 @@ impl SqlEditor {
         buffer.connect_changed(move |buf| {
             file_list.mark_current_unsaved();
         });
+
+        view.set_tab_width(4);
+        view.set_indent_width(4);
+        view.set_auto_indent(true);
+        view.set_insert_spaces_instead_of_tabs(true);
+        view.set_right_margin(80);
+        view.set_highlight_current_line(true);
+        view.set_indent_on_tab(true);
+        view.set_show_line_marks(true);
+        // view.set_background_pattern(BackgroundPatternType::Grid);
+        view.set_right_margin_position(80);
+        view.set_show_right_margin(true);
+        view.set_show_line_numbers(false);
     }
 
     pub fn build(

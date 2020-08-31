@@ -381,7 +381,7 @@ impl PlotWorkspace {
         }
     }
 
-    pub fn clear_all_mappings(&self) -> Result<(), &'static str> {
+    pub fn clear_mapping_data(&self) -> Result<(), &'static str> {
         match (self.pl_view.try_borrow_mut(), self.mapping_menus.try_borrow()) {
             (Ok(mut pl_view), Ok(mappings)) => {
                 for m in mappings.iter() {
@@ -410,7 +410,7 @@ impl PlotWorkspace {
             Ok(pl_view) => pl_view.mapping_info(),
             Err(e) => { println!("{}", e); return; }
         };
-        Self::clear_mappings(
+        Self::clear_all_mappings(
             mapping_menus.clone(),
             plot_popover.mapping_stack.clone()
         ).expect("Error clearing mappings");
@@ -443,7 +443,7 @@ impl PlotWorkspace {
         }
     }
 
-    pub fn update_all_mappings(
+    pub fn update_mapping_data(
         &self,
         t_env : &TableEnvironment,
         status_stack : StatusStack
@@ -507,10 +507,9 @@ impl PlotWorkspace {
         }
     }
 
+    /// Clear mappings and layout
     pub fn clear(&self) {
-        if let Err(e) = Self::clear_mappings(self.mapping_menus.clone(), self.plot_popover.mapping_stack.clone()) {
-            println!("{}", e);
-        }
+        self.clear_mappings();
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
             pl_view.change_active_area(0);
             pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-unique.xml")));
@@ -519,7 +518,17 @@ impl PlotWorkspace {
         }
     }
 
-    pub fn clear_mappings(
+    /// Clear only mappings, preserving the layout
+    pub fn clear_mappings(&self) -> Result<(), &'static str> {
+        Self::clear_all_mappings(
+            self.mapping_menus.clone(),
+            self.plot_popover.mapping_stack.clone()
+        )?;
+        self.plot_popover.clear();
+        Ok(())
+    }
+
+    pub fn clear_all_mappings(
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_stack : Stack,
     ) -> Result<(), &'static str> {

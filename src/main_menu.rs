@@ -15,6 +15,7 @@ use super::sql_editor::SqlEditor;
 use std::io::Write;
 use crate::table_notebook::TableNotebook;
 use crate::plots::plotview::plot_view::PlotView;
+use crate::utils;
 
 #[derive(Clone, Debug)]
 pub struct MainMenu {
@@ -26,6 +27,8 @@ pub struct MainMenu {
     settings_btn : ModelButton,
     sql_new_btn : ModelButton,
     sql_save_btn : ModelButton,
+    // jobs_btn : ModelButton,
+    jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
     layout_btn : ModelButton,
@@ -167,6 +170,8 @@ impl MainMenu {
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
         let settings_btn : ModelButton = builder.get_object("settings_btn").unwrap();
         let engine_window : Window = builder.get_object("engine_window").unwrap();
+        // let jobs_btn : ModelButton = builder.get_object("jobs_btn").unwrap();
+        let jobs_window : Window = builder.get_object("jobs_window").unwrap();
         let settings_window : Window = builder.get_object("settings_window").unwrap();
         let layout_window : Window = builder.get_object("layout_window").unwrap();
         let sql_save_btn : ModelButton = builder.get_object("sql_save_btn").unwrap();
@@ -176,6 +181,8 @@ impl MainMenu {
         Self::link_window(engine_btn.clone(), engine_window.clone());
         Self::link_window(settings_btn.clone(), settings_window.clone());
         Self::link_window(layout_btn.clone(), layout_window.clone());
+        // Self::link_window(jobs_btn.clone(), jobs_window.clone());
+
         {
             let main_menu = main_menu.clone();
             main_toggle.connect_toggled(move |btn| {
@@ -249,6 +256,8 @@ impl MainMenu {
             sql_save_btn,
             save_img_btn,
             save_tbl_btn,
+            // jobs_btn,
+            jobs_window
             // sql_open_dialog,
             // sql_save_dialog,
         }

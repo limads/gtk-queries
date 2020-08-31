@@ -35,10 +35,16 @@ pub enum EnvironmentUpdate {
 pub struct TableEnvironment {
     source : EnvironmentSource,
     listener : SqlListener,
+
+    /// Stores tables that returned successfully. 1:1 correspondence
+    /// with self.queries
     tables : Vec<Table>,
 
     /// Stores queries which returned successfully.
     queries : Vec<String>,
+
+    /// Stores message results of non-select statements that returned successfully.
+    exec_results : Vec<QueryResult>,
 
     last_update : Option<String>,
     history : Vec<EnvironmentUpdate>,
@@ -47,10 +53,21 @@ pub struct TableEnvironment {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DBType {
-    Integer,
+    Bool,
+    I16,
+    I32,
+    I64,
+    F32,
+    F64,
+    Numeric,
     Text,
-    Float,
-    Bytes
+    Date,
+    Time,
+    Bytes,
+    Json,
+    Xml,
+    Array,
+    Unknown
 }
 
 impl FromStr for DBType {
@@ -59,16 +76,27 @@ impl FromStr for DBType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "integer" | "int" | "INTEGER" | "INT" => Ok(Self::Integer),
-            "text" | "TEXT" => Ok(Self::Text),
-            "real" | "REAL" => Ok(Self::Float),
-            "blob" | "BLOB" => Ok(Self::Bytes),
-            _ => Err(())
+            "boolean" => Ok(Self::Bool),
+            "bigint" | "bigserial" => Ok(Self::I64),
+            "bit" | "bit varying" | "character" | "character varying" | "text" | "TEXT" => Ok(Self::Text),
+            "date" => Ok(Self::Date),
+            "json" | "jsonb" => Ok(Self::Json),
+            "numeric" => Ok(Self::Numeric),
+            "integer" | "int" | "INTEGER" | "INT" => Ok(Self::I32),
+            "smallint" | "smallserial" => Ok(Self::I16),
+            "real" | "REAL" | "double precision" => Ok(Self::F64),
+            "blob" | "BLOB" | "bytea" => Ok(Self::Bytes),
+            "time" | "time with time zone" | "time without time zone" |
+            "timestamp with time zone" | "timestamp without time zone" => Ok(Self::Time),
+            "xml" => Ok(Self::Xml),
+            "anyarray" | "array" | "ARRAY" => Ok(Self::Array),
+            _ => Ok(Self::Unknown)
         }
     }
 
 }
 
+#[derive(Debug)]
 pub enum DBObject {
 
     // In practice, children will always hold table variants.
@@ -83,12 +111,13 @@ impl TableEnvironment {
     pub fn new(src : EnvironmentSource, loader : Arc<Mutex<FunctionLoader>>) -> Self {
         Self{
             source : src,
-            listener : SqlListener::launch(loader.clone()),
+            listener : SqlListener::launch( /*loader.clone()*/ ),
             tables : Vec::new(),
             last_update : None,
             queries : Vec::new(),
             history : vec![EnvironmentUpdate::Clear],
-            loader : loader.clone()
+            loader : loader.clone(),
+            exec_results : Vec::new()
         }
     }
 
@@ -410,6 +439,7 @@ impl TableEnvironment {
         println!("Query results: {:?}", results);
         self.tables.clear();
         self.queries.clear();
+        self.exec_results.clear();
         if results.len() == 0 {
             self.history.push(EnvironmentUpdate::Clear);
             return Some(Ok(EnvironmentUpdate::Clear));
@@ -432,6 +462,7 @@ impl TableEnvironment {
                 },
                 QueryResult::Statement(_) | QueryResult::Modification(_) => {
                     self.tables.clear();
+                    self.exec_results.push(r.clone());
                     self.history.push(EnvironmentUpdate::Clear);
                 }
             }
@@ -466,8 +497,17 @@ impl TableEnvironment {
         }
     }
 
-    pub fn result_last_statement(&self) -> Option<Result<String, String>> {
+    pub fn result_last_statement(&mut self) -> Option<Result<String, String>> {
         let results = self.listener.maybe_get_result()?;
+        self.exec_results.clear();
+        for r in results.iter() {
+            match r {
+                QueryResult::Statement(_) | QueryResult::Modification(_) => {
+                    self.exec_results.push(r.clone());
+                },
+                _ => { }
+            }
+        }
         if let Some(r) = results.last() {
             println!("Last statement: {:?}", r);
             match r {
@@ -479,6 +519,16 @@ impl TableEnvironment {
         } else {
             None
         }
+    }
+
+    pub fn any_modification_result(&self) -> bool {
+        for res in self.exec_results.iter() {
+            match res {
+                QueryResult::Modification(_) => return true,
+                _ => { }
+            }
+        }
+        false
     }
 
     /// Try to update the table from a source such as a SQL connection string

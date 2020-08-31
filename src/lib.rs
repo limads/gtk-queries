@@ -26,6 +26,8 @@ pub mod file_list;
 
 pub mod schema_tree;
 
+pub mod jobs;
+
 pub mod utils {
 
     use std::env;
@@ -99,6 +101,28 @@ pub mod utils {
         println!("{}", path);
         provider.load_from_path(&path[..]).map_err(|_| "Unable to load Css provider")?;
         Ok(provider)
+    }
+
+    pub fn show_popover_on_toggle(popover : &Popover, toggle : &ToggleButton) {
+        {
+            let popover = popover.clone();
+            toggle.connect_toggled(move |btn| {
+                if btn.get_active() {
+                    popover.show();
+                } else {
+                    popover.hide();
+                }
+            });
+        }
+
+        {
+            let toggle = toggle.clone();
+            popover.connect_closed(move |_| {
+                if toggle.get_active() {
+                    toggle.set_active(false);
+                }
+            });
+        }
     }
 
 }

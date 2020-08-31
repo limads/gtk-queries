@@ -38,5 +38,13 @@ create table aggregate(
     final integer references function(id)
 );
 
+create table job(
+    id integer primary key,
+    lib_id integer references library(id) on delete cascade,
+    name text,
+    doc text
+);
+
+
 
 
