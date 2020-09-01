@@ -101,30 +101,77 @@ impl PlotWorkspace {
         Rc::new(def_content)
     }
 
+    /// Get the central point of each subplot and the size of the active area,
+    /// for showing the plot popover.
     pub fn get_active_coords(pl_view : &PlotView) -> (i32, i32, i32, i32) {
+
         let rect = pl_view.parent.get_allocation();
+        let (horiz_ratio, vert_ratio) = pl_view.aspect_ratio();
+        let (horiz_ratio_compl, vert_ratio_compl) = (1. - horiz_ratio, 1. - vert_ratio);
         let (w, h) = (rect.width, rect.height);
+        let half_full_horiz = (rect.width as f64 * 0.5) as i32;
+        let half_full_vert = (rect.height as f64 * 0.5) as i32;
+
+        let horiz = (w as f64 * horiz_ratio) as i32;
+        let horiz_compl = (w as f64 * horiz_ratio_compl) as i32;
+        let half_horiz = (0.5*horiz as f64) as i32;
+        let half_horiz_compl = horiz+(0.5*horiz_compl as f64) as i32;
+
+        let vert = (h as f64 * vert_ratio) as i32;
+        let vert_compl = (h as f64 * vert_ratio_compl) as i32;
+        let half_vert = (0.5*vert as f64) as i32;
+        let half_vert_compl = vert+(0.5*vert_compl as f64) as i32;
+
         println!("Allocation: {:?}", (w, h));
+        let active_area = pl_view.get_active_area();
+        let group_split = pl_view.plot_group.group_split();
         let (x, y) = match pl_view.plot_group.size() {
-            1 => ((w as f64 * 0.5) as i32, (h as f64 * 0.5) as i32),
-            2 => match pl_view.plot_group.group_split() {
-                GroupSplit::Horizontal => match pl_view.get_active_area() {
-                    0 => ((w as f64 * 0.5) as i32, (h as f64 * 0.33) as i32),
-                    1 => ((w as f64 * 0.5) as i32, (h as f64 * 0.66) as i32),
+            1 => (half_full_horiz, half_full_vert),
+            2 => match group_split {
+                GroupSplit::Horizontal => match active_area {
+                    0 => (half_horiz, half_full_vert),
+                    1 => (half_horiz_compl, half_full_vert),
                     _ => panic!("Invalid area"),
                 },
-                GroupSplit::Vertical => match pl_view.get_active_area() {
-                    0 => ((w as f64 * 0.33) as i32, (h as f64 * 0.5) as i32),
-                    1 => ((w as f64 * 0.66) as i32, (h as f64 * 0.5) as i32),
+                GroupSplit::Vertical => match active_area {
+                    0 => (half_full_horiz, half_vert),
+                    1 => (half_full_horiz, half_vert_compl),
                     _ => panic!("Invalid area"),
                 },
                 _ => panic!("Invalid split pattern")
             },
-            4 => match pl_view.get_active_area() {
-                0 => ((w as f64 * 0.25) as i32, (h as f64 * 0.25) as i32),
-                1 => ((w as f64 * 0.75) as i32, (h as f64 * 0.25) as i32),
-                2 => ((w as f64 * 0.25) as i32, (h as f64 * 0.75) as i32),
-                3 => ((w as f64 * 0.75) as i32, (h as f64 * 0.75) as i32),
+            3 => match group_split {
+                GroupSplit::ThreeLeft => match active_area {
+                    0 => (half_horiz, half_full_vert),
+                    1 => (half_horiz_compl, half_vert),
+                    2 => (half_horiz_compl, half_vert_compl),
+                    _ => panic!("Invalid area"),
+                },
+                GroupSplit::ThreeTop => match active_area {
+                    0 => (half_full_horiz, half_vert),
+                    1 => (half_horiz, half_vert_compl),
+                    2 => (half_horiz_compl, half_vert_compl),
+                    _ => panic!("Invalid area"),
+                },
+                GroupSplit::ThreeRight => match active_area {
+                    0 => (half_horiz, half_vert),
+                    1 => (half_horiz_compl, half_full_vert),
+                    2 => (half_horiz, half_vert_compl),
+                    _ => panic!("Invalid area"),
+                },
+                GroupSplit::ThreeBottom => match active_area {
+                    0 => (half_horiz, half_vert),
+                    1 => (half_horiz_compl, half_vert),
+                    2 => (half_full_horiz, half_vert_compl),
+                    _ => panic!("Invalid area"),
+                },
+                _ => panic!("Invalid split pattern")
+            },
+            4 => match active_area {
+                0 => (half_horiz, half_vert),
+                1 => (half_horiz_compl, half_vert),
+                2 => (half_horiz, half_vert_compl),
+                3 => (half_horiz_compl, half_vert_compl),
                 _ => panic!("Invalid area"),
             },
             _ => panic!("Invalid plot index")
@@ -133,33 +180,35 @@ impl PlotWorkspace {
         (x, y, w, h)
     }
 
-    // Substitute /2 by *ratio where ratio is the 0-1 aspect ratio set at the layout options
     fn updated_active_area(pl_view : &PlotView, x : i32, y : i32, w : i32, h : i32) -> usize {
+        let (horiz_ratio, vert_ratio) = pl_view.aspect_ratio();
+        let x_left = x < (w as f64*horiz_ratio) as i32;
+        let y_top = y < (h as f64*vert_ratio) as i32;
         match (pl_view.plot_group.size(), pl_view.plot_group.group_split()) {
             (1, _) => 0,
-            (2, GroupSplit::Horizontal) => if y < h / 2 { 0 } else { 1 },
-            (2, GroupSplit::Vertical) => if x < w / 2 { 0 } else { 1 },
-            (3, GroupSplit::ThreeLeft) => match (x < w / 2, y < h / 2) {
+            (2, GroupSplit::Horizontal) => if x_left { 0 } else { 1 },
+            (2, GroupSplit::Vertical) => if y_top { 0 } else { 1 },
+            (3, GroupSplit::ThreeLeft) => match (x_left, y_top) {
                 (true, _) => 0,
                 (false, true) => 1,
                 (false, false) => 2,
             },
-            (3, GroupSplit::ThreeTop) => match (x < w / 2, y < h / 2) {
+            (3, GroupSplit::ThreeTop) => match (x_left, y_top) {
                 (_, true) => 0,
                 (true, false) => 1,
                 (false, false) => 2,
             },
-            (3, GroupSplit::ThreeRight) => match (x < w / 2, y < h / 2) {
+            (3, GroupSplit::ThreeRight) => match (x_left, y_top) {
                 (true, false) => 0,
                 (false, _) => 1,
                 (true, true) => 2,
             },
-            (3, GroupSplit::ThreeBottom) => match (x < w / 2, y < h / 2) {
+            (3, GroupSplit::ThreeBottom) => match (x_left, y_top) {
                 (true, false) => 0,
                 (false, false) => 1,
                 (_, true) => 2,
             },
-            (4, _) => match (x < w / 2, y < h / 2) {
+            (4, _) => match (x_left, y_top) {
                     (true, true) => 0,
                     (true, false) => 1,
                     (false, true) => 2,
@@ -283,7 +332,8 @@ impl PlotWorkspace {
             (scale_menus.0.clone(), scale_menus.1.clone()),
             plot_toggle,
             layout_window.clone(),
-            layout_path.clone()
+            layout_path.clone(),
+            (layout_window.horiz_ar_scale.clone(), layout_window.vert_ar_scale.clone())
         );
 
         {

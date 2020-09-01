@@ -34,12 +34,14 @@ pub struct LayoutWindow {
 
     // Holds (File, Recent paths, file_updated)
     pub recent : Rc<RefCell<(File, Vec<String>)>>,
+    pub horiz_ar_scale : Scale,
+    pub vert_ar_scale : Scale
 }
 
 const ALL_LAYOUTS : [GroupSplit; 8] = [
     GroupSplit::Unique,
-    GroupSplit::Horizontal,
     GroupSplit::Vertical,
+    GroupSplit::Horizontal,
     GroupSplit::Four,
     GroupSplit::ThreeLeft,
     GroupSplit::ThreeTop,
@@ -49,8 +51,8 @@ const ALL_LAYOUTS : [GroupSplit; 8] = [
 
 const ALL_PATHS : [&'static str; 8] = [
     "layout-unique",
-    "layout-horiz",
     "layout-vert",
+    "layout-horiz",
     "layout-four",
     "layout-three-left",
     "layout-three-top",
@@ -237,6 +239,33 @@ impl LayoutWindow {
         let group_toolbar_bottom : Toolbar = builder.get_object("group_toolbar_bottom").unwrap();
         let toolbars : [Toolbar; 2] = [group_toolbar_top.clone(), group_toolbar_bottom.clone()];
 
+        let horiz_ar_scale : Scale = builder.get_object("horiz_ar_scale").unwrap();
+        let vert_ar_scale : Scale = builder.get_object("vert_ar_scale").unwrap();
+
+        {
+            let plot_view = plot_view.clone();
+            horiz_ar_scale.get_adjustment().connect_value_changed(move |adj : &Adjustment| {
+                let val_horiz = adj.get_value() / 100.0;
+                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                    pl_view.update(&mut UpdateContent::AspectRatio(Some(val_horiz), None));
+                } else {
+                    println!("Failed acquiring reference to plot view");
+                }
+            });
+        }
+
+        {
+            let plot_view = plot_view.clone();
+            vert_ar_scale.get_adjustment().connect_value_changed(move |adj : &Adjustment| {
+                let val_vert = adj.get_value() / 100.0;
+                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                    pl_view.update(&mut UpdateContent::AspectRatio(None, Some(val_vert)));
+                } else {
+                    println!("Failed acquiring reference to plot view");
+                }
+            });
+        }
+
         let mut toggles = HashMap::new();
         let layout_iter = ALL_LAYOUTS.iter().zip(ALL_PATHS.iter());
         for (i, (layout, path)) in layout_iter.clone().enumerate() {
@@ -255,6 +284,8 @@ impl LayoutWindow {
             let plot_view = plot_view.clone();
             let mapping_menus = mapping_menus.clone();
             let mapping_stack = mapping_stack.clone();
+            let horiz_ar_scale = horiz_ar_scale.clone();
+            let vert_ar_scale = vert_ar_scale.clone();
             toggles[layout].clone().connect_toggled(move |curr_toggle| {
                 if curr_toggle.get_active() {
                     toggles.iter()
@@ -264,12 +295,35 @@ impl LayoutWindow {
                         mapping_menus.clone(),
                         mapping_stack.clone()
                     ).expect("Error clearing mappings");
+                    // TODO load all layouts at beginning.
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
                         pl_view.update(&mut UpdateContent::Clear(format!("assets/plot_layout/{}.xml", path)));
                     } else {
                         println!("Unable to get mutable reference to plotview");
                     }
+
+                    match layout {
+                        GroupSplit::Unique => {
+                            horiz_ar_scale.set_sensitive(false);
+                            vert_ar_scale.set_sensitive(false);
+                        },
+                        GroupSplit::Horizontal => {
+                            horiz_ar_scale.set_sensitive(true);
+                            vert_ar_scale.set_sensitive(false);
+                        },
+                        GroupSplit::Vertical => {
+                            horiz_ar_scale.set_sensitive(false);
+                            vert_ar_scale.set_sensitive(true);
+                        },
+                        _ => {
+                            horiz_ar_scale.set_sensitive(true);
+                            vert_ar_scale.set_sensitive(true);
+                        }
+                    }
+                    horiz_ar_scale.set_value(50.);
+                    vert_ar_scale.set_value(50.);
+
                 } else {
                     // toggles[&GroupSplit::Unique].set_active(true);
                 }
@@ -328,7 +382,9 @@ impl LayoutWindow {
             xml_save_dialog,
             xml_load_dialog,
             file_combo,
-            recent
+            recent,
+            horiz_ar_scale,
+            vert_ar_scale
         }
     }
 
@@ -368,7 +424,8 @@ impl LayoutWindow {
         scale_menus : (ScaleMenu, ScaleMenu),
         plot_toggle : ToggleButton,
         layout_window : LayoutWindow,
-        layout_path : Rc<RefCell<Option<String>>>
+        layout_path : Rc<RefCell<Option<String>>>,
+        ar_scales : (Scale, Scale)
     ) {
         {
             let open_btn = layout_window.open_btn.clone();
@@ -394,6 +451,7 @@ impl LayoutWindow {
             let status_stack = status_stack.clone();
             let layout_window = layout_window.clone();
             let plot_toggle = plot_toggle.clone();
+            let ar_scales = ar_scales.clone();
             // TODO must not emit this changed when the combo is set by some reason other than
             // the user pressing it.
             layout_window.file_combo.clone().connect_changed(move |combo| {
@@ -425,7 +483,8 @@ impl LayoutWindow {
                     tbl_nb.clone(),
                     status_stack.clone(),
                     layout_window.clone(),
-                    plot_toggle.clone()
+                    plot_toggle.clone(),
+                    ar_scales.clone()
                 );
                 if !load_ok {
                     println!("Error loading layout");
@@ -453,7 +512,8 @@ impl LayoutWindow {
                                 tbl_nb.clone(),
                                 status_stack.clone(),
                                 layout_window.clone(),
-                                plot_toggle.clone()
+                                plot_toggle.clone(),
+                                ar_scales.clone()
                             );
                             if load_ok {
                                 Self::push_recent_path(recent.clone(), path_str.clone());
@@ -488,7 +548,8 @@ impl LayoutWindow {
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
         layout_window : LayoutWindow,
-        plot_toggle : ToggleButton
+        plot_toggle : ToggleButton,
+        ar_scales : (Scale, Scale)
     ) -> bool {
         let update_ok = match plot_view.try_borrow_mut() {
             Ok(mut pl) => {
@@ -518,7 +579,8 @@ impl LayoutWindow {
             Self::update_layout_widgets(
                 design_menu.clone(),
                 scale_menus.clone(),
-                plot_view.clone()
+                plot_view.clone(),
+                ar_scales
             );
             println!("Layout widgets saved");
             status_stack.try_show_alt();
@@ -535,14 +597,16 @@ impl LayoutWindow {
     fn update_layout_widgets(
         design_menu : DesignMenu,
         scale_menus : (ScaleMenu, ScaleMenu),
-        plot_view : Rc<RefCell<PlotView>>
+        plot_view : Rc<RefCell<PlotView>>,
+        ar_scales : (Scale, Scale)
     ) {
-        let (design, info_x, info_y) = match plot_view.try_borrow() {
+        let (design, info_x, info_y, ar) = match plot_view.try_borrow() {
             Ok(pl) => {
                 let design = pl.plot_group.design_info();
                 let info_x = pl.current_scale_info("x");
                 let info_y = pl.current_scale_info("y");
-                (design, info_x, info_y)
+                let ar = pl.aspect_ratio();
+                (design, info_x, info_y, ar)
             },
             _ => {
                 println!("Could not fetch plotview reference to update layout");
@@ -556,6 +620,8 @@ impl LayoutWindow {
         design_menu.update(design);
         scale_menus.0.update(info_x);
         scale_menus.1.update(info_y);
+        ar_scales.0.set_value(ar.0);
+        ar_scales.1.set_value(ar.1);
     }
 
 }

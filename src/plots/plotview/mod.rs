@@ -104,7 +104,14 @@ impl PlotGroup {
             .first().cloned().expect("No design node");
         let design = PlotDesign::new(&design_node)
             .expect("Failed instantiating design");
-        let mut plot_group = Self{ parser, doc, plots, split : GroupSplit::Unique, v_ratio : 1.0, h_ratio : 1.0, design };
+        let mut plot_group = Self{
+            parser,
+            doc,
+            plots,
+            split : GroupSplit::Unique,
+            v_ratio : 0.5,
+            h_ratio : 0.5,
+            design };
         plot_group.load_layout(layout_path)?;
         Ok(plot_group)
     }
@@ -140,8 +147,8 @@ impl PlotGroup {
         let bottom_right = (w as f64 * self.h_ratio, h as f64 * self.v_ratio);
         for (i, plot) in self.plots.iter_mut().enumerate() {
             let origin_offset = match (&self.split, i) {
-                (GroupSplit::Horizontal, 1) => bottom_left,
-                (GroupSplit::Vertical, 1) => top_right,
+                (GroupSplit::Horizontal, 1) => top_right,
+                (GroupSplit::Vertical, 1) => bottom_left,
                 (GroupSplit::Four, 1) => top_right,
                 (GroupSplit::Four, 2) => bottom_left,
                 (GroupSplit::Four, 3) => bottom_right,
@@ -167,10 +174,12 @@ impl PlotGroup {
             let diag = (self.h_ratio, self.v_ratio);
             let diag_compl = (1. - self.h_ratio, 1. - self.v_ratio);
             let scale_factor = match (&self.split, i) {
-                (GroupSplit::Horizontal, 0) => h_v_compl,
-                (GroupSplit::Horizontal, 1) => h_full_v_compl,
-                (GroupSplit::Vertical, 0) => h_v_full,
-                (GroupSplit::Vertical, 1) => h_compl_v_full,
+                (GroupSplit::Horizontal, 0) => h_v_full,
+                (GroupSplit::Horizontal, 1) => h_compl_v_full,
+                /*(GroupSplit::Vertical, 0) => h_v_full,
+                (GroupSplit::Vertical, 1) => h_compl_v_full,*/
+                (GroupSplit::Vertical, 0) => h_full_v,
+                (GroupSplit::Vertical, 1) => h_full_v_compl,
                 (GroupSplit::Four, 0) => diag,
                 (GroupSplit::Four, 1) => h_compl_v,
                 (GroupSplit::Four, 2) => h_v_compl,
@@ -386,6 +395,19 @@ impl PlotGroup {
 
     pub fn group_split(&self) -> GroupSplit {
         self.split.clone()
+    }
+
+    pub fn aspect_ratio(&self) -> (f64, f64) {
+        (self.h_ratio, self.v_ratio)
+    }
+
+    pub fn set_aspect_ratio(&mut self, horiz : Option<f64>, vert : Option<f64>) {
+        if let Some(horiz) = horiz {
+            self.h_ratio = horiz;
+        }
+        if let Some(vert) = vert {
+            self.v_ratio = vert;
+        }
     }
 
 }

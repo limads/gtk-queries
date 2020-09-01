@@ -39,6 +39,8 @@ pub enum UpdateContent {
     /// Mapping id; New id; New type.
     EditMapping(String, String, String),
 
+    AspectRatio(Option<f64>, Option<f64>),
+
     // Pass (old, new) mapping name
     // RenameMapping(String, String),
 
@@ -60,6 +62,10 @@ impl PlotView {
 
     pub fn group_split(&self) -> GroupSplit {
         self.plot_group.group_split()
+    }
+
+    pub fn aspect_ratio(&self) -> (f64, f64) {
+        self.plot_group.aspect_ratio()
     }
 
     pub fn change_active_area(&mut self, area : usize) {
@@ -167,6 +173,10 @@ impl PlotView {
                 self.insert_mapping(active, new_name.clone(), new_type.clone());
                 self.parent.queue_draw();
             },
+            UpdateContent::AspectRatio(opt_h, opt_v) => {
+                self.plot_group.set_aspect_ratio(*opt_h, *opt_v);
+                self.parent.queue_draw();
+            }
             UpdateContent::RemoveMapping(m_name) => {
                 self.plot_group.remove_mapping(active, m_name);
                 self.parent.queue_draw();

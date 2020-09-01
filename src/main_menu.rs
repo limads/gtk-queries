@@ -28,9 +28,11 @@ pub struct MainMenu {
     sql_new_btn : ModelButton,
     sql_save_btn : ModelButton,
     // jobs_btn : ModelButton,
-    jobs_window : Window,
+    // jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
+    report_window : Window,
+    report_btn : ModelButton,
     layout_btn : ModelButton,
     save_img_btn : ModelButton,
     save_tbl_btn : ModelButton,
@@ -170,8 +172,9 @@ impl MainMenu {
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
         let settings_btn : ModelButton = builder.get_object("settings_btn").unwrap();
         let engine_window : Window = builder.get_object("engine_window").unwrap();
-        // let jobs_btn : ModelButton = builder.get_object("jobs_btn").unwrap();
-        let jobs_window : Window = builder.get_object("jobs_window").unwrap();
+        let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
+        let report_window : Window = builder.get_object("report_window").unwrap();
+        //let jobs_window : Window = builder.get_object("jobs_window").unwrap();
         let settings_window : Window = builder.get_object("settings_window").unwrap();
         let layout_window : Window = builder.get_object("layout_window").unwrap();
         let sql_save_btn : ModelButton = builder.get_object("sql_save_btn").unwrap();
@@ -181,7 +184,7 @@ impl MainMenu {
         Self::link_window(engine_btn.clone(), engine_window.clone());
         Self::link_window(settings_btn.clone(), settings_window.clone());
         Self::link_window(layout_btn.clone(), layout_window.clone());
-        // Self::link_window(jobs_btn.clone(), jobs_window.clone());
+        Self::link_window(report_btn.clone(), report_window.clone());
 
         {
             let main_menu = main_menu.clone();
@@ -256,8 +259,10 @@ impl MainMenu {
             sql_save_btn,
             save_img_btn,
             save_tbl_btn,
+            report_window,
+            report_btn
             // jobs_btn,
-            jobs_window
+            //jobs_window
             // sql_open_dialog,
             // sql_save_dialog,
         }

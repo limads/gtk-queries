@@ -119,8 +119,12 @@ impl SchemaTree {
 
     pub fn repopulate(&self, tbl_env : Rc<RefCell<TableEnvironment>>) {
         self.model.clear();
+        let mut is_pg = false;
         if let Ok(t_env) = tbl_env.try_borrow() {
             if let Some(objs) = t_env.db_info() {
+                if &t_env.get_engine_name()[..] == "PostgreSQL" {
+                    is_pg = true;
+                }
                 for obj in objs {
                     self.grow_schema(&self.model, None, /*self.model.get_iter_first().as_ref()*/ obj);
                 }
@@ -138,12 +142,14 @@ impl SchemaTree {
         } else {
             println!("Failed acquiring reference to table environment");
         }
-        self.model.foreach(|model, path, iter| {
-            if path.get_depth() == 1 {
-                self.tree_view.expand_row(path, false);
-            }
-            false
-        });
+        if is_pg {
+            self.model.foreach(|model, path, iter| {
+                if path.get_depth() == 1 {
+                    self.tree_view.expand_row(path, false);
+                }
+                false
+            });
+        }
     }
 
     pub fn clear(&self) {

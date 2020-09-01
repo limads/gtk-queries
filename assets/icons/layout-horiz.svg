@@ -15,7 +15,7 @@
    version="1.1"
    id="svg8"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="group-horiz.svg">
+   sodipodi:docname="group-vert.svg">
   <defs
      id="defs2" />
   <sodipodi:namedview
@@ -25,9 +25,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="32"
-     inkscape:cx="-1.7727308"
-     inkscape:cy="9.1741138"
+     inkscape:zoom="16"
+     inkscape:cx="-9.4157696"
+     inkscape:cy="7.8469649"
      inkscape:document-units="mm"
      inkscape:current-layer="g828"
      showgrid="false"
@@ -66,7 +66,7 @@
            transform="translate(0.12403205,-5.111776e-6)">
           <g
              id="g819"
-             transform="translate(0.09921872)">
+             transform="rotate(90,1.852083,294.93292)">
             <rect
                style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-miterlimit:4;stroke-dasharray:none"
                id="rect815"

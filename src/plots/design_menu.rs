@@ -30,7 +30,7 @@ impl DesignMenu {
 
 pub fn build_design_menu(builder : &Builder, pl_view : Rc<RefCell<PlotView>>) -> DesignMenu {
     let grid_thickness_scale : Scale =
-    builder.get_object("grid_thickness_scale").unwrap();
+        builder.get_object("grid_thickness_scale").unwrap();
     let ref_view = pl_view.clone();
     connect_update_scale_property(
         &grid_thickness_scale,
