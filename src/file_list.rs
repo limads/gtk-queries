@@ -407,7 +407,7 @@ impl FileList {
         }
     }
 
-    fn select_last(&self) {
+    pub fn select_last(&self) {
         let n = self.list_box.get_children().len();
         if let Some(row) = self.list_box.get_row_at_index(n as i32 - 1) {
             self.list_box.select_row(Some(&row));

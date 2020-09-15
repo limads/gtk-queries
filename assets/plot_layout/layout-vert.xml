@@ -20,7 +20,6 @@
         <property name="invert">false</property>
         <property name="log_scaling">false</property>
         <property name="grid_offset">0</property>
-        <property name="grid_density">4</property>
       </object>
       <object class="grid_segment" name="y">
         <property name="label">Y Label</property>
@@ -31,7 +30,6 @@
         <property name="invert">false</property>
         <property name="log_scaling">false</property>
         <property name="grid_offset">0</property>
-        <property name="grid_density">4</property>
       </object>
     </plotarea>
     <plotarea position="1">
@@ -44,7 +42,6 @@
         <property name="invert">false</property>
         <property name="log_scaling">false</property>
         <property name="grid_offset">0</property>
-        <property name="grid_density">4</property>
       </object>
       <object class="grid_segment" name="y">
         <property name="label">Y Label</property>
@@ -55,7 +52,6 @@
         <property name="invert">false</property>
         <property name="log_scaling">false</property>
         <property name="grid_offset">0</property>
-        <property name="grid_density">4</property>
       </object>
     </plotarea>
 </plotgroup>

@@ -50,14 +50,14 @@ const ALL_LAYOUTS : [GroupSplit; 8] = [
 ];
 
 const ALL_PATHS : [&'static str; 8] = [
-    "layout-unique",
-    "layout-vert",
-    "layout-horiz",
-    "layout-four",
-    "layout-three-left",
-    "layout-three-top",
-    "layout-three-right",
-    "layout-three-bottom"
+    "unique",
+    "vert",
+    "horiz",
+    "four",
+    "three-left",
+    "three-top",
+    "three-right",
+    "three-bottom"
 ];
 
 impl LayoutWindow {
@@ -233,7 +233,8 @@ impl LayoutWindow {
         mapping_stack : Stack,
         layout_path : Rc<RefCell<Option<String>>>,
         design_menu : DesignMenu,
-        scale_menus : (ScaleMenu, ScaleMenu)
+        scale_menus : (ScaleMenu, ScaleMenu),
+        layout_group_toolbar : GroupToolbar
     ) -> LayoutWindow {
         let group_toolbar_top : Toolbar = builder.get_object("group_toolbar_top").unwrap();
         let group_toolbar_bottom : Toolbar = builder.get_object("group_toolbar_bottom").unwrap();
@@ -269,7 +270,7 @@ impl LayoutWindow {
         let mut toggles = HashMap::new();
         let layout_iter = ALL_LAYOUTS.iter().zip(ALL_PATHS.iter());
         for (i, (layout, path)) in layout_iter.clone().enumerate() {
-            let img = Image::from_file(&(String::from("assets/icons/") + path + ".svg"));
+            let img = Image::from_file(&(String::from("assets/icons/layout-") + path + ".svg"));
             let btn : ToggleToolButton = ToggleToolButton::new();
             btn.set_icon_widget(Some(&img));
             toggles.insert(*layout, btn.clone());
@@ -286,6 +287,7 @@ impl LayoutWindow {
             let mapping_stack = mapping_stack.clone();
             let horiz_ar_scale = horiz_ar_scale.clone();
             let vert_ar_scale = vert_ar_scale.clone();
+            let layout_group_toolbar = layout_group_toolbar.clone();
             toggles[layout].clone().connect_toggled(move |curr_toggle| {
                 if curr_toggle.get_active() {
                     toggles.iter()
@@ -298,11 +300,11 @@ impl LayoutWindow {
                     // TODO load all layouts at beginning.
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
-                        pl_view.update(&mut UpdateContent::Clear(format!("assets/plot_layout/{}.xml", path)));
+                        pl_view.update(&mut UpdateContent::Clear(format!("assets/plot_layout/layout-{}.xml", path)));
                     } else {
                         println!("Unable to get mutable reference to plotview");
                     }
-
+                    layout_group_toolbar.set_active_default(Some(*layout));
                     match layout {
                         GroupSplit::Unique => {
                             horiz_ar_scale.set_sensitive(false);
@@ -425,7 +427,8 @@ impl LayoutWindow {
         plot_toggle : ToggleButton,
         layout_window : LayoutWindow,
         layout_path : Rc<RefCell<Option<String>>>,
-        ar_scales : (Scale, Scale)
+        ar_scales : (Scale, Scale),
+        group_toolbar : GroupToolbar
     ) {
         {
             let open_btn = layout_window.open_btn.clone();
@@ -452,6 +455,7 @@ impl LayoutWindow {
             let layout_window = layout_window.clone();
             let plot_toggle = plot_toggle.clone();
             let ar_scales = ar_scales.clone();
+            let group_toolbar = group_toolbar.clone();
             // TODO must not emit this changed when the combo is set by some reason other than
             // the user pressing it.
             layout_window.file_combo.clone().connect_changed(move |combo| {
@@ -484,7 +488,8 @@ impl LayoutWindow {
                     status_stack.clone(),
                     layout_window.clone(),
                     plot_toggle.clone(),
-                    ar_scales.clone()
+                    ar_scales.clone(),
+                    group_toolbar.clone()
                 );
                 if !load_ok {
                     println!("Error loading layout");
@@ -513,7 +518,8 @@ impl LayoutWindow {
                                 status_stack.clone(),
                                 layout_window.clone(),
                                 plot_toggle.clone(),
-                                ar_scales.clone()
+                                ar_scales.clone(),
+                                group_toolbar.clone()
                             );
                             if load_ok {
                                 Self::push_recent_path(recent.clone(), path_str.clone());
@@ -549,13 +555,15 @@ impl LayoutWindow {
         status_stack : StatusStack,
         layout_window : LayoutWindow,
         plot_toggle : ToggleButton,
-        ar_scales : (Scale, Scale)
+        ar_scales : (Scale, Scale),
+        group_toolbar : GroupToolbar
     ) -> bool {
         let update_ok = match plot_view.try_borrow_mut() {
             Ok(mut pl) => {
                 match pl.plot_group.load_layout(string_path.clone()) {
                     Ok(_) => {
                         layout_window.reset(pl.group_split());
+                        group_toolbar.set_active_default(Some(pl.group_split()));
                         *(layout_path.borrow_mut()) = Some(string_path);
                         true
                     },

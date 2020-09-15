@@ -21,6 +21,7 @@ use std::any::Any;
 use std::error;
 use std::{fmt, fs::File};
 use cairo::SvgSurface;
+use std::env;
 
 pub mod mappings;
 
@@ -410,6 +411,39 @@ impl PlotGroup {
         }
     }
 
+    pub fn reassign_plot(
+        &mut self,
+        src_plot : usize,
+        src_ix : &str,
+        dst_plot : usize
+    ) -> Result<(), String> {
+        let (mapping, mut mapping_node) = if let Some(mut old_area) = self.plots.get_mut(src_plot) {
+            match old_area.remove_mapping(src_ix) {
+                Ok((mapping, mapping_node)) => (mapping, mapping_node),
+                Err(e) => return Err(format!("{}",e))
+            }
+        } else {
+            return Err(format!("Invalid source plot"));
+        };
+        if let Some(mut new_area) = self.plots.get_mut(dst_plot) {
+            new_area.node.add_child(&mut mapping_node).map_err(|e| format!("{}", e) )?;
+            new_area.mappings.push(mapping);
+            Ok(())
+        } else {
+            Err(format!("Invalid destination plot"))
+        }
+    }
+
+    // Number of mappings, for each plot
+    pub fn n_mappings(&self) -> Vec<usize> {
+        self.plots.iter().map(|p| p.mappings.len() ).collect()
+    }
+
+    // Number of plots
+    pub fn n_plots(&self) -> usize {
+        self.plots.len()
+    }
+
 }
 
 pub struct PlotArea {
@@ -740,7 +774,7 @@ impl PlotArea {
         }
     }
 
-    pub fn remove_mapping(&mut self, id : &str) {
+    pub fn remove_mapping(&mut self, id : &str) -> Result<(Box<dyn Mapping>, Node), String> {
         let n = self.mappings.len();
         let pos = id.parse::<usize>().unwrap();
         //let mut root = self.doc.get_root_element().expect("No root at remove");
@@ -757,10 +791,11 @@ impl PlotArea {
             let node = nodes.get_mut(0).expect("No first node with informed id");
             node.set_attribute("index", &((i - 1).to_string())[..]).expect("No index property");
         }
-        self.mappings.remove(pos);
+        let mapping = self.mappings.remove(pos);
         for m in self.mappings.iter() {
             println!("Current mappings: {:?}", m.mapping_type());
         }
+        Ok((mapping, node.clone()))
     }
 
     pub fn update_mapping_text(
@@ -1051,6 +1086,7 @@ impl PlotArea {
             self.mapper.w as f64 * 0.5,
             self.mapper.h as f64 * 0.975
         );
+        // export POS_X=0.1
         let pos_y = Coord2D::new(
             self.mapper.w as f64 * 0.025,
             self.mapper.h as f64 * 0.5

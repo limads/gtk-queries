@@ -38,6 +38,7 @@ arrow = { version = "1.0.0", optional = true }
 libxml = "0.2.13"
 pango = "0.9.1"
 proc-macro2 = "1.0.18"
+# anyhow = "1.0.32"
 
 [features]
 arrowext = []

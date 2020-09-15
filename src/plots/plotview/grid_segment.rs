@@ -7,6 +7,7 @@ pub struct GridSegment {
     pub from : f64,
     pub to : f64,
     pub steps : Vec<f64>,
+    pub n_intervals : i32,
     pub log : bool,
     pub invert : bool,
     pub offset : i32,
@@ -31,6 +32,7 @@ impl GridSegment {
             false => (to - from - 2.0*off_prop ) / (n_intervals as f64)
         };
         let mut steps = Vec::<f64>::new();
+        // for i in 0..n_intervals+1 {
         for i in 0..n_intervals+1 {
             let step = if log {
                 (10.0 as f64).powf(from_offset.log10() + (i as f64)*intv_size)
@@ -39,7 +41,7 @@ impl GridSegment {
             };
             steps.push(step);
         }
-        GridSegment{label, precision, from, to, steps, log, invert, offset}
+        GridSegment{ label, precision, from, to, steps, log, invert, offset, n_intervals }
     }
 
     pub fn description(&self) -> HashMap<String, String> {
@@ -48,11 +50,10 @@ impl GridSegment {
         desc.insert("precision".into(), self.precision.to_string());
         desc.insert("from".into(), self.from.to_string());
         desc.insert("to".into(), self.to.to_string());
-        desc.insert("n_intervals".into(), self.steps.len().to_string());
+        desc.insert("n_intervals".into(), self.n_intervals.to_string());
         desc.insert("invert".into(), self.invert.to_string());
         desc.insert("log_scaling".into(), self.log.to_string());
         desc.insert("grid_offset".into(), self.offset.to_string());
-        desc.insert("grid_density".into(), self.steps.len().to_string());
         desc
     }
 

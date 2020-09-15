@@ -29,7 +29,7 @@
       <path
          id="path962"
          d="M 5.77,0.0 L -2.88,5.0 L -2.88,-5.0 L 5.77,0.0 z "
-         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         style="fill-rule:evenodd;stroke:#3d3d3d;stroke-width:1pt;stroke-opacity:1;fill:#3d3d3d;fill-opacity:1"
          transform="scale(0.4)" />
     </marker>
     <marker
@@ -43,7 +43,7 @@
       <path
          id="path953"
          d="M 5.77,0.0 L -2.88,5.0 L -2.88,-5.0 L 5.77,0.0 z "
-         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         style="fill-rule:evenodd;stroke:#3d3d3d;stroke-width:1pt;stroke-opacity:1;fill:#3d3d3d;fill-opacity:1"
          transform="scale(-0.4)" />
     </marker>
     <marker
@@ -82,17 +82,17 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="63.356767"
-     inkscape:cx="7.2677904"
-     inkscape:cy="8.1841827"
+     inkscape:zoom="22.4"
+     inkscape:cx="3.6791401"
+     inkscape:cy="7.5798232"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
      units="px"
      inkscape:window-width="1920"
-     inkscape:window-height="1012"
+     inkscape:window-height="1016"
      inkscape:window-x="0"
-     inkscape:window-y="32"
+     inkscape:window-y="27"
      inkscape:window-maximized="1" />
   <metadata
      id="metadata5">
@@ -102,7 +102,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -112,7 +112,7 @@
      id="layer1"
      transform="translate(0,-292.76665)">
     <path
-       style="fill:none;stroke:#000000;stroke-width:0.24013545;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#TriangleInM);marker-end:url(#TriangleOutM)"
+       style="fill:none;stroke:#3d3d3d;stroke-width:0.24013545;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#TriangleInM);marker-end:url(#TriangleOutM)"
        d="M 0.70962515,294.86205 H 3.5466698"
        id="path815"
        inkscape:connector-curvature="0" />

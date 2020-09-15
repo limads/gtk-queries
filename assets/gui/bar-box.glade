@@ -159,7 +159,7 @@
           </packing>
         </child>
         <child>
-          <object class="GtkEntry" id="bar_origin_entry">
+          <object class="GtkEntry" id="bar_origin_x_entry">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="margin_left">6</property>
@@ -171,6 +171,33 @@
             <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkImage">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="icon_name">application-exit-symbolic</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkEntry" id="bar_origin_y_entry">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="margin_left">6</property>
+            <property name="margin_right">6</property>
+            <property name="margin_top">6</property>
+            <property name="margin_bottom">6</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">3</property>
           </packing>
         </child>
       </object>

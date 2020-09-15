@@ -213,6 +213,115 @@
           </packing>
         </child>
         <child>
+          <object class="GtkStack" id="layout_stack">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <child>
+              <object class="GtkToolbar" id="unique_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">unique</property>
+                <property name="title" translatable="yes">unique</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="vert_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">vert</property>
+                <property name="title" translatable="yes">vert</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="horiz_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">horiz</property>
+                <property name="title" translatable="yes">horiz</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="three-left_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">three-left</property>
+                <property name="title" translatable="yes">three-left</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="three-top_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">three-top</property>
+                <property name="title" translatable="yes">three-top</property>
+                <property name="position">4</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="three-right_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">three-right</property>
+                <property name="title" translatable="yes">three-right</property>
+                <property name="position">5</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="three-bottom_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">three-bottom</property>
+                <property name="title" translatable="yes">three-bottom</property>
+                <property name="position">6</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkToolbar" id="four_layout_toolbar">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="name">four</property>
+                <property name="title" translatable="yes">four</property>
+                <property name="position">7</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">3</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkSeparator">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">4</property>
+          </packing>
+        </child>
+        <child>
           <object class="GtkToolbar" id="layout_toolbar">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
@@ -222,7 +331,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">3</property>
+            <property name="position">5</property>
           </packing>
         </child>
       </object>
@@ -1387,7 +1496,6 @@
     <property name="value">50</property>
     <property name="step_increment">10</property>
     <property name="page_increment">10</property>
-    <property name="page_size">10</property>
   </object>
   <object class="GtkImage" id="image1">
     <property name="visible">True</property>
@@ -2083,7 +2191,12 @@
   <object class="GtkImage" id="image26">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="pixbuf">../icons/builder-build-symbolic.svg</property>
+    <property name="icon_name">document-save-symbolic</property>
+  </object>
+  <object class="GtkImage" id="image27">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">network-wired</property>
   </object>
   <object class="GtkWindow" id="report_window">
     <property name="can_focus">False</property>
@@ -2185,6 +2298,10 @@
               <object class="GtkBox">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="margin_left">6</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">6</property>
+                <property name="margin_bottom">6</property>
                 <child>
                   <object class="GtkImage">
                     <property name="visible">True</property>
@@ -2231,6 +2348,10 @@
               <object class="GtkFileChooserButton">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="margin_left">6</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">6</property>
+                <property name="margin_bottom">6</property>
                 <property name="title" translatable="yes"/>
               </object>
               <packing>
@@ -2263,13 +2384,10 @@
                     <property name="margin_top">6</property>
                     <property name="margin_bottom">6</property>
                     <child>
-                      <object class="GtkLabel">
+                      <object class="GtkImage">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Output</property>
-                        <attributes>
-                          <attribute name="weight" value="semibold"/>
-                        </attributes>
+                        <property name="pixbuf">../icons/argument.svg</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -2278,10 +2396,13 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkImage">
+                      <object class="GtkLabel">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="icon_name">document-save-symbolic</property>
+                        <property name="label" translatable="yes">Arguments</property>
+                        <attributes>
+                          <attribute name="weight" value="semibold"/>
+                        </attributes>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -2297,14 +2418,14 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkFileChooserButton">
+                  <object class="GtkEntry">
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
+                    <property name="can_focus">True</property>
                     <property name="margin_left">6</property>
                     <property name="margin_right">6</property>
                     <property name="margin_top">6</property>
                     <property name="margin_bottom">6</property>
-                    <property name="title" translatable="yes"/>
+                    <property name="placeholder_text" translatable="yes">Arg1 ... Arg N</property>
                   </object>
                   <packing>
                     <property name="expand">True</property>
@@ -2320,8 +2441,27 @@
               </packing>
             </child>
             <child>
+              <object class="GtkToggleButton">
+                <property name="label" translatable="yes">Serve</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="margin_left">6</property>
+                <property name="margin_right">6</property>
+                <property name="margin_top">6</property>
+                <property name="margin_bottom">6</property>
+                <property name="image">image27</property>
+                <property name="always_show_image">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkButton">
-                <property name="label" translatable="yes">Build</property>
+                <property name="label" translatable="yes">Save</property>
                 <property name="width_request">60</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -6197,7 +6337,6 @@
     <property name="value">50</property>
     <property name="step_increment">10</property>
     <property name="page_increment">10</property>
-    <property name="page_size">10</property>
   </object>
   <object class="GtkWindow" id="layout_window">
     <property name="width_request">480</property>

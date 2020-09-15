@@ -199,19 +199,19 @@ impl PlotWorkspace {
                 (false, false) => 2,
             },
             (3, GroupSplit::ThreeRight) => match (x_left, y_top) {
-                (true, false) => 0,
+                (true, true) => 0,
                 (false, _) => 1,
-                (true, true) => 2,
+                (true, false) => 2,
             },
             (3, GroupSplit::ThreeBottom) => match (x_left, y_top) {
-                (true, false) => 0,
-                (false, false) => 1,
-                (_, true) => 2,
+                (true, true) => 0,
+                (false, true) => 1,
+                (_, false) => 2,
             },
             (4, _) => match (x_left, y_top) {
                     (true, true) => 0,
-                    (true, false) => 1,
-                    (false, true) => 2,
+                    (false, true) => 1,
+                    (true, false) => 2,
                     (false, false) => 3,
             },
             _ => panic!("Undefined plot size")
@@ -226,7 +226,7 @@ impl PlotWorkspace {
         status_stack : StatusStack,
         plot_toggle : ToggleButton,
         table_toggle : ToggleButton,
-        sidebar_stack : Stack
+        sidebar_stack : Stack,
     ) -> Self {
         let mapping_menus = Rc::new(RefCell::new(Vec::new()));
         let design_menu = build_design_menu(&builder, pl_view.clone());
@@ -240,38 +240,38 @@ impl PlotWorkspace {
         {
             let pl_view = pl_view.clone();
             let plot_popover = plot_popover.clone();
+            let scale_menus = scale_menus.clone();
             plot_ev.connect_button_press_event(move |wid, ev| {
                 let (x, y) = ev.get_position();
                 let w = wid.get_allocation().width;
                 let h = wid.get_allocation().height;
-                if let Ok(mut pl) = pl_view.try_borrow_mut() {
-                    let ix = Self::updated_active_area(&*pl, x as i32, y as i32, w, h);
-                    println!("Active area: {}", ix);
-                    pl.change_active_area(ix);
-                    plot_popover.set_active_mapping(ix, None);
+                let (ar, info_x, info_y) = if let Ok(mut pl) = pl_view.try_borrow_mut() {
+                    let new_ix = Self::updated_active_area(&*pl, x as i32, y as i32, w, h);
+                    println!("New Active area: {}", new_ix);
+                    pl.change_active_area(new_ix);
+                    plot_popover.set_active_mapping(new_ix, None);
+                    println!("Before update: {:?}", pl.current_scale_info("x"));
+                    (pl.aspect_ratio(), pl.current_scale_info("x"), pl.current_scale_info("y"))
                 } else {
                     println!("Failed acquiring mutable reference to plot view/selected mapping");
-                }
+                    return glib::signal::Inhibit(true);
+                };
+                scale_menus.0.update(info_x.clone());
+                scale_menus.1.update(info_y);
+                println!("After update: {:?}", info_x);
                 println!("Draw area touched at {:?}", (x, y));
                 plot_popover.show_from_click(
                     &ev,
                     w,
                     h,
                     pl_view.borrow().group_split(),
-                    pl_view.borrow().get_active_area()
+                    pl_view.borrow().get_active_area(),
+                    ar
                 );
+                println!("After click: {:?}", info_x);
                 glib::signal::Inhibit(true)
             });
         }
-        let layout_window = LayoutWindow::new(
-            builder.clone(),
-            pl_view.clone(),
-            mapping_menus.clone(),
-            plot_popover.mapping_stack.clone(),
-            layout_path.clone(),
-            design_menu.clone(),
-            scale_menus.clone()
-        );
         let layout_toolbar = LayoutToolbar::build(
             builder.clone(),
             status_stack.clone(),
@@ -285,6 +285,16 @@ impl PlotWorkspace {
             plot_toggle.clone(),
             glade_def.clone(),
             sel_mapping.clone()
+        );
+        let layout_window = LayoutWindow::new(
+            builder.clone(),
+            pl_view.clone(),
+            mapping_menus.clone(),
+            plot_popover.mapping_stack.clone(),
+            layout_path.clone(),
+            design_menu.clone(),
+            scale_menus.clone(),
+            layout_toolbar.group_toolbar.clone()
         );
         layout_toolbar.connect_add_mapping_clicked(
             plot_popover.clone(),
@@ -333,7 +343,8 @@ impl PlotWorkspace {
             plot_toggle,
             layout_window.clone(),
             layout_path.clone(),
-            (layout_window.horiz_ar_scale.clone(), layout_window.vert_ar_scale.clone())
+            (layout_window.horiz_ar_scale.clone(), layout_window.vert_ar_scale.clone()),
+            layout_toolbar.group_toolbar.clone()
         );
 
         {
@@ -342,9 +353,12 @@ impl PlotWorkspace {
             let plot_popover = plot_popover.clone();
             let layout_toolbar = layout_toolbar.clone();
             plot_popover.tbl_btn.clone().connect_clicked(move |btn| {
-                let mapping_ix = plot_popover.get_selected_mapping();
-                layout_toolbar.update_selected_mapping(tbl_nb.clone(), mapping_menus.clone(), mapping_ix);
-                table_toggle.set_active(true);
+                if let Some(mapping_ix) = plot_popover.get_selected_mapping() {
+                    layout_toolbar.update_selected_mapping(tbl_nb.clone(), mapping_menus.clone(), mapping_ix);
+                    table_toggle.set_active(true);
+                } else {
+                    println!("No selected mapping");
+                }
             });
         }
         if let Ok(pl_view) = pl_view.try_borrow() {
@@ -388,7 +402,8 @@ impl PlotWorkspace {
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_popover : PlotPopover,
-        status_stack : StatusStack
+        status_stack : StatusStack,
+        active_area : usize
     ) {
         println!("Adding mapping of type {}", mapping_type);
         let name = if let Ok(menus) = mapping_menus.try_borrow() {
@@ -410,7 +425,8 @@ impl PlotWorkspace {
             mapping_type.to_string(),
             data_source.clone(),
             plot_view.clone(),
-            None
+            None,
+            active_area
         );
         match menu {
             Ok(m) => {
@@ -456,41 +472,46 @@ impl PlotWorkspace {
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
     ) {
-        let new_info = match plot_view.try_borrow() {
-            Ok(pl_view) => pl_view.mapping_info(),
-            Err(e) => { println!("{}", e); return; }
-        };
         Self::clear_all_mappings(
             mapping_menus.clone(),
             plot_popover.mapping_stack.clone()
         ).expect("Error clearing mappings");
-        for m_info in new_info.iter() {
-            let menu = MappingMenu::create(
-                glade_def.clone(),
-                Rc::new(RefCell::new(m_info.0.clone())),
-                m_info.1.clone(),
-                data_source.clone(),
-                plot_view.clone(),
-                Some(m_info.2.clone()),
-            );
-            match menu {
-                Ok(m) => {
-                    Self::append_mapping_menu(
-                        m,
-                        mapping_menus.clone(),
-                        //plot_notebook.clone(),
-                        plot_popover.clone(),
-                        status_stack.clone(),
-                        plot_view.clone(),
-                        data_source.clone(),
-                        tbl_nb.clone(),
-                        None,
-                        false
-                    );
-                },
+        let n_plots = plot_view.borrow().n_plots();
+        for plot_ix in 0..n_plots {
+            let new_info = match plot_view.try_borrow_mut() {
+                Ok(mut pl_view) => { pl_view.change_active_area(plot_ix); pl_view.mapping_info() },
                 Err(e) => { println!("{}", e); return; }
+            };
+            for m_info in new_info.iter() {
+                let menu = MappingMenu::create(
+                    glade_def.clone(),
+                    Rc::new(RefCell::new(m_info.0.clone())),
+                    m_info.1.clone(),
+                    data_source.clone(),
+                    plot_view.clone(),
+                    Some(m_info.2.clone()),
+                    plot_ix
+                );
+                match menu {
+                    Ok(m) => {
+                        Self::append_mapping_menu(
+                            m,
+                            mapping_menus.clone(),
+                            //plot_notebook.clone(),
+                            plot_popover.clone(),
+                            status_stack.clone(),
+                            plot_view.clone(),
+                            data_source.clone(),
+                            tbl_nb.clone(),
+                            None,
+                            false
+                        );
+                    },
+                    Err(e) => { println!("{}", e); return; }
+                }
             }
         }
+        plot_view.borrow_mut().change_active_area(0);
     }
 
     pub fn update_mapping_data(
@@ -534,8 +555,8 @@ impl PlotWorkspace {
                 if let Ok(name) = m.mapping_name.try_borrow() {
                     pl.update(&mut UpdateContent::NewMapping(
                         name.clone(),
-                        m.mapping_type.to_string())
-                    );
+                        m.mapping_type.to_string(),
+                        m.plot_ix));
                     if with_data {
                         if let Err(e) = m.reassign_data(tbl_nb.full_selected_cols(), &t_env, &mut pl) {
                             status_stack.update(Status::SqlErr(format!("{}", e)));
@@ -568,7 +589,9 @@ impl PlotWorkspace {
         }
     }
 
-    /// Clear only mappings, preserving the layout
+    /// Clear only mappings, preserving the layout. Should be called
+    /// at the moment a new layout is loaded (at self.clear) or else
+    /// the XML will be in an invalid state.
     pub fn clear_mappings(&self) -> Result<(), &'static str> {
         Self::clear_all_mappings(
             self.mapping_menus.clone(),
@@ -578,6 +601,9 @@ impl PlotWorkspace {
         Ok(())
     }
 
+    /// Should be called
+    /// at the moment a new layout is loaded (at self.clear) or else
+    /// the XML will be in an invalid state.
     pub fn clear_all_mappings(
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_stack : Stack,

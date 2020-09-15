@@ -101,6 +101,10 @@ impl ContextMapper {
     }
 
     pub fn map(&self, x : f64, y : f64) -> Coord2D {
+        // This padding works fine for the single-layout plot,
+        // but we sould increase it in either or both the horizontal
+        // or vertical dimension if they are shared by more than one plot
+        // (to leave enough room for labels under the minimum aspect ratio).
         let padw = 0.1*(self.w as f64);
         let padh = 0.1*(self.h as f64);
         let dataw = (self.w as f64) - 2.0*padw;

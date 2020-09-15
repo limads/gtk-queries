@@ -110,7 +110,7 @@ impl TableNotebook {
                     println!("Currently selected column via right click: {}", curr);
                     if selected.iter().find(|s| **s == curr).is_some() {
                         mapping_popover.set_relative_to(Some(ev_bx));
-                        layout_toolbar.set_add_or_edit_mapping_sensitive(
+                        layout_toolbar.update_mapping_status(
                             mapping_menus.clone(),
                             &plot_popover,
                             &selected,

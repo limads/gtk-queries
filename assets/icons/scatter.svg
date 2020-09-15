@@ -21,7 +21,7 @@
    height="16"><metadata
    id="metadata57"><rdf:RDF><cc:Work
        rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
-         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title></dc:title></cc:Work></rdf:RDF></metadata><defs
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title /></cc:Work></rdf:RDF></metadata><defs
    id="defs55" /><sodipodi:namedview
    pagecolor="#ffffff"
    bordercolor="#666666"
@@ -32,14 +32,14 @@
    inkscape:pageopacity="0"
    inkscape:pageshadow="2"
    inkscape:window-width="1920"
-   inkscape:window-height="1012"
+   inkscape:window-height="1016"
    id="namedview53"
    showgrid="false"
-   inkscape:zoom="13.520481"
-   inkscape:cx="4.6235767"
-   inkscape:cy="15.668418"
+   inkscape:zoom="27.040962"
+   inkscape:cx="-4.032168"
+   inkscape:cy="6.7263488"
    inkscape:window-x="0"
-   inkscape:window-y="32"
+   inkscape:window-y="27"
    inkscape:window-maximized="1"
    inkscape:current-layer="g18" />
 <g
@@ -48,18 +48,18 @@
 	<g
    id="g18">
 		<polygon
-   style="fill:#030104"
+   style="fill:#3d3d3d;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    points="17.455,17.325 17.455,15.667 1.658,15.667 1.658,0.13 0,0.13 0,17.325 "
    id="polygon2"
    transform="matrix(0.90412115,0,0,0.90412115,0,1.6611015)" />
 		<circle
-   style="fill:#030104;stroke-width:0.90412116"
+   style="fill:#3d3d3d;stroke-width:0.90412116;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    cx="4.641758"
    cy="12.368608"
    r="1.3733602"
    id="circle4" />
 		<circle
-   style="fill:#030104;stroke-width:0.90412116"
+   style="fill:#3d3d3d;stroke-width:0.90412116;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    cx="5.5576324"
    cy="8.5604496"
    r="1.3733602"
@@ -67,19 +67,19 @@
 		
 		
 		<circle
-   style="fill:#030104;stroke-width:0.90412116"
+   style="fill:#3d3d3d;stroke-width:0.90412116;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    cx="12.530214"
    cy="7.5903282"
    r="1.3742641"
    id="circle12" />
 		<circle
-   style="fill:#030104;stroke-width:0.90412116"
+   style="fill:#3d3d3d;stroke-width:0.90412116;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    cx="9.7524033"
    cy="10.336144"
    r="1.3742641"
    id="circle14" />
 		<circle
-   style="fill:#030104;stroke-width:0.90412116"
+   style="fill:#3d3d3d;stroke-width:0.90412116;stroke:#3d3d3d;stroke-opacity:0;fill-opacity:1"
    cx="10.823235"
    cy="4.8427038"
    r="1.3733602"

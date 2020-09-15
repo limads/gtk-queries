@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 use crate::plots::layout_aux::*;
-use crate::tables::{ /*source::EnvironmentSource,*/ environment::TableEnvironment};
+use crate::tables::{environment::TableEnvironment};
 use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
@@ -66,7 +66,8 @@ impl MappingMenu {
         mapping_type : String,
         tbl_env : Rc<RefCell<TableEnvironment>>,
         pl_view : Rc<RefCell<PlotView>>,
-        properties : Option<HashMap<String, String>>
+        properties : Option<HashMap<String, String>>,
+        plot_ix : usize
     ) -> Result<MappingMenu, &'static str> {
         let builder = Builder::from_string(&glade_def[&mapping_type][..]);
         let valid_mappings = ["line", "scatter", "bar", "area", "text", "surface"];
@@ -79,7 +80,7 @@ impl MappingMenu {
         let mut source_content : DataSource = Default::default();
         source_content.hist_ix = tbl_env.borrow().current_hist_index();
         let source = Rc::new(RefCell::new(source_content));
-        let plot_ix = pl_view.borrow().get_active_area();
+        // let plot_ix = pl_view.borrow().get_active_area();
         let tab_img = MappingMenu::create_tab_image(mapping_type.clone());
         let mut m = MappingMenu {
             mapping_name,
@@ -329,7 +330,6 @@ impl MappingMenu {
                     "origin_y".into(),
                     "mapping"
                 );
-
                 self.design_widgets.insert("bar_origin_y_entry".into(), origin_y_entry.upcast());
 
                 let spacing_entry : Entry =

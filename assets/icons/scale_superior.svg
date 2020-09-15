@@ -43,7 +43,7 @@
       <path
          id="path953"
          d="M 5.77,0.0 L -2.88,5.0 L -2.88,-5.0 L 5.77,0.0 z "
-         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1;fill:#000000;fill-opacity:1"
+         style="fill-rule:evenodd;stroke:#3d3d3d;stroke-width:1pt;stroke-opacity:1;fill:#3d3d3d;fill-opacity:1"
          transform="scale(-0.4)" />
     </marker>
     <marker
@@ -82,9 +82,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="44.8"
-     inkscape:cx="2.0955673"
-     inkscape:cy="7.4493528"
+     inkscape:zoom="22.4"
+     inkscape:cx="-8.1078791"
+     inkscape:cy="3.2920684"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -112,7 +112,7 @@
      id="layer1"
      transform="translate(0,-292.76665)">
     <path
-       style="fill:none;stroke:#000000;stroke-width:0.24;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#TriangleInM);marker-end:"
+       style="fill:none;stroke:#3d3d3d;stroke-width:0.24;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-start:url(#TriangleInM)"
        d="m 2.1281475,293.46715 v 2.83704"
        id="path815"
        inkscape:connector-curvature="0" />

@@ -31,8 +31,11 @@ pub struct MappingSelection {
     pub valid_ix : Vec<Vec<usize>>,
 
     /// This indexes the inner vectors of valid_ix, and is
-    /// controled by the left/right arrows at PlotPopover.
-    pub curr_ix : usize
+    /// controled by the left/right arrows at PlotPopover. curr_ix is a direct
+    /// index to a stack that always has at least the "empty plot" child, so
+    /// when there are no mappings, curr_ix is zero to index this element; for n
+    /// children curr_ix index the mapping children as (1..n).
+    pub curr_ix : Option<usize>
 }
 
 /// PlotPopover encapsulates the logic for when the user right-clicks the scales or content
@@ -74,7 +77,7 @@ impl PlotPopover {
         let sel = MappingSelection {
             plot_ix : 0,
             valid_ix : vec![Vec::new(), Vec::new(), Vec::new(), Vec::new()],
-            curr_ix : 0
+            curr_ix : None
         };
         let sel_mapping = Rc::new(RefCell::new(sel));
         mapping_select_toolbar.insert(&tbl_btn, 0);
@@ -137,6 +140,19 @@ impl PlotPopover {
         plot_popover
     }
 
+    pub fn replace_mapping(&self, src_plot : usize, src_ix : usize, dst_plot : usize) {
+        if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
+            if let Some(old_ix) = sel_mapping.valid_ix[src_plot].iter().position(|s| *s == src_ix) {
+                sel_mapping.valid_ix[src_plot].remove(old_ix);
+                sel_mapping.valid_ix[dst_plot].push(src_ix);
+            } else {
+                println!("Old selection index not found");
+            }
+        } else {
+            println!("Unable to borrow selected mapping mutably");
+        }
+    }
+
     pub fn clear(&self) {
         self.mapping_stack.set_visible_child_name("empty");
         self.mapping_stack.show_all();
@@ -149,7 +165,7 @@ impl PlotPopover {
         for ix_vec in sel.valid_ix.iter_mut() {
             ix_vec.clear();
         }
-        sel.curr_ix = 0;
+        sel.curr_ix = None;
         self.forward_btn.set_sensitive(false);
         self.backward_btn.set_sensitive(false);
         self.tbl_btn.set_sensitive(false);
@@ -162,21 +178,25 @@ impl PlotPopover {
         forward: bool
     ) {
         if let Ok(mut sel) = sel_mapping.try_borrow_mut() {
-            if sel.curr_ix < sel.valid_ix[sel.plot_ix].len()  {
-                if forward {
-                    sel.curr_ix += 1;
+            if let Some(curr_ix) = sel.curr_ix {
+                if curr_ix < sel.valid_ix[sel.plot_ix].len()  {
+                    if forward {
+                        sel.curr_ix = Some(curr_ix + 1);
+                    } else {
+                        sel.curr_ix = Some(curr_ix - 1);
+                    }
+                    let children = mapping_stack.get_children();
+                    if let Some(child) = children.get(sel.valid_ix[sel.plot_ix][curr_ix]) {
+                        mapping_stack.set_visible_child(child);
+                    } else {
+                        println!("Child not found at index {:?}", sel);
+                    }
+                    println!("Current selection (navigate): {:?}", sel);
                 } else {
-                    sel.curr_ix -= 1;
+                    println!("Extrapolated plot index (Curr ix : {:?})", sel);
                 }
-                let children = mapping_stack.get_children();
-                if let Some(child) = children.get(sel.valid_ix[sel.plot_ix][sel.curr_ix]) {
-                    mapping_stack.set_visible_child(child);
-                } else {
-                    println!("Child not found at index {:?}", sel);
-                }
-                println!("Current selection (navigate): {:?}", sel);
             } else {
-                println!("Extrapolated plot index (Curr ix : {:?})", sel);
+                println!("No current index to support navigation");
             }
         } else {
             println!("Failed to acquire mutable borrow over selected mapping/selected mapping empty");
@@ -186,15 +206,24 @@ impl PlotPopover {
     pub fn set_active_mapping(&self, plot_ix : usize, curr_ix : Option<usize>) {
         if let Ok(mut sel) = self.sel_mapping.try_borrow_mut() {
             sel.plot_ix = plot_ix;
-            sel.curr_ix = curr_ix.unwrap_or(0);
+            sel.curr_ix = curr_ix;
             let children = self.mapping_stack.get_children();
             if children.len() == 1 {
                 self.mapping_stack.set_visible_child(children.get(0).unwrap());
             } else {
-                if let Some(child) = children.get(sel.valid_ix[plot_ix][sel.curr_ix]) {
-                    self.mapping_stack.set_visible_child(child);
+                if let Some(curr_ix) = sel.curr_ix {
+                    if let Some(ix) = sel.valid_ix[plot_ix].get(curr_ix) {
+                        println!("Setting visible child at: {:?}", ix);
+                        if let Some(child) = children.get(*ix + 1) {
+                            self.mapping_stack.set_visible_child(child);
+                        } else {
+                            println!("No child found at index {}", sel.valid_ix[plot_ix][curr_ix]);
+                        }
+                    } else {
+                        println!("No valid index selected");
+                    }
                 } else {
-                    println!("No child found at index {}", sel.valid_ix[plot_ix][sel.curr_ix]);
+                    println!("No current index to be set as active");
                 }
             }
             println!("Current selection (set_active): {:?}", sel);
@@ -218,20 +247,24 @@ impl PlotPopover {
                     self.backward_btn.set_sensitive(false);
                 },
                 n => {
-                    if sel_mapping.curr_ix == 0 {
-                        self.tbl_btn.set_sensitive(true);
-                        self.backward_btn.set_sensitive(false);
-                        self.forward_btn.set_sensitive(true);
-                    } else {
-                        if sel_mapping.curr_ix == curr_sz - 1 {
+                    if let Some(curr_ix) = sel_mapping.curr_ix {
+                        if curr_ix == 0 {
                             self.tbl_btn.set_sensitive(true);
-                            self.backward_btn.set_sensitive(true);
-                            self.forward_btn.set_sensitive(false);
-                        } else {
-                            self.tbl_btn.set_sensitive(true);
-                            self.backward_btn.set_sensitive(true);
+                            self.backward_btn.set_sensitive(false);
                             self.forward_btn.set_sensitive(true);
+                        } else {
+                            if curr_ix == curr_sz - 1 {
+                                self.tbl_btn.set_sensitive(true);
+                                self.backward_btn.set_sensitive(true);
+                                self.forward_btn.set_sensitive(false);
+                            } else {
+                                self.tbl_btn.set_sensitive(true);
+                                self.backward_btn.set_sensitive(true);
+                                self.forward_btn.set_sensitive(true);
+                            }
                         }
+                    } else {
+                        println!("No current index to update nav sensitive");
                     }
                 }
             }
@@ -248,14 +281,20 @@ impl PlotPopover {
                 children.get(0).unwrap()
             } else {
                 let valid_ixs = &sel.valid_ix[sel.plot_ix];
-                println!("Valid indices: {:?}", valid_ixs);
+                println!("Current selection (update stack): {:?}", sel);
                 if valid_ixs.len() == 0 {
                     children.get(0).unwrap()
                 } else {
-                    if let Some(child) = children.get(valid_ixs[sel.curr_ix]) {
-                        child
+                    if let Some(curr_ix) = sel.curr_ix {
+                        // add +1 to account for the "empty plot" widget.
+                        if let Some(child) = children.get(curr_ix + 1) {
+                            child
+                        } else {
+                            println!("No child at index {} to update stack", valid_ixs[curr_ix]);
+                            return;
+                        }
                     } else {
-                        println!("No child at index {} to update stack", valid_ixs[sel.curr_ix]);
+                        println!("No current index to update stack");
                         return;
                     }
                 }
@@ -268,14 +307,16 @@ impl PlotPopover {
     }
 
     pub fn add_mapping(&self, m : &MappingMenu) {
+        // Subtract -1 to account for the empty plot widet;
         let mapping_stack = &self.mapping_stack;
-        mapping_stack.add(&m.get_parent());
         let children = mapping_stack.get_children();
         let n_mappings = children.len() - 1;
+        mapping_stack.add(&m.get_parent());
+
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             let pl_ix = m.plot_ix;
             sel_mapping.valid_ix[pl_ix].push(n_mappings);
-            sel_mapping.curr_ix = n_mappings - 1;
+            sel_mapping.curr_ix = Some(n_mappings);
             sel_mapping.plot_ix = pl_ix;
             println!("n_mappings: {}", n_mappings);
             println!("n_children: {}", n_mappings);
@@ -284,6 +325,7 @@ impl PlotPopover {
         } else {
             println!("Failed acquiring mutable reference to selected mapping");
         }
+        mapping_stack.show_all();
         self.update_stack();
         self.update_nav_sensitive();
     }
@@ -302,22 +344,22 @@ impl PlotPopover {
             }
             let pl_ix = sel_mapping.valid_ix
                 .iter()
-                .position(|v| v.iter().position(|i| *i == ix+1 ).is_some() )
-                //.position(|v| v.iter().position(|i| *i == ix ).is_some() )
+                .position(|v| v.iter().position(|i| *i == ix ).is_some() )
                 .unwrap();
             let m_ix = sel_mapping.valid_ix[pl_ix]
                 .iter()
-                .position(|i| *i == ix+1 )
-                //.position(|i| *i == ix )
+                .position(|i| *i == ix )
                 .unwrap();
             println!("Removing at plot {} at plot index {}", pl_ix, m_ix);
             sel_mapping.valid_ix[pl_ix].remove(m_ix);
             for m in sel_mapping.valid_ix[pl_ix].iter_mut().skip(m_ix) {
                 *m -= 1;
             }
-            sel_mapping.curr_ix = 0;
             if sel_mapping.valid_ix[pl_ix].len() == 0 {
                 sel_mapping.plot_ix = 0;
+                sel_mapping.curr_ix = None;
+            } else {
+                sel_mapping.curr_ix = Some(0);
             }
             println!("Current selection (remove_selected_mapping): {:?}", sel_mapping);
         } else {
@@ -341,30 +383,95 @@ impl PlotPopover {
             y > h as f64 *rect.2 && y < h as f64 * rect.3
     }
 
+    // Rect in the form (x start, x end, y start, y end) in pixels
+    // Returns in the form (top_left_x, top_left_y, width, height) in pixels
+    fn get_popover_coords(rect : (f64, f64, f64, f64), w : i32, h : i32) -> (i32, i32, i32, i32) {
+        let (scale_popover_x, scale_popover_y) = (
+            ((rect.0 + (rect.1 - rect.0)*0.5)*w as f64) as i32,
+            ((rect.2 + (rect.3 - rect.2)*0.5)*h as f64) as i32
+        );
+        let (scale_width, scale_height) = (
+            ((rect.1 - rect.0)*w as f64) as i32,
+            ((rect.3 - rect.2)*h as f64) as i32
+        );
+        (scale_popover_x, scale_popover_y, scale_width, scale_height)
+    }
+
     /// Show either the x/y scale popovers or the data popover from a click,
     /// dependin on where the click was made.
-    pub fn show_from_click(&self, ev : &EventButton, w : i32, h : i32, layout : GroupSplit, active_area : usize) {
+    pub fn show_from_click(
+        &self,
+        ev : &EventButton,
+        w : i32,
+        h : i32,
+        layout : GroupSplit,
+        active_area : usize,
+        aspect_ratio : (f64, f64)
+    ) {
         let (x, y) = ev.get_position();
+        let (ar_horiz, ar_vert) = aspect_ratio;
         //let w = ev.get_allocation().width; //wid (draw area)
         //let h = ev.get_allocation().height; //wid (draw area)
 
+        // Rect in the form (x start, x end, y start, y end)
+        let scale_sz = 0.1;
+
+        // Used for unique layout
+        let x_rect_full = (0.0, 1.0, 1.0 - scale_sz, 1.0);
+        let y_rect_full = (0.0, scale_sz, 0.0, 1.0);
+
+        println!("AR: {:?}", aspect_ratio);
+        // Used for 2 and 3 (major plot) layouts
+        let x_rect_full_top = (0.0, 1.0, ar_vert - scale_sz, ar_vert);
+        let y_rect_full_top = (0.0, scale_sz, 0.0, ar_vert);
+        let x_rect_full_bottom = (0.0, 1.0, 1.0 - scale_sz, 1.0);
+        let y_rect_full_bottom = (0.0, scale_sz, ar_vert, 1.0);
+        let x_rect_full_left = (0.0, ar_horiz, 1.0 - scale_sz, 1.0);
+        let y_rect_full_left = (0.0, scale_sz, 0.0, 1.0);
+        let x_rect_full_right = (ar_horiz, 1.0, 1.0 - scale_sz, 1.0);
+        let y_rect_full_right = (ar_horiz, ar_horiz + scale_sz, 0.0, 1.0);
+
+        // Used for 3 (minor) and 4 layouts
+        let four_tl_x = (0.0, ar_horiz, ar_vert - scale_sz, ar_vert);
+        let four_tl_y = (0.0, scale_sz, 0.0, ar_vert);
+        let four_tr_x = (ar_horiz, 1.0, ar_vert - scale_sz, ar_vert);
+        let four_tr_y = (ar_horiz, ar_horiz + scale_sz, 0.0, ar_vert);
+        let four_bl_x = (0.0, ar_horiz, 1.0 - scale_sz, 1.0);
+        let four_bl_y = (0.0, scale_sz, ar_vert, 1.0);
+        let four_br_x = (ar_horiz, 1.0, 1.0 - scale_sz, 1.0);
+        let four_br_y = (ar_horiz, ar_horiz + scale_sz, ar_vert, 1.0);
+
         let (x_rect, y_rect) = match (layout, active_area) {
-            (GroupSplit::Unique, _) => ((0.0, 1.0, 0.9, 1.0), (0.0, 0.1, 0.0, 1.0)),
-            (GroupSplit::Vertical, 0) => ((0.0, 0.5, 0.9, 1.0), (0.0, 0.1, 0.0, 1.0)),
-            (GroupSplit::Vertical, 1) => ((0.5, 1.0, 0.9, 1.0), (0.5, 0.6, 0.0, 1.0)),
-            (GroupSplit::Horizontal, 0) => ((0.0, 1.0, 0.4, 0.5), (0.0, 0.1, 0.0, 0.5)),
-            (GroupSplit::Horizontal, 1) => ((0.0, 1.0, 0.9, 1.0), (0.0, 0.1, 0.5, 1.0)),
-            (GroupSplit::Four, 0) => ((0.0, 0.5, 0.4, 0.5), (0.0, 0.1, 0.0, 0.5)),
-            (GroupSplit::Four, 1) => ((0.5, 1.0, 0.4, 0.5), (0.5, 0.6, 0.5, 1.0)),
-            (GroupSplit::Four, 2) => ((0.0, 0.5, 0.9, 1.0), (0.0, 0.1, 0.5, 1.0)),
-            (GroupSplit::Four, 3) => ((0.5, 1.0, 0.9, 1.0), (0.5, 0.6, 0.5, 1.0)),
-            _ => unimplemented!()
+            (GroupSplit::Unique, _) => (x_rect_full, y_rect_full),
+            (GroupSplit::Vertical, 0) => (x_rect_full_top, y_rect_full_top),
+            (GroupSplit::Vertical, 1) => (x_rect_full_bottom, y_rect_full_bottom),
+            (GroupSplit::Horizontal, 0) => (x_rect_full_left, y_rect_full_left),
+            (GroupSplit::Horizontal, 1) => (x_rect_full_right, y_rect_full_right),
+            (GroupSplit::ThreeLeft, 0) => (x_rect_full_left, y_rect_full_left),
+            (GroupSplit::ThreeLeft, 1) => (four_tr_x, four_tr_y),
+            (GroupSplit::ThreeLeft, 2) => (four_br_x, four_br_y),
+            (GroupSplit::ThreeTop, 0) => (x_rect_full_top, y_rect_full_top),
+            (GroupSplit::ThreeTop, 1) => (four_bl_x, four_bl_y),
+            (GroupSplit::ThreeTop, 2) => (four_br_x, four_br_y),
+            (GroupSplit::ThreeRight, 0) => (four_tl_x, four_tl_y),
+            (GroupSplit::ThreeRight, 1) => (x_rect_full_right, y_rect_full_right),
+            (GroupSplit::ThreeRight, 2) => (four_bl_x, four_bl_y),
+            (GroupSplit::ThreeBottom, 0) => (four_tl_x, four_tl_y),
+            (GroupSplit::ThreeBottom, 1) => (four_tr_x, four_tr_y),
+            (GroupSplit::ThreeBottom, 2) => (x_rect_full_bottom, y_rect_full_bottom),
+            (GroupSplit::Four, 0) => (four_tl_x, four_tl_y),
+            (GroupSplit::Four, 1) => (four_tr_x, four_tr_y),
+            (GroupSplit::Four, 2) => (four_bl_x, four_bl_y),
+            (GroupSplit::Four, 3) => (four_br_x, four_br_y),
+            _ => panic!("Invalid plot position")
         };
         if ev.get_button() == 3 {
             if Self::within_rect(x, y, w, h, y_rect) {
+                let popover_rect = Self::get_popover_coords(y_rect, w, h);
+                println!("Popover pointing to {:?}", popover_rect);
                 self.scale_y_popover.set_pointing_to(&Rectangle{
-                    x : x as i32,
-                    y : y as i32,
+                    x : popover_rect.0,
+                    y : popover_rect.1,
                     width : 10,
                     height : 10
                 });
@@ -373,9 +480,11 @@ impl PlotPopover {
                 self.data_popover.hide();
             } else {
                 if Self::within_rect(x, y, w, h, x_rect) {
+                    let popover_rect = Self::get_popover_coords(x_rect, w, h);
+                    println!("Popover pointing to {:?}", popover_rect);
                     self.scale_x_popover.set_pointing_to(&Rectangle{
-                        x : x as i32,
-                        y : y as i32,
+                        x : popover_rect.0,
+                        y : popover_rect.1,
                         width : 10,
                         height : 10
                     });
@@ -383,9 +492,10 @@ impl PlotPopover {
                     self.scale_y_popover.hide();
                     self.data_popover.hide();
                 } else {
+                    println!("Popover pointing to {:?}", (x, y, 10, 10));
                     self.data_popover.set_pointing_to(&Rectangle{
-                        x : (w as f64 * 0.5) as i32,
-                        y : (h as f64 * 0.5) as i32,
+                        x : x as i32,
+                        y : y as i32,
                         width : 10,
                         height : 10
                     });
@@ -404,12 +514,33 @@ impl PlotPopover {
     /// Gets the currently selected mapping, with respect to the global mapping
     /// vector. Since all mapping indices are offset by +1 (due to a first stack
     /// element being the empty plot label), subtract one from the valid index
-    /// to get the global mapping index.
-    pub fn get_selected_mapping(&self) -> usize {
+    /// to get the global mapping index. Returns none when there is no valid mapping
+    /// for the current plot
+    pub fn get_selected_mapping(&self) -> Option<usize> {
         if let Ok(sel) = self.sel_mapping.try_borrow() {
-            sel.valid_ix[sel.plot_ix][sel.curr_ix] - 1
+            if let Some(curr_ix) = sel.curr_ix {
+                sel.valid_ix[sel.plot_ix].get(curr_ix).map(|ix| *ix )
+            } else {
+                None
+            }
         } else {
             panic!("Failed acquiring reference to selected mapping");
+        }
+    }
+
+    /// Gets the active area of the currently-selected mapping.
+    pub fn get_selected_mapping_active_area(
+        &self,
+        mapping_menus : &Rc<RefCell<Vec<MappingMenu>>>
+    ) -> Option<usize> {
+        if let Some(sel) = self.get_selected_mapping() {
+            if let Some(m) = mapping_menus.borrow().get(sel) {
+                Some(m.plot_ix)
+            } else {
+                None
+            }
+        } else {
+            None
         }
     }
 

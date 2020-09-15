@@ -47,7 +47,11 @@ impl MainMenu {
         {
             let win = win.clone();
             btn.connect_clicked(move |_| {
-                win.show();
+                if win.get_visible() {
+                    win.grab_focus();
+                } else {
+                    win.show();
+                }
             });
         }
         win.set_destroy_with_parent(false);

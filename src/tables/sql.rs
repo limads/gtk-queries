@@ -191,7 +191,7 @@ pub enum SqlEngine {
 }
 
 enum AnyStatement {
-    Parsed(Statement),
+    Parsed(Statement, String),
     Raw(String)
 }
 
@@ -683,7 +683,7 @@ impl SqlEngine {
     /// build a message to display to the user.
     fn build_statement_result(any_stmt : &AnyStatement, n : usize) -> QueryResult {
         match any_stmt {
-            AnyStatement::Parsed(stmt) => match stmt {
+            AnyStatement::Parsed(stmt, _) => match stmt {
                 Statement::CreateView{..} => QueryResult::Modification(format!("Create view")),
                 Statement::CreateTable{..} | Statement::CreateVirtualTable{..} => {
                     QueryResult::Modification(format!("Create table"))
@@ -765,8 +765,8 @@ impl SqlEngine {
     // as a parameter to the empty slice.
     fn exec_postgre(conn : &mut postgres::Client, stmt : &AnyStatement) -> QueryResult {
         let ans = match stmt {
-            AnyStatement::Parsed(e) => {
-                let s = format!("{}", e);
+            AnyStatement::Parsed(stmt, s) => {
+                let s = format!("{}", stmt);
                 conn.execute(&s[..], &[])
             },
             AnyStatement::Raw(s) => conn.execute(&s[..], &[])
@@ -779,8 +779,8 @@ impl SqlEngine {
 
     fn exec_sqlite(conn : &mut rusqlite::Connection, stmt : &AnyStatement) -> QueryResult {
         let ans = match stmt {
-            AnyStatement::Parsed(e) => {
-                let s = format!("{}", e);
+            AnyStatement::Parsed(stmt, s) => {
+                let s = format!("{}", stmt);
                 conn.execute(&s[..], rusqlite::NO_PARAMS)
             },
             AnyStatement::Raw(s) => conn.execute(&s[..], rusqlite::NO_PARAMS)
@@ -887,12 +887,13 @@ impl SqlEngine {
                 for stmt in stmts {
                     // let (stmt, opt_sub) = filter_single_function_out(&stmt);
                     let stmt_string = stmt.to_string();
+                    println!("Parsed statement: {}", stmt_string);
                     match stmt {
                         Statement::Query(q) => {
                             results.push(Self::query_postgre(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            results.push(Self::exec_postgre(conn, &AnyStatement::Parsed(stmt)));
+                            results.push(Self::exec_postgre(conn, &AnyStatement::Parsed(stmt, stmt_string)));
                         }
                     }
                 }
@@ -908,7 +909,7 @@ impl SqlEngine {
                             results.push(Self::query_sqlite(conn, &format!("{}", q)));
                         },
                         stmt => {
-                            results.push(Self::exec_sqlite(conn, &AnyStatement::Parsed(stmt)));
+                            results.push(Self::exec_sqlite(conn, &AnyStatement::Parsed(stmt, stmt_string)));
                         }
                     }
                 }

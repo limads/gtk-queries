@@ -24,8 +24,8 @@ pub enum UpdateContent {
     /// Mapping name, position values, text values
     TextData(String, Vec<Vec<f64>>, Vec<String>),
 
-    /// Mapping name; Mapping type
-    NewMapping(String, String),
+    /// Mapping name; Mapping type; plot ix
+    NewMapping(String, String, usize),
 
     // Mapping id; Column names;
     ColumnNames(String, Vec<String>),
@@ -33,8 +33,8 @@ pub enum UpdateContent {
     // Mapping id; source
     Source(String, String),
 
-    /// Mapping id
-    RemoveMapping(String),
+    /// Mapping plot index, mapping id
+    RemoveMapping(usize, String),
 
     /// Mapping id; New id; New type.
     EditMapping(String, String, String),
@@ -46,6 +46,9 @@ pub enum UpdateContent {
 
     /// Clears all data and displays layout at the informed path
     Clear(String),
+
+    /// Old plot, old name, new plot
+    ReassignPlot((usize, String, usize))
 }
 
 impl PlotView {
@@ -68,12 +71,20 @@ impl PlotView {
         self.plot_group.aspect_ratio()
     }
 
+    pub fn n_plots(&self) -> usize {
+        self.plot_group.n_plots()
+    }
+
     pub fn change_active_area(&mut self, area : usize) {
         self.active_area = area;
     }
 
     pub fn get_active_area(&self) -> usize {
         self.active_area
+    }
+
+    pub fn set_active_area(&mut self, active : usize) {
+        self.active_area = active;
     }
 
     /* If you want to add the PlotDrawing behavior to an
@@ -164,8 +175,8 @@ impl PlotView {
             UpdateContent::Source(m_name, source) => {
                 self.plot_group.update_source(active, &m_name, source.clone());
             },
-            UpdateContent::NewMapping(m_name, m_type) => {
-                self.insert_mapping(active, m_name.clone(), m_type.clone());
+            UpdateContent::NewMapping(m_name, m_type, plot_ix) => {
+                self.insert_mapping(*plot_ix, m_name.clone(), m_type.clone());
                 self.parent.queue_draw();
             },
             UpdateContent::EditMapping(m_name, new_name, new_type) => {
@@ -177,8 +188,8 @@ impl PlotView {
                 self.plot_group.set_aspect_ratio(*opt_h, *opt_v);
                 self.parent.queue_draw();
             }
-            UpdateContent::RemoveMapping(m_name) => {
-                self.plot_group.remove_mapping(active, m_name);
+            UpdateContent::RemoveMapping(pl_ix, m_name) => {
+                self.plot_group.remove_mapping(*pl_ix, m_name);
                 self.parent.queue_draw();
             },
             //UpdateContent::RenameMapping(old, new) => {
@@ -188,6 +199,12 @@ impl PlotView {
                     println!("{}", e);
                 } else {
                     self.layout_path = path.to_string();
+                }
+                self.parent.queue_draw();
+            },
+            UpdateContent::ReassignPlot((old, name, new)) => {
+                if let Err(e) = self.plot_group.reassign_plot(*old, &name[..], *new) {
+                    println!("{}", e);
                 }
                 self.parent.queue_draw();
             }

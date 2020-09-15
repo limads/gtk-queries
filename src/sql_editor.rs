@@ -113,6 +113,7 @@ impl SqlEditor {
                 self.clone(),
             );
             content_stack.set_visible_child_name("queries_0");
+            self.file_list.select_last();
         } else {
             self.file_list.add_fresh_source(
                 content_stack.clone(),

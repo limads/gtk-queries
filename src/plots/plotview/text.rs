@@ -158,7 +158,10 @@ pub fn draw_label(
     let (glyphs, _) = sf.text_to_glyphs(pos.x, pos.y, label);
     let radius = (pos.x.powf(2.0) + pos.y.powf(2.0)).sqrt();
     if rotate {
-        ctx.translate(-radius + height, radius);
+        //ctx.translate(-radius + height, radius);
+        // Using 2*height instead of right renders the y label one label
+        // character height unit away from the left border.
+        ctx.translate(-radius + 2. * height, radius);
         ctx.rotate(-PI/2.0);
     }
     ctx.show_glyphs(&glyphs[..]);

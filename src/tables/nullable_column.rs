@@ -1,7 +1,6 @@
 use super::column::*;
 use postgres::types::{ToSql, FromSql};
 use std::marker::Sync;
-// use rust_decimal::Decimal;
 use std::convert::{TryFrom, TryInto};
 use std::mem;
 
@@ -43,6 +42,8 @@ impl<'a> NullableColumn {
                 content.push(String::from(Self::NULL));
                 n_ix += 1;
             } else {
+                // TODO thread 'main' panicked at 'index out of bounds: the len is 200 but
+                // the index is 200', src/tables/nullable_column.rs:46:30
                 content.push(valid_content[i - n_ix].clone());
             }
         }

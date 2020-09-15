@@ -15,7 +15,7 @@
    version="1.1"
    id="svg8"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
-   sodipodi:docname="group-four.svg">
+   sodipodi:docname="layout-four.svg">
   <defs
      id="defs2" />
   <sodipodi:namedview
@@ -26,8 +26,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="22.627417"
-     inkscape:cx="0.24138145"
-     inkscape:cy="4.5820317"
+     inkscape:cx="-7.5588902"
+     inkscape:cy="4.405255"
      inkscape:document-units="mm"
      inkscape:current-layer="g841"
      showgrid="false"
@@ -62,25 +62,26 @@
          transform="translate(-0.02674481,0.12359728)">
         <g
            id="g845"
-           transform="translate(-0.05514884,-0.02338528)">
+           transform="translate(-0.05514884,-0.02338528)"
+           style="stroke:#3d3d3d;stroke-opacity:1">
           <g
              id="g832"
              transform="matrix(0,0.38452927,-0.38452927,0,114.60756,292.95753)"
-             style="opacity:1;fill:none;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none">
+             style="opacity:1;fill:none;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
             <rect
                y="293.17383"
                x="0.26458332"
                height="3.4189594"
                width="3.5567744"
                id="rect830"
-               style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none" />
+               style="opacity:1;fill:none;fill-opacity:1;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
           </g>
           <g
-             style="opacity:1;fill:none;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none"
+             style="opacity:1;fill:none;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
              transform="matrix(0,0.38452927,-0.38452927,0,116.60707,292.95753)"
              id="g827">
             <rect
-               style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none"
+               style="opacity:1;fill:none;fill-opacity:1;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
                id="rect825"
                width="3.5567744"
                height="3.4189594"
@@ -88,11 +89,11 @@
                y="293.17383" />
           </g>
           <g
-             style="opacity:1;fill:none;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none"
+             style="opacity:1;fill:none;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
              transform="matrix(0,0.38452927,-0.38452927,0,114.60756,294.93365)"
              id="g831">
             <rect
-               style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none"
+               style="opacity:1;fill:none;fill-opacity:1;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
                id="rect829"
                width="3.5567744"
                height="3.4189594"
@@ -102,14 +103,14 @@
           <g
              id="g835"
              transform="matrix(0,0.38452927,-0.38452927,0,116.60707,294.93365)"
-             style="opacity:1;fill:none;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none">
+             style="opacity:1;fill:none;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
             <rect
                y="293.17383"
                x="0.26458332"
                height="3.4189594"
                width="3.5567744"
                id="rect833"
-               style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none" />
+               style="opacity:1;fill:none;fill-opacity:1;stroke:#3d3d3d;stroke-width:0.65014559;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
           </g>
         </g>
       </g>
