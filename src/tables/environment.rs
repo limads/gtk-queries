@@ -713,7 +713,7 @@ impl TableEnvironment {
     pub fn all_tables_as_rows(&self) -> Vec<Vec<Vec<String>>> {
         let mut tables = Vec::new();
         for t in self.tables.iter() {
-            tables.push(t.clone().truncate(200).text_rows());
+            tables.push(t.clone() /*.truncate(200).*/ .text_rows());
         }
         tables
         /*if let Some(t) = self.tables.iter().next() {

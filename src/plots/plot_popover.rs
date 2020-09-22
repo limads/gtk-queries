@@ -178,20 +178,24 @@ impl PlotPopover {
         forward: bool
     ) {
         if let Ok(mut sel) = sel_mapping.try_borrow_mut() {
+            println!("Current selection before nav: {:?}", sel);
             if let Some(curr_ix) = sel.curr_ix {
-                if curr_ix < sel.valid_ix[sel.plot_ix].len()  {
-                    if forward {
-                        sel.curr_ix = Some(curr_ix + 1);
+                if curr_ix < sel.valid_ix[sel.plot_ix].len() {
+                    let new_ix = if forward {
+                        curr_ix + 1
                     } else {
-                        sel.curr_ix = Some(curr_ix - 1);
-                    }
+                        curr_ix - 1
+                    };
+                    sel.curr_ix = Some(new_ix);
                     let children = mapping_stack.get_children();
-                    if let Some(child) = children.get(sel.valid_ix[sel.plot_ix][curr_ix]) {
+                    if let Some(child) = children.get(sel.valid_ix[sel.plot_ix][new_ix] + 1) {
+                        println!("setting child visible at index: {}", sel.valid_ix[sel.plot_ix][new_ix] + 1);
                         mapping_stack.set_visible_child(child);
+                        mapping_stack.show_all();
                     } else {
                         println!("Child not found at index {:?}", sel);
                     }
-                    println!("Current selection (navigate): {:?}", sel);
+                    println!("Current selection after nav: {:?}", sel);
                 } else {
                     println!("Extrapolated plot index (Curr ix : {:?})", sel);
                 }
@@ -203,33 +207,50 @@ impl PlotPopover {
         }
     }
 
+    /// Sets the first mapping of the plot as the active one (or shows empty plot if
+    /// there aren't any active).
+    pub fn set_active_first_mapping(&self, plot_ix : usize) {
+        let opt_active = if let Ok(sel) = self.sel_mapping.try_borrow() {
+            sel.valid_ix[plot_ix].get(0).cloned()
+        } else {
+            println!("Unable to borrow active mapping");
+            return;
+        };
+        self.set_active_mapping(plot_ix, opt_active);
+    }
+
     pub fn set_active_mapping(&self, plot_ix : usize, curr_ix : Option<usize>) {
         if let Ok(mut sel) = self.sel_mapping.try_borrow_mut() {
             sel.plot_ix = plot_ix;
             sel.curr_ix = curr_ix;
             let children = self.mapping_stack.get_children();
             if children.len() == 1 {
-                self.mapping_stack.set_visible_child(children.get(0).unwrap());
+                self.show_empty();
             } else {
                 if let Some(curr_ix) = sel.curr_ix {
                     if let Some(ix) = sel.valid_ix[plot_ix].get(curr_ix) {
                         println!("Setting visible child at: {:?}", ix);
                         if let Some(child) = children.get(*ix + 1) {
                             self.mapping_stack.set_visible_child(child);
+                            self.mapping_stack.show_all();
                         } else {
                             println!("No child found at index {}", sel.valid_ix[plot_ix][curr_ix]);
+                            self.show_empty();
                         }
                     } else {
                         println!("No valid index selected");
+                        self.show_empty();
                     }
                 } else {
-                    println!("No current index to be set as active");
+                    self.show_empty();
                 }
             }
             println!("Current selection (set_active): {:?}", sel);
         } else {
             println!("Failed to aquire mutable reference to sel_mapping");
         }
+        self.update_nav_sensitive();
+        self.update_stack();
     }
 
     pub fn update_nav_sensitive(&self) {
@@ -274,6 +295,13 @@ impl PlotPopover {
         }
     }
 
+    pub fn show_empty(&self) {
+        let children = self.mapping_stack.get_children();
+        let empty = &children[0];
+        self.mapping_stack.set_visible_child(empty);
+        self.mapping_stack.show_all();
+    }
+
     pub fn update_stack(&self) {
         if let Ok(sel) = self.sel_mapping.try_borrow() {
             let children = self.mapping_stack.get_children();
@@ -304,30 +332,35 @@ impl PlotPopover {
         } else {
             println!("Unable to borrow selected mapping");
         }
+        self.mapping_stack.show_all();
     }
 
-    pub fn add_mapping(&self, m : &MappingMenu) {
+    pub fn add_mapping(&self, m : &MappingMenu, pos : usize) {
         // Subtract -1 to account for the empty plot widet;
         let mapping_stack = &self.mapping_stack;
-        let children = mapping_stack.get_children();
-        let n_mappings = children.len() - 1;
+
+        // let n_mappings = children.len() - 1;
         mapping_stack.add(&m.get_parent());
 
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             let pl_ix = m.plot_ix;
-            sel_mapping.valid_ix[pl_ix].push(n_mappings);
-            sel_mapping.curr_ix = Some(n_mappings);
+            assert!(sel_mapping.valid_ix[pl_ix].iter().find(|i| **i == pos).is_none());
+            sel_mapping.valid_ix[pl_ix].push(pos);
+            let new_curr_ix = Some(sel_mapping.valid_ix[pl_ix].len() - 1);
+            sel_mapping.curr_ix = new_curr_ix;
             sel_mapping.plot_ix = pl_ix;
-            println!("n_mappings: {}", n_mappings);
-            println!("n_children: {}", n_mappings);
-            mapping_stack.set_visible_child(children.get(children.len() - 1).unwrap());
+            let children = mapping_stack.get_children();
+            if let Some(child) = children.get(children.len() - 1) {
+                mapping_stack.set_visible_child(child);
+            } else {
+                println!("Could not recover child from plot mapping stack");
+            }
             println!("Current selection (add_mapping): {:?}", sel_mapping);
+            self.set_active_mapping(pl_ix, new_curr_ix);
+            self.update_nav_sensitive();
         } else {
             println!("Failed acquiring mutable reference to selected mapping");
         }
-        mapping_stack.show_all();
-        self.update_stack();
-        self.update_nav_sensitive();
     }
 
     /// Removes the selected mapping
@@ -519,7 +552,7 @@ impl PlotPopover {
     pub fn get_selected_mapping(&self) -> Option<usize> {
         if let Ok(sel) = self.sel_mapping.try_borrow() {
             if let Some(curr_ix) = sel.curr_ix {
-                sel.valid_ix[sel.plot_ix].get(curr_ix).map(|ix| *ix )
+                sel.valid_ix[sel.plot_ix].get(curr_ix).cloned()
             } else {
                 None
             }

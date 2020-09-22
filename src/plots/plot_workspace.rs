@@ -249,7 +249,7 @@ impl PlotWorkspace {
                     let new_ix = Self::updated_active_area(&*pl, x as i32, y as i32, w, h);
                     println!("New Active area: {}", new_ix);
                     pl.change_active_area(new_ix);
-                    plot_popover.set_active_mapping(new_ix, None);
+                    plot_popover.set_active_first_mapping(new_ix);
                     println!("Before update: {:?}", pl.current_scale_info("x"));
                     (pl.aspect_ratio(), pl.current_scale_info("x"), pl.current_scale_info("y"))
                 } else {
@@ -551,7 +551,7 @@ impl PlotWorkspace {
                     None => mappings.push(m.clone())
                 }
 
-                plot_popover.add_mapping(&m);
+                plot_popover.add_mapping(&m, pos.unwrap_or(mappings.len() - 1));
                 if let Ok(name) = m.mapping_name.try_borrow() {
                     pl.update(&mut UpdateContent::NewMapping(
                         name.clone(),

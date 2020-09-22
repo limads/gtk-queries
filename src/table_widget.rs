@@ -266,15 +266,15 @@ impl TableWidget {
         }
         let nrows = data.len();
         let ncols = data[0].len();
-        self.nrows = nrows;
+        self.nrows = nrows.min(200);
         self.ncols = ncols;
         self.update_table_dimensions(
-            nrows as i32, ncols as i32);
-        for (i,row) in data.iter().enumerate() {
+            self.nrows as i32, self.ncols as i32);
+        for (i,row) in data.iter().enumerate().take(200) {
             for (j, col) in row.iter().enumerate() {
                 if i == 0 {
                     let ev_box = self.create_header_cell(
-                        &col[..], i, j, nrows, ncols);
+                        &col[..], i, j, self.nrows, self.ncols);
                     self.grid.add(&ev_box);
                     ev_box.realize();
                     if let Some(win) = ev_box.get_window() {
@@ -349,7 +349,7 @@ impl TableWidget {
                     self.grid.set_cell_top_attach(&ev_box, i as i32);
                 } else {
                     let cell = self.create_data_cell(
-                        &col[..], i, j, nrows, ncols);
+                        &col[..], i, j, self.nrows, self.ncols);
                     self.grid.add(&cell);
                     self.grid.set_cell_left_attach(&cell, j as i32);
                     self.grid.set_cell_top_attach(&cell, i as i32);
