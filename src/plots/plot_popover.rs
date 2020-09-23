@@ -210,13 +210,13 @@ impl PlotPopover {
     /// Sets the first mapping of the plot as the active one (or shows empty plot if
     /// there aren't any active).
     pub fn set_active_first_mapping(&self, plot_ix : usize) {
-        let opt_active = if let Ok(sel) = self.sel_mapping.try_borrow() {
+        /*let opt_active = if let Ok(sel) = self.sel_mapping.try_borrow() {
             sel.valid_ix[plot_ix].get(0).cloned()
         } else {
             println!("Unable to borrow active mapping");
             return;
-        };
-        self.set_active_mapping(plot_ix, opt_active);
+        };*/
+        self.set_active_mapping(plot_ix, Some(0) /*opt_active*/ );
     }
 
     pub fn set_active_mapping(&self, plot_ix : usize, curr_ix : Option<usize>) {
