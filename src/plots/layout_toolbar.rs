@@ -19,11 +19,19 @@ use crate::status_stack::*;
 use std::default::Default;
 use crate::plots::plot_workspace::PlotWorkspace;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum SelectionStatus {
-    New,
-    Single,
+
+    // Carries the new plot index and new mapping name
+    New(usize, String),
+
+    // Carries the selected plot index, global mapping index
+    Single(usize, usize),
+
+    // Multiple mappings are selected and no useful information can be retrieved
     Multiple,
+
+    // No mapping is selected
     None
 }
 
@@ -45,7 +53,7 @@ pub struct LayoutToolbar {
 pub struct GroupToolbar {
     pub layout_stack : Stack,
 
-    // (index to toggle stack position, if any at this position is active)
+    // (index to layout_stack position, if any at this position is active)
     active : Rc<RefCell<(usize, Option<usize>)>>,
     sensitive : Rc<RefCell<bool>>,
     toggles : Vec<Vec<ToggleToolButton>>
@@ -97,17 +105,22 @@ impl GroupToolbar {
                             alt_btn.set_active(false);
                         }
                     }
-                    let selection = *selection.borrow();
-                    println!("Current selection: {:?}", selection);
-                    active.borrow_mut().1 = Some(i);
+                    // let selection = *selection.borrow_mut();
+                    // println!("Current selection: {:?}", selection);
+                    if let Ok(mut active) = active.try_borrow_mut() {
+                        active.1 = Some(i);
+                    } else {
+                        println!("Unable to borrow plot selection");
+                        return;
+                    }
                     (*plot_view.borrow_mut()).set_active_area(i as usize);
-                    println!("Current active area: {}", plot_view.borrow().get_active_area());
+                    println!("Current active area: {:?}", *active.borrow());
 
-                    match selection {
-                        SelectionStatus::New => {
-
+                    /*match *selection.borrow_mut() {
+                        SelectionStatus::New(ref mut ix, _) => {
+                            // *ix = i;
                         },
-                        SelectionStatus::Single => {
+                        SelectionStatus::Single(_) => {
                             // Should be insensitive here
                             /*let sel = if let Some(sel) = plot_popover.get_selected_mapping() {
                                 sel
@@ -139,7 +152,7 @@ impl GroupToolbar {
                         SelectionStatus::None | SelectionStatus::Multiple => {
                             // Should be insensitive here.
                         }
-                    }
+                    }*/
                 } else {
 
                 }
@@ -492,13 +505,15 @@ impl LayoutToolbar {
         let remove_mapping_btn = self.remove_mapping_btn.clone();
         let mapping_btns = self.mapping_btns.clone();
         let group_toolbar = self.group_toolbar.clone();
-        let active_area = if let Some(active) = group_toolbar.get_active_area() {
-            active
-        } else {
-            println!("No current active area to add mapping");
-            return;
-        };
         self.add_mapping_btn.connect_clicked(move|btn| {
+            println!("Group toolbar active area = {:?}", group_toolbar.get_active_area());
+            let active_area = if let Some(active) = group_toolbar.get_active_area() {
+                active
+            } else {
+                println!("No current active area to add mapping");
+                return;
+            };
+            println!("Adding to active area: {}", active_area);
             let m = sel_mapping.borrow();
             PlotWorkspace::add_mapping_from_type(
                 glade_def.clone(),
@@ -724,26 +739,27 @@ impl LayoutToolbar {
                         if let Ok(mut sel_mapping) = sel_mapping.try_borrow_mut() {
                             *sel_mapping = mapping_name.clone();
                         } else {
-                            println!("Failed to acquire mutable reference to selected mapping");
+                            panic!("Failed to acquire mutable reference to selected mapping");
                         }
                         //println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
                         match (this_mapped.len(), selected_ix.len()) {
                             (0, n_cols) => {
-                                *(selection.borrow_mut()) = SelectionStatus::New;
+                                *(selection.borrow_mut()) = SelectionStatus::New(0, mapping_name.clone());
                                 add_mapping_btn.set_sensitive(true);
                                 edit_mapping_btn.set_sensitive(false);
                                 remove_mapping_btn.set_sensitive(false);
                                 if !group_toolbar.get_sensitive() {
                                     group_toolbar.set_sensitive(true);
                                 }
-                                if !group_toolbar.any_selected() {
-                                    group_toolbar.set_active_default(None);
-                                }
+                                println!("Current active (toggled) : {:?}", group_toolbar.get_active_area());
+                                // if !group_toolbar.any_selected() {
+                                //    group_toolbar.set_active_default(None);
+                                // }
                             },
                             (1, n_cols) => {
                                 if n_cols >= 1 {
-                                    *(selection.borrow_mut()) = SelectionStatus::Single;
                                     let (_, sel_plot_ix, sel_mapping_ix) = this_mapped[0];
+                                    *(selection.borrow_mut()) = SelectionStatus::Single(sel_plot_ix, sel_mapping_ix);
                                     plot_popover.set_active_mapping(sel_plot_ix, Some(sel_mapping_ix));
 
                                     if !group_toolbar.get_sensitive() {
@@ -766,7 +782,7 @@ impl LayoutToolbar {
                                 }
                             },
                             (_n_mapped, _n_cols) => {
-                                *(selection.borrow_mut()) = SelectionStatus::None;
+                                *(selection.borrow_mut()) = SelectionStatus::Multiple;
                                 add_mapping_btn.set_sensitive(false);
                                 edit_mapping_btn.set_sensitive(false);
                                 remove_mapping_btn.set_sensitive(false);

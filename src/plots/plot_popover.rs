@@ -247,6 +247,7 @@ impl PlotPopover {
             }
             println!("Current selection (set_active): {:?}", sel);
         } else {
+            // TODO falling here
             println!("Failed to aquire mutable reference to sel_mapping");
         }
         self.update_nav_sensitive();
@@ -342,7 +343,7 @@ impl PlotPopover {
         // let n_mappings = children.len() - 1;
         mapping_stack.add(&m.get_parent());
 
-        if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
+        let new_curr_ix = if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             let pl_ix = m.plot_ix;
             assert!(sel_mapping.valid_ix[pl_ix].iter().find(|i| **i == pos).is_none());
             sel_mapping.valid_ix[pl_ix].push(pos);
@@ -356,11 +357,13 @@ impl PlotPopover {
                 println!("Could not recover child from plot mapping stack");
             }
             println!("Current selection (add_mapping): {:?}", sel_mapping);
-            self.set_active_mapping(pl_ix, new_curr_ix);
-            self.update_nav_sensitive();
+            new_curr_ix
         } else {
             println!("Failed acquiring mutable reference to selected mapping");
-        }
+            return;
+        };
+        self.set_active_mapping(m.plot_ix, new_curr_ix);
+        self.update_nav_sensitive();
     }
 
     /// Removes the selected mapping

@@ -405,7 +405,7 @@ impl PlotWorkspace {
         status_stack : StatusStack,
         active_area : usize
     ) {
-        println!("Adding mapping of type {}", mapping_type);
+        println!("Adding mapping of type {} to active area {}", mapping_type, active_area);
         let name = if let Ok(menus) = mapping_menus.try_borrow() {
             let active = plot_view.borrow().get_active_area();
             let mut n : usize = 0;
@@ -441,7 +441,6 @@ impl PlotWorkspace {
                     None,
                     true
                 );
-                println!("Mapping appended");
             },
             Err(e) => { println!("{}", e); return; }
         }
@@ -550,13 +549,16 @@ impl PlotWorkspace {
                     Some(p) => mappings.insert(p, m.clone()),
                     None => mappings.push(m.clone())
                 }
-
-                plot_popover.add_mapping(&m, pos.unwrap_or(mappings.len() - 1));
+                let inserted_pos = pos.unwrap_or(mappings.len() - 1);
+                println!("Adding mapping to {} pos of mapping vector (plot {})", inserted_pos, m.plot_ix);
+                plot_popover.add_mapping(&m, inserted_pos);
                 if let Ok(name) = m.mapping_name.try_borrow() {
                     pl.update(&mut UpdateContent::NewMapping(
                         name.clone(),
                         m.mapping_type.to_string(),
-                        m.plot_ix));
+                        m.plot_ix
+                    ));
+                    println!("Mapping appended: {:?}", m);
                     if with_data {
                         if let Err(e) = m.reassign_data(tbl_nb.full_selected_cols(), &t_env, &mut pl) {
                             status_stack.update(Status::SqlErr(format!("{}", e)));
