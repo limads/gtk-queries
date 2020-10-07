@@ -526,9 +526,9 @@ impl SqlEditor {
             });
         }
 
-        //let img_append = Image::new_from_file(utils::glade_path("../icons/append.svg").unwrap());
-        //let append_btn = ToggleToolButton::new();
-        //append_btn.set_icon_widget(Some(&img_append));
+        // let img_append = Image::new_from_file(utils::glade_path("../icons/append.svg").unwrap());
+        // let append_btn = ToggleToolButton::new();
+        // append_btn.set_icon_widget(Some(&img_append));
 
         {
             let t_env = t_env.clone();
@@ -791,6 +791,7 @@ impl SqlEditor {
         // TODO verify that view is realized before accepting key press
         view.connect_key_press_event(move |_view, ev_key| {
             if ev_key.get_state() == gdk::ModifierType::CONTROL_MASK && ev_key.get_keyval() == keys::constants::Return {
+                println!("Return clicked");
                 if refresh_btn.is_sensitive() {
                     refresh_btn.emit_clicked();
                     /*match table_env.try_borrow_mut() {

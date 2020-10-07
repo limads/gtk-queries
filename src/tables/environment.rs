@@ -11,6 +11,7 @@ use crate::functions::loader::*;
 use std::str::FromStr;
 use std::cmp::{Eq, PartialEq};
 use std::hash::Hash;
+use std::fmt;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -104,6 +105,16 @@ pub enum DBObject {
 
     Table{ name : String, cols : Vec<(String, DBType)> }
 
+}
+
+impl fmt::Display for DBObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name : &str = match &self {
+            DBObject::Schema{ name, .. } => &name,
+            DBObject::Table{ name, ..} => &name
+        };
+        write!(f, "{}", name)
+    }
 }
 
 impl TableEnvironment {

@@ -3,14 +3,23 @@ use std::fmt::{self, Display};
 use quote::ToTokens;
 use std::cmp::PartialEq;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SqlType {
     I32,
     I64,
     F32,
     F64,
     String,
-    Bytes
+    Bytes,
+    Str,
+    Slice(Box<SqlType>)
+}
+
+#[derive(Debug, Clone)]
+pub enum SqlAggType {
+    Simple(SqlType),
+    Nested(SqlType),
+    Owned(SqlType)
 }
 
 impl TryFrom<&str> for SqlType {
@@ -18,13 +27,20 @@ impl TryFrom<&str> for SqlType {
     type Error = ();
 
     fn try_from(s : &str) -> std::result::Result<Self,()> {
-        match s {
+        let packed : String = s.chars().filter(|c| !c.is_whitespace() ).collect();
+        match &packed[..] {
             "i32" => Ok(Self::I32),
             "i64" => Ok(Self::I64),
             "f32" => Ok(Self::F32),
             "f64" => Ok(Self::F64),
             "String" => Ok(Self::String),
+            "Str" => Ok(Self::Str),
             "Vec<u8>" => Ok(Self::Bytes),
+            "&[i32]" => Ok(Self::Slice(Box::new(Self::I32))),
+            "&[i64]" => Ok(Self::Slice(Box::new(Self::I64))),
+            "&[f32]" => Ok(Self::Slice(Box::new(Self::F32))),
+            "&[f64]" => Ok(Self::Slice(Box::new(Self::F64))),
+            "&[&str]" => Ok(Self::Slice(Box::new(Self::Str))),
             _ => Err(())
         }
     }
@@ -71,27 +87,22 @@ impl fmt::Display for SqlType {
             Self::F32 => "f32",
             Self::F64 => "f64",
             Self::String => "String",
-            Self::Bytes => "Vec<u8>"
+            Self::Bytes => "Vec<u8>",
+            Self::Str => "&str",
+            Self::Slice(inner) => { return write!(f, "&[{}]", inner); }
         };
         write!(f, "{}", out)
     }
 
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum SqlAggType {
-    Simple(SqlType),
-    Nested(SqlType),
-    Owned(SqlType)
-}
-
 impl SqlAggType {
 
     pub fn inner(&self) -> SqlType {
         match self {
-            SqlAggType::Simple(ty) => *ty,
-            SqlAggType::Nested(ty) => *ty,
-            SqlAggType::Owned(ty) => *ty
+            SqlAggType::Simple(ty) => ty.clone(),
+            SqlAggType::Nested(ty) => ty.clone(),
+            SqlAggType::Owned(ty) => ty.clone()
         }
     }
 }
@@ -168,7 +179,7 @@ fn type_to_string(ty : &syn::Type) -> String {
 }
 
 #[test]
-fn test() {
+fn agg_type() {
     let t1 = SqlAggType::try_from("&[i32]").unwrap();
     let t2 = SqlAggType::try_from("&[i64]").unwrap();
     let t3 = SqlAggType::try_from("&[f64]").unwrap();

@@ -1874,7 +1874,6 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="lib_remove_btn">
-                        <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                         <property name="image">image15</property>
@@ -1887,7 +1886,6 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="lib_add_btn">
-                        <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                         <property name="image">image20</property>
@@ -1900,7 +1898,6 @@
                     </child>
                     <child>
                       <object class="GtkButton" id="lib_update_btn">
-                        <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                         <property name="image">image21</property>
@@ -2033,7 +2030,7 @@
                         <property name="margin_right">6</property>
                         <property name="margin_top">6</property>
                         <property name="margin_bottom">6</property>
-                        <property name="label" translatable="yes">Crate</property>
+                        <property name="label" translatable="yes">Extension</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -4363,7 +4360,7 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="receives_default">True</property>
-            <property name="text" translatable="yes">Extensions</property>
+            <property name="text" translatable="yes">Functions</property>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -6156,6 +6153,7 @@
   <object class="GtkFileFilter" id="toml_filter">
     <patterns>
       <pattern>*.toml</pattern>
+      <pattern>*.rs</pattern>
     </patterns>
   </object>
   <object class="GtkFileChooserDialog" id="so_file_chooser">

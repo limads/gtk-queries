@@ -550,6 +550,39 @@ impl SqlEngine {
         }
     }
 
+    fn get_postgre_extensions(&mut self) {
+        // First, check all available extensions.
+        let ext_query = "select extname::text, extversion from pg_available_extensions;";
+
+        // Then, add (installed) tag to those that also appear here:
+        let used_query = "select extname::text from pg_extension;";
+    }
+
+    fn get_postgre_roles(&mut self) {
+        // let role_query = "select rolinherit, rolcanlogin, rolsuper, from pg_catalog.pg_roles";
+    }
+
+    // pg_proc.prokind codes: f = function; p = procedure; a = aggregate; w = window
+    fn get_postgre_functions(&mut self) {
+        let fn_query = r#"
+            with arguments as (
+                with arg_types as (select pg_proc.oid as proc_oid,
+                    unnest(proallargtypes) as arg_oid
+                    from pg_catalog.pg_proc
+                ) select arg_types.proc_oid as proc_id, array_agg(cast(typname as text)) as arg_typename
+                    from pg_catalog.pg_type inner join arg_types on pg_type.oid = arg_types.arg_oid
+                    group by arg_types.proc_oid
+                    order by arg_types.proc_oid
+            ) select pg_proc.oid,
+                pg_proc.prokind,
+                proname::text,
+                arguments.arg_typename,
+                cast(typname as text) as ret_typename
+            from pg_catalog.pg_proc inner join pg_catalog.pg_type on pg_proc.prorettype = pg_type.oid
+                inner join arguments on pg_proc.oid = arguments.proc_id
+            order by pg_proc.oid;"#;
+    }
+
     /// Return HashMap of Schema->Tables
     fn get_postgre_schemata(&mut self) -> Option<HashMap<String, Vec<String>>> {
         let tbl_query = String::from("select schemaname::text, tablename::text \

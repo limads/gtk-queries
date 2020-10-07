@@ -16,7 +16,57 @@ use std::path::{Path, PathBuf};
 use glib::{types::Type, value::{Value, ToValue}};
 use gdk_pixbuf::Pixbuf;
 use std::collections::HashMap;
+//use either::Either;
 
+/*/// Implemented by types which can be viewed by modifying the given widget
+/// (assumed to be a wrapped pointer)
+pub trait Show<W>
+where
+    W : WidgetExt
+{
+    fn show(&self, wid : &W);
+}
+
+impl Show<Image> for DBObject {
+
+    fn show(&self, wid : &Image) {
+        match self {
+            DBObject::Schema{ name, children } => {
+
+            },
+            DBObject::Table{ name, cols } => {
+
+            }
+        }
+    }
+
+}
+
+impl Show<Label> for DBObject {
+
+    fn show(&self, wid : &Label) {
+        match self {
+            DBObject::Schema{ name, children } => {
+
+            },
+            DBObject::Table{ name, cols } => {
+
+            }
+        }
+    }
+
+}*/
+
+pub enum Growth<T> {
+    Depth(T),
+    Breadth(T),
+    Halt
+}
+
+// IconTree<T : Display + Iterator<Item=Growth<&Self, &Self>>>
+// icontree::build(.) then takes a HashMap<String, Pixbuf> at its initialization.
+// matching left grows the tree in a depth fashion; matching right rows the
+// tree in a breadth fashion.
 #[derive(Clone)]
 pub struct SchemaTree {
     tree_view : TreeView,
@@ -46,7 +96,29 @@ const ALL_TYPES : [DBType; 15] = [
 
 impl SchemaTree {
 
-    pub fn build(builder : &Builder) -> Self {
+    fn configure_tree_view(tree_view : &TreeView) -> TreeStore {
+        let model = TreeStore::new(&[Pixbuf::static_type(), Type::String]);
+        tree_view.set_model(Some(&model));
+        let pix_renderer = CellRendererPixbuf::new();
+        pix_renderer.set_property_height(24);
+        let txt_renderer = CellRendererText::new();
+        txt_renderer.set_property_height(24);
+
+        let pix_col = TreeViewColumn::new();
+        pix_col.pack_start(&pix_renderer, false);
+        pix_col.add_attribute(&pix_renderer, "pixbuf", 0);
+
+        let txt_col = TreeViewColumn::new();
+        txt_col.pack_start(&txt_renderer, true);
+        txt_col.add_attribute(&txt_renderer, "text", 1);
+
+        tree_view.append_column(&pix_col);
+        tree_view.append_column(&txt_col);
+        tree_view.set_show_expanders(true);
+        model
+    }
+
+    fn load_type_icons() -> HashMap<DBType, Pixbuf> {
         let mut type_icons = HashMap::new();
         for ty in ALL_TYPES.iter() {
             let path = match ty {
@@ -65,43 +137,28 @@ impl SchemaTree {
             let pix = Pixbuf::from_file_at_scale(&format!("assets/icons/types/{}", path), 16, 16, true).unwrap();
             type_icons.insert(*ty, pix);
         }
+        type_icons
+    }
+
+    pub fn build(builder : &Builder) -> Self {
+        let type_icons = Self::load_type_icons();
         let tbl_icon = Pixbuf::from_file_at_scale("assets/icons/grid-black.svg", 16, 16, true).unwrap();
         let schema_icon = Pixbuf::from_file_at_scale("assets/icons/db.svg", 16, 16, true).unwrap();
-
         let tree_view : TreeView = builder.get_object("schema_tree_view").unwrap();
-        let model = TreeStore::new(&[Pixbuf::static_type(), Type::String]);
-        tree_view.set_model(Some(&model));
-        let pix_renderer = CellRendererPixbuf::new();
-        pix_renderer.set_property_height(24);
-        let txt_renderer = CellRendererText::new();
-        txt_renderer.set_property_height(24);
-        // renderer.set_property_font(&self, font: Option<&str>)
-        // renderer.set_property_foreground_rgba(Some(&gdk::RGBA{ red: 0.0, green : 0.0, blue : 0.0, alpha : 1.0}));
-        // let area = CellAreaContext::new();
-        // area.add(&renderer);
-        // let col = TreeViewColumn::with_area(&area);
-        let pix_col = TreeViewColumn::new();
-        pix_col.pack_start(&pix_renderer, false);
-        pix_col.add_attribute(&pix_renderer, "pixbuf", 0);
-
-        let txt_col = TreeViewColumn::new();
-        txt_col.pack_start(&txt_renderer, true);
-        txt_col.add_attribute(&txt_renderer, "text", 1);
-
-        tree_view.append_column(&pix_col);
-        tree_view.append_column(&txt_col);
-        tree_view.set_show_expanders(true);
+        let model = Self::configure_tree_view(&tree_view);
         Self{ tree_view, model, type_icons, tbl_icon, schema_icon }
     }
 
-    fn grow_schema(&self, model : &TreeStore, parent : Option<&TreeIter>, obj : DBObject) {
+    // grow_tree<T>(obj : T) for T : Display + Iterator<Item=&Self>
+    // and receive a HashMap<&str, Pixbuf> which maps the Display key to a Pixbuf living at this hash.
+    fn grow_tree(&self, model : &TreeStore, parent : Option<&TreeIter>, obj : DBObject) {
         match obj {
             DBObject::Schema{ name, children } => {
                 println!("Adding schema {:?} to model", name);
                 let schema_pos = model.append(parent);
                 model.set(&schema_pos, &[0, 1], &[&self.schema_icon, &name.to_value()]);
                 for child in children {
-                    self.grow_schema(&model, Some(&schema_pos), child);
+                    self.grow_tree(&model, Some(&schema_pos), child);
                 }
             },
             DBObject::Table{ name, cols } => {
@@ -126,7 +183,7 @@ impl SchemaTree {
                     is_pg = true;
                 }
                 for obj in objs {
-                    self.grow_schema(&self.model, None, /*self.model.get_iter_first().as_ref()*/ obj);
+                    self.grow_tree(&self.model, None, /*self.model.get_iter_first().as_ref()*/ obj);
                 }
                 println!("Final model: {:?}", self.model);
                 self.model.foreach(|model, path, iter| {

@@ -317,6 +317,15 @@ impl FunctionRegistry {
         }
     }
 
+    /*fn reload_from_pg(
+        lib_list_box : &ListBox,
+        env : &Rc<RefCell<TableEnvironment>>
+    ) {
+        for child in lib_list_box.get_children() {
+            lib_list_box.remove(&child);
+        }
+    }*/
+
     fn reload_lib_list(
         lib_list_box : &ListBox,
         //fn_list_box : &ListBox,

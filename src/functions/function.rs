@@ -18,6 +18,7 @@ use std::str::FromStr;
 use rusqlite::{self, functions::Context };
 use libloading::Symbol;
 use std::collections::HashMap;
+use super::parser;
 
 /*#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionMode {
@@ -39,6 +40,23 @@ pub struct Function {
     pub var_arg : bool,
 }
 
+/// A generic aggregate, with arbitrary initial, state and final functions
+#[derive(Debug, Clone)]
+pub struct Aggregate {
+    pub name : String,
+    pub init_func : String,
+    pub state_func : String,
+    pub final_func : String
+}
+
+/*/// ColAggregate are plain Rust functions that work with column-packed data.
+/// They are the only type admissible for column-oriented engines, and can serve
+/// as final functions for row-oriented engines (the init state is assumed to be an
+/// empty vector, and the transition is assumed to be an append function).
+pub struct ColAggregate {
+
+}*/
+
 pub type SqlSymbol<'a, T> = Symbol<'a, unsafe extern fn(&Context)->rusqlite::Result<T,rusqlite::Error>>;
 
 pub enum LoadedFunc<'a> {
@@ -46,14 +64,6 @@ pub enum LoadedFunc<'a> {
     I32(SqlSymbol<'a, i32>),
     Text(SqlSymbol<'a, String>),
     Bytes(SqlSymbol<'a, Vec<u8>>)
-}
-
-#[derive(Debug, Clone)]
-pub struct Aggregate {
-    pub name : String,
-    pub init_func : String,
-    pub state_func : String,
-    pub final_func : String
 }
 
 #[derive(Debug, Clone)]
@@ -288,29 +298,7 @@ fn search_doc_at_item(item : Item, docs : &mut HashMap<String, Option<String>>) 
                     let fn_name = item_fn.sig.ident.to_string();
                     if let Some(mut val) = docs.get_mut(&fn_name) {
                         if val.is_none() {
-                            let mut doc_content = String::new();
-                            for attr in &item_fn.attrs {
-                                let ident = attr.path.get_ident().to_token_stream().to_string();
-                                match &ident[..] {
-                                    "doc" => doc_content += &attr.tokens.to_string()[..],
-                                    _ => { }
-                                }
-                            }
-                            doc_content = doc_content.clone().chars()
-                                .filter(|c| *c != '"' && *c != '=')
-                                .collect();
-                            doc_content = doc_content.clone().trim_matches(' ').to_string();
-                            let mut break_next = false;
-                            for i in 1..doc_content.len() {
-                                if i % 45 == 0  {
-                                    break_next = true;
-                                }
-                                if break_next && doc_content.chars().nth(i) == Some(' ') {
-                                    doc_content.replace_range(i..i+1, "\n");
-                                    break_next = false;
-                                }
-                            }
-                            *val = Some(doc_content);
+                            *val = parser::load_doc(&item_fn);
                         }
                     }
                 }

@@ -16,6 +16,7 @@ use crate::tables::table::*;
 use toml;
 use std::convert::TryFrom;
 use super::function::*;
+use super::parser;
 
 // use std::rc::Rc;
 // use std::cell::RefCell;
@@ -336,6 +337,37 @@ impl FunctionLoader {
         Ok(())
     }
 
+    /* Compilation flag template */
+    /*
+    rustc mysrc.rs -o mysrc.so --crate-type='cdylib' \
+        -L /home/diego/Software/queries/target/debug/deps \
+        --extern bayes=/home/diego/Software/queries/target/debug/deps/libbayes-972493eb78ec6b73.rlib
+    Each extern can be parsed from the source file 'extern crate'.*/
+    fn add_source(&mut self, path_str : &str) -> Result<usize, String> {
+        let mut content = String::new();
+        let mut f = File::open(path_str)
+            .map_err(|e| format!("Could not read .rs file: {}", e) )?;
+        f.read_to_string(&mut content);
+        let funcs = parser::parse_top_level_funcs(&content)?;
+        println!("Loaded functions = {:?}", funcs);
+        Ok(funcs.len())
+    }
+
+    fn insert_current_lib(
+        &mut self,
+        lib_name : &str,
+        src_path : &str,
+        lib_path : &str
+    ) -> Result<i64, String> {
+        let mut stmt = self.conn
+            .prepare("insert into library (name, srcpath, libpath, active) \
+                values (?1, ?2, ?3, 1);"
+            ).map_err(|e| format!("{}", e) )?;
+        stmt.execute(&[lib_name.clone(), src_path.clone(), lib_path.clone()])
+            .map_err(|e| format!("{}", e) )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
     /// Returns the number of recovered functions if successful, or an error
     /// message if unsucessful. This is used every time the user clicks the
     /// "Add library" button, and maps to an insertion into the registry
@@ -361,7 +393,10 @@ impl FunctionLoader {
             if path.extension().and_then(|e| e.to_str()) == Some("toml") {
                 opt_toml_path = Some(path.to_path_buf());
             } else {
-                return Err(String::from("Should inform .toml file"));
+                if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+                    return self.add_source(path_str);
+                }
+                return Err(String::from("Should inform .toml or .rs file"));
             }
         };
         let toml_path = if let Some(toml_path) = opt_toml_path {
@@ -371,15 +406,7 @@ impl FunctionLoader {
         };
         let (lib_name, src_path, lib_path, funcs, aggs, jobs) = Self::parse_toml(&toml_path)?;
         self.remove_crate(&lib_name)?;
-        let id = {
-            let mut stmt = self.conn
-                .prepare("insert into library (name, srcpath, libpath, active) \
-                    values (?1, ?2, ?3, 1);"
-                ).map_err(|e| format!("{}", e) )?;
-            stmt.execute(&[lib_name.clone(), src_path.clone(), lib_path.clone()])
-                .map_err(|e| format!("{}", e) )?;
-            self.conn.last_insert_rowid()
-        };
+        let id = self.insert_current_lib(&lib_name, &src_path, &lib_path)?;
         self.insert_functions(id, &funcs[..])?;
         self.insert_aggregates(id, &aggs[..])?;
         self.insert_jobs(id, &jobs[..])?;

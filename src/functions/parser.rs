@@ -11,13 +11,14 @@ use std::path::Path;
 use std::fmt::{self, Debug, Display};
 use std::any::{Any, TypeId};
 use std::default::Default;
-use crate::tables::sqlite::SqliteColumn;
+// use crate::tables::sqlite::SqliteColumn;
 use std::convert::{TryFrom, TryInto};
 use super::sql_type::*;
 use crate::tables::column::*;
 use libloading::{Library, Symbol};
 use super::loader::*;
 use crate::tables::column::*;
+use super::function::*;
 
 #[derive(Debug, Clone)]
 pub enum FunctionMode {
@@ -57,7 +58,8 @@ impl fmt::Display for FunctionMode {
 
 }
 
-#[derive(Debug, Clone)]
+// Using now function::Function
+/*#[derive(Debug, Clone)]
 pub struct Function {
     pub name : String,
     pub args : Vec<SqlType>,
@@ -86,9 +88,9 @@ impl Function {
     }
 
 
-}
+}*/
 
-/// Gets type and return whether the type was nested into Vec<Vec<T>>
+/*/// Gets type and return whether the type was nested into Vec<Vec<T>>
 fn get_simple_type(ts : TokenStream) -> Option<(SqlType, bool)> {
     let ty_str : String = format!("{}", ts)
         .chars().filter(|c| !c.is_whitespace()).collect();
@@ -98,49 +100,73 @@ fn get_simple_type(ts : TokenStream) -> Option<(SqlType, bool)> {
         SqlAggType::Vec(_) => false
     };
     Some((agg_ty.inner(), nested))
+}*/
+
+pub fn load_doc(item_fn : &ItemFn) -> Option<String> {
+    let mut doc_content = String::new();
+    for attr in &item_fn.attrs {
+        let ident = attr.path.get_ident().to_token_stream().to_string();
+        match &ident[..] {
+            "doc" => doc_content += &attr.tokens.to_string()[..],
+            _ => { }
+        }
+    }
+    doc_content = doc_content.clone().chars()
+        .filter(|c| *c != '"' && *c != '=')
+        .collect();
+    doc_content = doc_content.clone().trim_matches(' ').to_string();
+    let mut break_next = false;
+    for i in 1..doc_content.len() {
+        if i % 45 == 0  {
+            break_next = true;
+        }
+        if break_next && doc_content.chars().nth(i) == Some(' ') {
+            doc_content.replace_range(i..i+1, "\n");
+            break_next = false;
+        }
+    }
+    if doc_content.len() == 0 {
+        None
+    } else {
+        Some(doc_content)
+    }
 }
 
 /// Returns (name, arg types, return type)
-pub fn function_signature(f : ItemFn) -> Option<Function> {
+pub fn function_signature(f : ItemFn) -> Result<Function, String> {
     let name = f.sig.ident.to_token_stream().to_string();
     let inputs = f.sig.inputs.iter();
     let mut args : Vec<SqlType> = Vec::new();
-    let mut mode = FunctionMode::Simple;
+    // let mut mode = FunctionMode::Simple;
     let mut doc_content = String::new();
     let mut var_arg = false;
     let mut var_ret = false;
     for input in inputs {
         match input {
             FnArg::Typed(typed) => {
-                let (ty, nested) = get_simple_type(typed.ty.to_token_stream())?;
+                //let (ty, nested) = get_simple_type(typed.ty.to_token_stream())?;
+                let ty_str = format!("{}", typed.ty.to_token_stream());
+                let ty : SqlType = (&ty_str[..]).try_into()
+                    .map_err(|_| format!("Invalid argument type: {}", ty_str))?;
                 args.push(ty);
-                var_arg = nested;
+                // var_arg = nested;
             },
             _ => {  }
         }
     }
-    for attr in f.attrs {
-        //match attr.style {
-            //AttrStyle::Outer => {
+    /*for attr in f.attrs {
                 let ident = attr.path.get_ident().to_token_stream().to_string();
                 match &ident[..] {
                     "doc" => doc_content += &attr.tokens.to_string()[..],
-                    // "sql" => mode = FunctionMode::Simple,
-                    // "sql_agg" => mode = FunctionMode::Aggregate,
-                    // "sql_win" => mode = FunctionMode::Window,
                     _ => { }
                 }
                 //let tokens = attr.tokens.to_string();
-                //println!("Ident: {}, tokens: {}", ident, tokens);
-        //    },
-        //    _ => { }
-        //}
-    }
-    let doc = if doc_content.is_empty() { None } else { Some(doc_content) };
-    let mut ret : Vec<SqlType> = Vec::new();
+    }*/
+    let doc = load_doc(&f);
+    // let mut ret : Option<SqlType> = None;
     match f.sig.output {
         ReturnType::Type(_, bx_type) => {
-            match *bx_type {
+            /*match *bx_type {
                 syn::Type::Tuple(tuple) => {
                     for t in tuple.elems.iter() {
                         let (ty, nested) = get_simple_type(t.to_token_stream())?;
@@ -153,17 +179,21 @@ pub fn function_signature(f : ItemFn) -> Option<Function> {
                     ret.push(ty);
                     var_ret = nested;
                 }
-            }
-            Some( Function{ name, args, ret, doc, mode, var_arg, var_ret } )
+            }*/
+            let ty_str = format!("{}", bx_type.to_token_stream());
+            println!("Return: {}", ty_str);
+            let ret : SqlType = (&ty_str[..]).try_into()
+                .map_err(|_| format!("Invalid return type: {}", ty_str))?;
+            Ok( Function{ name, args, ret, doc, /*mode,*/ var_arg /*, var_ret*/ } )
         },
-        _ => None
+        _ => Err(format!("Invalid return type"))
     }
 }
 
 /// Apply function_signature to a module and all its submodules recursively.
 pub fn parse_mod_signature(
     item_mod : ItemMod
-) -> Option<Vec<Function>> {
+) -> Result<Vec<Function>, String> {
     let mut sigs = Vec::new();
     if let Some((_, items)) = item_mod.content {
         for item in items {
@@ -184,14 +214,14 @@ pub fn parse_mod_signature(
             }
         }
     }
-    Some(sigs)
+    Ok(sigs)
 }
 
 /// Takes any item and retrieves the signature of all functions,
 /// running over modules recursively.
 pub fn parse_fn_or_mod(
     item : Item
-) -> Option<Vec<Function>> {
+) -> Result<Vec<Function>, String> {
     let mut sigs = Vec::new();
     match item {
         Item::Mod(item_mod) => {
@@ -208,13 +238,13 @@ pub fn parse_fn_or_mod(
         },
         _ => { }
     }
-    Some(sigs)
+    Ok(sigs)
 }
 
 pub fn parse_top_level_funcs(
     content : &str
-) -> Option<Vec<Function>> {
-    let t : File = syn::parse_str(content).ok()?;
+) -> Result<Vec<Function>, String> {
+    let t : File = syn::parse_str(content).map_err(|e| format!("{}", e) )?;
     let mut sigs = Vec::new();
     for item in t.items {
         match item {
@@ -227,20 +257,20 @@ pub fn parse_top_level_funcs(
             _ => { }
         }
     }
-    Some(sigs)
+    Ok(sigs)
 }
 
 /// Parse a full source file applying parse_fn_or_mod.
 /// Return function name; arguments; return.
 pub fn parse_nested_signatures(
     content : &str
-) -> Option<Vec<Function>> {
-    let t : File = syn::parse_str(content).ok()?;
+) -> Result<Vec<Function>, String> {
+    let t : File = syn::parse_str(content).map_err(|e| format!("{}", e) )?;
     let mut sigs = Vec::new();
     for item in t.items {
         sigs.extend(parse_fn_or_mod(item)?);
     }
-    Some(sigs)
+    Ok(sigs)
 }
 
 #[test]

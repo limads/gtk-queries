@@ -545,6 +545,8 @@ fn build_ui(app: &gtk::Application) {
         let mapping_popover = queries_app.plot_workspace.layout_toolbar.mapping_popover.clone();
         //let plot_notebook = queries_app.plot_sidebar.notebook.clone();
         win.connect_key_release_event(move |_win, ev_key| {
+
+            // ALT pressed
             if ev_key.get_state() == gdk::ModifierType::MOD1_MASK {
                 if ev_key.get_keyval() == keys::constants::q {
                     //mapping_popover.hide();
