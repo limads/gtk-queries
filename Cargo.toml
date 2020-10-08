@@ -39,7 +39,9 @@ libxml = "0.2.13"
 pango = "0.9.1"
 proc-macro2 = "1.0.18"
 either = "1.6.1"
-# anyhow = "1.0.32"
+# markdown = "0.3.0"
+anyhow = "1.0.32"
+pulldown-cmark = "0.8.0"
 
 [features]
 arrowext = []

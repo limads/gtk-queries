@@ -28,6 +28,8 @@ pub mod schema_tree;
 
 pub mod jobs;
 
+pub mod report;
+
 pub mod utils {
 
     use std::env;

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Language defs at /usr/share/gtksourceview-4/language-specs -->
+
+<language id="rust" name="Rust" version="2.0" _section="Source">
+
+<style id="comment" name="Comment" map-to="def:comment"/>
+
