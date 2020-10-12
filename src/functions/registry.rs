@@ -112,6 +112,8 @@ pub struct FunctionRegistry {
     lib_add_btn : Button,
     fn_name_label : Label,
     fn_doc_label : Label,
+    fn_args_label : Label,
+    fn_return_label : Label,
     so_file_chooser : FileChooserDialog,
     lib_info : InfoBar,
     info_lbl : Label,
@@ -305,6 +307,25 @@ impl FunctionRegistry {
                     } else {
                         self.fn_doc_label.set_text("No documentation available");
                     }
+                    if let Some(args) = loader.get_args(name) {
+                        if args.len() >= 1 {
+                            let mut joined_args = String::new();
+                            for arg in args.iter().take(args.len() - 1) {
+                                joined_args += &format!("{}, ", arg);
+                            }
+                            joined_args += &args[args.len() - 1];
+                            self.fn_args_label.set_text(&joined_args);
+                        } else {
+                            self.fn_args_label.set_text("");
+                        }
+                    } else {
+                        self.fn_args_label.set_text("");
+                    }
+                    if let Some(ret) = loader.get_ret(name) {
+                        self.fn_return_label.set_text(&ret);
+                    } else {
+                        self.fn_return_label.set_text("");
+                    }
                 } else {
                     println!("{} not in function Registry", name);
                 }
@@ -314,6 +335,8 @@ impl FunctionRegistry {
         } else {
             self.fn_name_label.set_text("");
             self.fn_doc_label.set_text("");
+            self.fn_args_label.set_text("");
+            self.fn_return_label.set_text("");
         }
     }
 
@@ -484,6 +507,8 @@ impl FunctionRegistry {
         let lib_update_btn : Button = builder.get_object("lib_update_btn").unwrap();
         let fn_name_label : Label = builder.get_object("fn_name_label").unwrap();
         let fn_doc_label : Label = builder.get_object("fn_doc_label").unwrap();
+        let fn_args_label : Label = builder.get_object("fn_args_label").unwrap();
+        let fn_return_label : Label = builder.get_object("fn_return_label").unwrap();
         let so_file_chooser : FileChooserDialog = builder.get_object("so_file_chooser").unwrap();
 
         let fn_doc_popover : Popover = builder.get_object("fn_doc_popover").unwrap();
@@ -503,18 +528,20 @@ impl FunctionRegistry {
                     ResponseType::Other(1) => {
                         if let Some(path) = dialog.get_filename().as_ref().and_then(|p| p.to_str() ) {
                             if let Ok(mut loader) = loader.lock() {
-                                if let Err(e) = loader.add_crate(&path[..]) {
-                                    println!("{}", e);
-                                    lib_info.set_visible(true);
-                                    // lib_info.set_revealed(true);
-                                    lib_info.set_message_type(MessageType::Error);
-                                    info_lbl.set_text(&format!("{}", e));
-                                } else {
-                                    lib_info.set_message_type(MessageType::Info);
-                                    lib_info.set_visible(true);
-                                    // lib_info.set_revealed(true);
-                                    info_lbl.set_text("Library loaded");
-                                    println!("Library loaded");
+                                match loader.add_crate(&path[..]) {
+                                    Ok((name, n_funcs)) => {
+                                        let msg = format!("Library {} loaded with {} functions", name, n_funcs);
+                                        lib_info.set_message_type(MessageType::Info);
+                                        lib_info.set_visible(true);
+                                        info_lbl.set_text(&msg);
+                                        println!("{}", msg);
+                                    },
+                                    Err(e) =>  {
+                                        println!("{}", e);
+                                        lib_info.set_visible(true);
+                                        lib_info.set_message_type(MessageType::Error);
+                                        info_lbl.set_text(&format!("{}", e));
+                                    }
                                 }
                             } else {
                                 println!("Could not lock function loader");
@@ -651,6 +678,8 @@ impl FunctionRegistry {
             lib_remove_btn,
             fn_name_label,
             fn_doc_label,
+            fn_args_label,
+            fn_return_label,
             so_file_chooser,
             info_lbl,
             lib_info,

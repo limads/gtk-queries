@@ -75,48 +75,56 @@ impl FunctionLoader {
         None
     }
 
-    fn parse_sql_file(module_name : &str, path : &Path) -> Result<Vec<Function>, String> {
+    /// Tries to retrieve a sequence of functions either from the top-level module at
+    /// the informed path (if module_name) is None, or from a submodule (if module has been
+    /// informed).
+    fn parse_sql_file(module_name : Option<&str>, path : &Path) -> Result<Vec<Function>, String> {
         let mut content = String::new();
         let mut f = File::open(path).unwrap();
         f.read_to_string(&mut content);
         let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
-        for item in t.items {
-            match function::search_mod(&module_name, &item) {
-                Some(module) => { return function::read_funcs_at_item(module); },
-                None => { }
+        if let Some(module_name) = module_name {
+            for item in t.items {
+                match function::search_mod(&module_name, &item) {
+                    Some(module) => { return function::read_funcs_at_item(module); },
+                    None => { }
+                }
             }
-        }
-        if path.file_name().and_then(|m| m.to_str()) == Some(module_name) {
-            let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
-            if let Ok(funcs) = function::read_funcs_at_toplevel(&t.items[..]) {
-                Ok(funcs)
-            } else {
-                Err(format!("Invalid search at {} (module {})", path.display(), module_name))
-            }
+            Err(format!("Module {} not found at file {}", module_name, path.display()))
         } else {
-            Err(format!("Invalid search at {} (module {})", path.display(), module_name))
+            let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
+            function::read_funcs_at_toplevel(&t.items[..])
         }
     }
 
-    fn parse_sql_module(module_name : &str,src : &Path) -> Result<Vec<Function>, String> {
+    fn parse_sql_module(opt_module_name : Option<&str>, src : &Path) -> Result<Vec<Function>, String> {
         let sources = parser::search_sources_in_crate(&src);
-        for src in sources {
-            if src.is_dir() && src.file_name().and_then(|f| f.to_str()) == Some(module_name) {
-                let paths = fs::read_dir(&src).map_err(|_| format!("Could not read dir contents") )?;
-                let opt_mod_file = paths
-                    .filter_map(|p| p.ok().and_then(|s| {
-                        let path = s.path();
-                        path.to_str().map(|s| s.to_string())
-                    })).find(|m| &m[..] == "mod.rs" );
-                if let Some(mod_file) = opt_mod_file {
-                    return Self::parse_sql_file(module_name, &PathBuf::from(mod_file) );
+        println!("found_sources: {:?}", sources);
+        if let Some(module_name) = opt_module_name {
+            for src in sources {
+                let parent_has_mod_name = src.parent()
+                    .and_then(|p| p.file_name().and_then(|f| f.to_str())) == Some(module_name);
+                let file_has_mod_name = src.file_name().and_then(|s| s.to_str()) == Some(module_name);
+                if parent_has_mod_name || file_has_mod_name {
+                    return Self::parse_sql_file(None, &src);
+                } else {
+                    if let Ok(funcs) = Self::parse_sql_file(Some(module_name), &src) {
+                        return Ok(funcs);
+                    }
                 }
             }
-            if src.file_name().and_then(|f| f.to_str() ) == Some(module_name) {
-                return Self::parse_sql_file(module_name, &src);
+            Err(format!("Module {} not found at crate", module_name))
+        } else {
+            // TODO read lib key from toml file and use that value instead of lib,
+            // if user informed it.
+            let opt_lib_src = sources.iter()
+                .find(|p| p.as_path().file_name().and_then(|s| s.to_str()) == Some("lib.rs"));
+            if let Some(src) = opt_lib_src.as_ref() {
+                Self::parse_sql_file(None, &src)
+            } else {
+                Err(format!("Root .lib file not found"))
             }
         }
-        Err(format!("Module {} not found", module_name))
     }
 
     fn get_src_lib_path(v : &toml::Value, parent : &Path, name : &str) -> Result<(String, String), String> {
@@ -131,7 +139,7 @@ impl FunctionLoader {
             }).unwrap_or("src/lib.rs".to_string());
         println!("Found source path: {}", src_path);
         let lib_path = Self::search_lib_path(parent, &name)
-            .ok_or(format!("No .so file found at target directory"))?;
+            .ok_or(format!("No .so file found at target directory. Is the crate compiled with crate-type=[\"cdylib\"]"))?;
         println!("Found library path: {}", lib_path);
         let src_path_str = src_path.as_str().to_string();
         Ok((src_path.to_string(), lib_path.to_string()))
@@ -268,15 +276,21 @@ impl FunctionLoader {
             .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
         match sql_meta {
             toml::Value::String(s) => {
-                let funcs = Self::parse_sql_module(&s[..], &src_folder)?;
+                let mod_name = if s.len() == 0 { None } else { Some(&s[..]) };
+                let funcs = Self::parse_sql_module(mod_name, &src_folder)?;
                 Ok((name.to_string(), src_path, lib_path, funcs, Vec::new(), Vec::new()))
             },
             toml::Value::Array(func_vals) => {
-                let (funcs, aggs, jobs) = Self::parse_function_vec(
-                    &func_vals[..],
-                    &src_folder.as_path()
-                )?;
-                Ok((name.to_string(), src_path, lib_path, funcs, aggs, jobs))
+                if func_vals.len() == 0 {
+                    let funcs = Self::parse_sql_module(None, &src_folder)?;
+                    Ok((name.to_string(), src_path, lib_path, funcs, Vec::new(), Vec::new()))
+                } else {
+                    let (funcs, aggs, jobs) = Self::parse_function_vec(
+                        &func_vals[..],
+                        &src_folder.as_path()
+                    )?;
+                    Ok((name.to_string(), src_path, lib_path, funcs, aggs, jobs))
+                }
             },
             _ => {
                 Err(format!("sql metadata should be a string or table"))
@@ -417,14 +431,14 @@ impl FunctionLoader {
         -L /home/diego/Software/queries/target/debug/deps \
         --extern bayes=/home/diego/Software/queries/target/debug/deps/libbayes-972493eb78ec6b73.rlib
     Each extern can be parsed from the source file 'extern crate'.*/
-    fn add_source(&mut self, path_str : &str) -> Result<usize, String> {
+    fn add_source(&mut self, path_str : &str) -> Result<(String, usize), String> {
         let mut content = String::new();
         let mut f = File::open(path_str)
             .map_err(|e| format!("Could not read .rs file: {}", e) )?;
         f.read_to_string(&mut content);
         let funcs = parser::parse_top_level_funcs(&content)?;
         println!("Loaded functions = {:?}", funcs);
-        Ok(funcs.len())
+        Ok((String::new(), funcs.len()))
     }
 
     fn insert_current_lib(
@@ -442,11 +456,11 @@ impl FunctionLoader {
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Returns the number of recovered functions if successful, or an error
+    /// Returns the name and number of recovered functions if successful, or an error
     /// message if unsucessful. This is used every time the user clicks the
     /// "Add library" button, and maps to an insertion into the registry
     /// database.
-    pub fn add_crate(&mut self, path_str : &str) -> Result<usize, String> {
+    pub fn add_crate(&mut self, path_str : &str) -> Result<(String, usize), String> {
         let path = Path::new(path_str);
         let mut opt_toml_path = None;
         if path.is_dir() {
@@ -468,7 +482,8 @@ impl FunctionLoader {
                 opt_toml_path = Some(path.to_path_buf());
             } else {
                 if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-                    return self.add_source(path_str);
+                    // return self.add_source(path_str);
+                    unimplemented!()
                 }
                 return Err(String::from("Should inform .toml or .rs file"));
             }
@@ -496,7 +511,7 @@ impl FunctionLoader {
             jobs,
             active : true
         });
-        Ok(n)
+        Ok((lib_name, n))
         //} else {
         //    Err(String::from("Could not retrieve inserted library id"))
         //}
@@ -713,6 +728,10 @@ impl FunctionLoader {
         self.get_func(name).map(|func| {
             func.args.iter().map(|a| format!("{}", a)).collect::<Vec<_>>()
         })
+    }
+
+    pub fn get_ret(&self, name : &str) -> Option<String> {
+        self.get_func(name).map(|func| func.ret.to_string() )
     }
 
     /*pub fn retrieve_func(&self, name : &str) -> Option<TableFunc> {
