@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::tokenizer::{Tokenizer, Token};
 use sqlparser::dialect::keywords::Keyword;
+use queries::tables::table::Table;
+use queries::tables;
 
 pub mod client;
 
@@ -139,6 +141,61 @@ impl FromStr for BoundSQL {
 
 }
 
+/// There are a few ways in which we can implement code cells for Rust code:
+///
+/// 1. Make them simply a series of code blocks pasted one after the other in a main() call
+/// 2. Make them a series of local anonymous (or non-anonymous) code blocks inside { } in a main() call
+/// 3. Make them a series of nested calls for the signature Fn()->Option<Box<dyn Display>>.
+///
+/// # Option 1
+/// Option 1 requires that output is captured using an expansion for the last expression for each block (e.g.):
+/// ```rust
+/// let b = 1+1
+/// b
+/// ```
+/// The last line would be expanded into
+/// results.push(format!("{}", b));
+/// and the final output is captured by serializing the results vector into stdout of the executable (e.g. JSON array).
+/// We assume the user always return T : Display, allowing compilation to fail otherwise. Only full-document execution is
+/// possible, and all cells can mutate any name mutably bound.
+///
+/// # Option 2
+/// Option 2 gives the highest locality to the code cells: all cells are then effectively separate programs, that coordinate
+/// only by changing an external data source (such as a database or file). Assuming this external data source is not changed
+/// between any pair of calls allow interesting parallelism optimizations. We could check that, for example, by requiring that all
+/// SQL interaction happen from within SQL cells, and checking those cells do not make insert/update/delete between a pair of code blocks.
+///
+/// We could call cells independently from one another.
+/// we implement it like so:
+/// ```rust
+/// results.push(format!("{}", { let b = 1+1; b }));
+/// ```
+/// Where the user-supplied code is what is inside the block. This is easier to implement than (1) since we do not
+/// need to parse the last expression away from the rest of the block,
+/// only fit it into the format! call.
+///
+/// We could also adopt a strategy where the user could name each code block:
+/// results.push(format!("{}", 'my_code : { let b = 1+1; b }));
+/// and then we could use syn to parse each named code block and build and save the resulting computation
+/// from each block into a HashMap<String, String> where the keys would be the named blocks. We would start
+/// the executable by passing the parsed names as arguments to build the keys. Then, only the return values
+/// for each block would be available for the user, if he referred to each block by name at this hashmap (or read
+/// if from some environment variable such as env::var('CODE'). Alternatively, he could refer by cell order
+/// by calling from an array of environment variables such as env::var('$CELL[0]'). This of course would preclude
+/// any possible parallelism optimizations.
+///
+/// We can expand the SQL execute query blocks in a global rather than local scope, so any variables bound from SQL queries
+/// would be available to all cells below the point where the query was made. manipulation statements could then
+/// change the global database state, which could be read by the cells below. But to bind names from Rust to SQL,
+/// we would require that all names should be located on the same block, so the expansion would happen inside the block.
+/// we would then have: global queries independent of program state OR local statements dependent on program state.
+///
+/// # Option 3
+/// Option 3 allows the names of previous cells to be bound by reference to cells below them. The limitations of Option 2
+/// are now lifted, since expanding the queries even inside the blocks would continue to make the variable bindings available.
+/// We can mix strategies as well: Leave as nested closures everything that has variable dependencies; and leave as independent
+/// serial closures everything that do not have variable dependencies. The resulting closure vector can then always be parallelized,
+/// since every vector element is an independent execution path of the asynchronous execution DAG.
 #[derive(Clone, Debug)]
 enum CellKind {
 
@@ -171,6 +228,66 @@ struct Notebook {
 }
 
 impl Notebook {
+
+    /// Generates the full rendered document.
+    pub fn weave(&self) -> Result<String, anyhow::Error> {
+        unimplemented!()
+    }
+
+    fn expand_binding(binding : &BoundSQL, cell_ix : usize) -> Result<String, anyhow::Error> {
+        // binding.into
+        // binding.using
+        // binding.stmt
+        unimplemented!()
+    }
+
+    fn cell_start_tag(ix : usize) -> String {
+        format!("println!(\"<cell index={}>\");", ix)
+    }
+
+    fn cell_end_tag() -> &'static str {
+        "println!(\"</cell>\")"
+    }
+
+    fn expand_sql(sql : &str, cell_ix : usize) -> Result<String, anyhow::Error> {
+        let stmts = sqlparser::parser::ParseSql(PostgreSqlDialect)?;
+        let mut exp = String::new();
+        for stmt in stmts {
+            match stmt {
+                Statement::Query(_) => {
+                    exp += &Self::cell_start_tag(cell_ix);
+                    exp += &format!("queries::report::client::query(&mut cli, \"{}\").map(|tbl| tbl.to_markdown() )?;", stmt);
+                    exp += Self::cell_end_tag();
+                },
+                _ => {
+                    exp += &format!("queries::report::client::exec(&mut cli, \"{}\")?;", stmt);
+                }
+            }
+        }
+        Ok(exp)
+    }
+
+    fn generate_source(&self, conn : &str) -> Result<String, anyhow::Error> {
+        let mut src = String::from("extern crate postgres; extern crate queries; fn main() -> Result<String, String> {");
+        src += &format!("let mut cli = Client::connect(\"{}\").map_err(|e| format!(\"{}\", e)?;");
+        for (ix, cell) in &self.cells {
+            match cell.kind {
+                CellKind::SQL => {
+                    src += Self::expand_sql(&cell.content[..], ix)?;
+                },
+                CellKind::BoundSQL(b) => {
+                    src += Self::expand_binding(&b, ix)?;
+                }
+            }
+        }
+        src += println!("}");
+        Ok(src)
+    }
+
+    /// Generates an executable based on the current cells.
+    pub fn tangle(&self, path : &str) -> Result<(), anyhow::Error> {
+
+    }
 
 }
 

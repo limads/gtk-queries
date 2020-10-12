@@ -23,3 +23,4 @@ mod postgre;
 #[cfg(feature="arrow")]
 mod arrow;
 
+// mod pgvtab;

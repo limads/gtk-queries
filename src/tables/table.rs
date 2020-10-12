@@ -193,6 +193,24 @@ impl Table {
         q
     }
 
+    pub fn to_markdown(&self) -> String {
+        let mut rows = self.text_rows();
+        let mut md = String::new();
+        for (i, row) in rows.drain(..).enumerate() {
+            for d in row.iter() {
+                md += &format!("|{}", d);
+                md += &format!("|\n");
+            }
+            if i == 0 {
+                for _ in 0..row.len() {
+                    md += "|:---:";
+                }
+                md += "|\n";
+            }
+        }
+        md
+    }
+
     pub fn shape(&self) -> (usize, usize) {
         (self.nrows, self.cols.len())
     }

@@ -1,7 +1,19 @@
 use postgres::{self, Client, Row, tls};
 use postgres::types::{ToSql, FromSql};
+use sqlparser::ast::Statement;
+use queries::tables::table::Table;
+use queries::tables;
 
-pub fn exec_templated<T>(conn : &mut Client, template : &str, data : &[&[T]]) -> Result<(), String>
+pub enum ExecResult {
+    Query(Table),
+    Statement
+}
+
+pub fn exec_templated<T>(
+    conn : &mut Client,
+    stmt : &Statement,
+    data : &[&[T]]
+) -> Result<ExecResult, String>
 where
     T : postgres::types::ToSql + Sync
 {
@@ -19,10 +31,25 @@ where
                 return Err(format!("Row {} has insufficient data entries", row_ix));
             }
         }
-        conn.execute(template, &row_ref[..]).map_err(|e| format!("{}", e))?;
+        // If query, execute a single time. If statement, execute many times.
+        match stmt {
+            Statement::Query(_) => {
+                if data.len() > 1 {
+                    return Err(format!("Only single-row templates allowed for queries"));
+                }
+                let ans = conn.query(&format!("{}", stmt), row_ref)
+                    .map_err(|e| format!("{}", e))?;
+                let tbl = tables::postgre::build_table_from_postgre(&ans[..])?;
+                return Ok(ExecResult::Query(tbl));
+            }
+            _ => {
+                conn.execute(&format!("{}", stmt), row_ref)
+                    .map_err(|e| format!("{}", e))?;
+            }
+        }
         row_ref.clear();
     }
-    Ok(())
+    Ok(ExecResult::Statement)
 }
 
 /*pub fn query_templated<T>(conn : &mut Client, template : &str, data : &[T]) -> Result<Vec<Row>, String>
@@ -36,8 +63,10 @@ pub fn connect(conn_str : &str) -> Result<Client, String> {
     Client::connect(conn_str, tls::NoTls{ }).map_err(|e| format!("{}", e) )
 }
 
-pub fn query(conn : &mut Client, query : &str) -> Result<Vec<Row>, String> {
-    conn.query(query, &[]).map_err(|e| format!("{}", e))
+pub fn query(conn : &mut Client, query : &str) -> Result<Table, String> {
+    let ans = conn.query(query, &[]).map_err(|e| format!("{}", e))?;
+    let tbl = tables::postgre::build_table_from_postgre(&ans[..])?;
+    Ok(tbl)
 }
 
 pub fn exec(conn : &mut Client, stmt : &str) -> Result<(), String> {

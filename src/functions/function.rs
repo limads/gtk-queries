@@ -171,6 +171,21 @@ impl TryFrom<toml::Value> for Function {
     }
 }
 
+impl TryFrom<ItemFn> for Function {
+
+    type Error = String;
+
+    fn try_from(item_fn : ItemFn) -> Result<Self, String> {
+        match item_fn.vis {
+            Visibility::Public(_) => {
+                parser::function_signature(item_fn)
+            },
+            _ => Err(format!("Function does not have public visibility"))
+        }
+    }
+
+}
+
 #[derive(Debug, Clone)]
 pub enum ParseError {
     Arg(usize, String),
@@ -239,17 +254,6 @@ impl fmt::Display for FunctionMode {
 
 }*/
 
-impl Function {
-
-    /// Hints which columns could not have its name retrieved on error.
-    pub fn get_col_names(&self, arg_names : Vec<String>) -> Result<Vec<String>, usize> {
-        // Match column name to pattern informed by user.
-        unimplemented!()
-    }
-
-
-}
-
 /// Gets type and return whether the type was nested into Vec<Vec<T>>
 /// Return type string if type could not be converted into Sqltype.
 fn get_simple_type(ts : TokenStream) -> Result<(SqlType, bool), String> {
@@ -269,6 +273,52 @@ fn get_simple_type(ts : TokenStream) -> Result<(SqlType, bool), String> {
                 .map_err(|_| ty_str)?;
             Ok((simpl, false))
         }
+    }
+}
+
+pub fn search_mod(mod_name : &str, item : &Item) -> Option<ItemMod> {
+    match item {
+        Item::Mod(item_mod) => {
+            if &item_mod.ident.to_string()[..] == mod_name {
+                Some(item_mod.clone())
+            } else {
+                if let Some((_, items)) = &item_mod.content {
+                    for item in items {
+                        if let Some(m) = search_mod(mod_name, &item) {
+                            return Some(m);
+                        }
+                    }
+                }
+                None
+            }
+        },
+        _ => None
+    }
+}
+
+pub fn read_funcs_at_toplevel(items : &[Item]) -> Result<Vec<Function>, String> {
+    let mut funcs = Vec::new();
+    for item in items {
+        match item {
+            Item::Fn(item_fn) => {
+                match Function::try_from(item_fn.clone()) {
+                    Ok(f) => funcs.push(f),
+                    Err(e) => { println!("{}", e) }
+                }
+            },
+            _ => { }
+        }
+    }
+    Ok(funcs)
+}
+
+/// Try to parse all publicly-exported functions from the informed module
+/// as SQL functions.
+pub fn read_funcs_at_item(item_mod : ItemMod) -> Result<Vec<Function>, String> {
+    if let Some((_, items)) = item_mod.content {
+        read_funcs_at_toplevel(&items[..])
+    } else {
+        Ok(Vec::new())
     }
 }
 

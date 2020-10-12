@@ -4,14 +4,14 @@ use libloading::{Library, Symbol};
 use std::env;
 use rusqlite::{Connection, config::DbConfig};
 use std::collections::HashMap;
-use std::path::Path;
-use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::fs::{self, File};
 use std::io::Read;
 use std::convert::TryInto;
 use rusqlite::types::ToSql;
 use crate::tables::column::*;
 use super::sql_type::*;
-use super::function::*;
+use super::function::{self, *};
 use crate::tables::table::*;
 use toml;
 use std::convert::TryFrom;
@@ -75,6 +75,160 @@ impl FunctionLoader {
         None
     }
 
+    fn parse_sql_file(module_name : &str, path : &Path) -> Result<Vec<Function>, String> {
+        let mut content = String::new();
+        let mut f = File::open(path).unwrap();
+        f.read_to_string(&mut content);
+        let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
+        for item in t.items {
+            match function::search_mod(&module_name, &item) {
+                Some(module) => { return function::read_funcs_at_item(module); },
+                None => { }
+            }
+        }
+        if path.file_name().and_then(|m| m.to_str()) == Some(module_name) {
+            let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
+            if let Ok(funcs) = function::read_funcs_at_toplevel(&t.items[..]) {
+                Ok(funcs)
+            } else {
+                Err(format!("Invalid search at {} (module {})", path.display(), module_name))
+            }
+        } else {
+            Err(format!("Invalid search at {} (module {})", path.display(), module_name))
+        }
+    }
+
+    fn parse_sql_module(module_name : &str,src : &Path) -> Result<Vec<Function>, String> {
+        let sources = parser::search_sources_in_crate(&src);
+        for src in sources {
+            if src.is_dir() && src.file_name().and_then(|f| f.to_str()) == Some(module_name) {
+                let paths = fs::read_dir(&src).map_err(|_| format!("Could not read dir contents") )?;
+                let opt_mod_file = paths
+                    .filter_map(|p| p.ok().and_then(|s| {
+                        let path = s.path();
+                        path.to_str().map(|s| s.to_string())
+                    })).find(|m| &m[..] == "mod.rs" );
+                if let Some(mod_file) = opt_mod_file {
+                    return Self::parse_sql_file(module_name, &PathBuf::from(mod_file) );
+                }
+            }
+            if src.file_name().and_then(|f| f.to_str() ) == Some(module_name) {
+                return Self::parse_sql_file(module_name, &src);
+            }
+        }
+        Err(format!("Module {} not found", module_name))
+    }
+
+    fn get_src_lib_path(v : &toml::Value, parent : &Path, name : &str) -> Result<(String, String), String> {
+        let src_path = v.get("lib")
+            .and_then(|lib| lib.get("path"))
+            .and_then(|path| {
+                if let toml::Value::String(path) = path {
+                    Some(path.clone())
+                } else {
+                    None
+                }
+            }).unwrap_or("src/lib.rs".to_string());
+        println!("Found source path: {}", src_path);
+        let lib_path = Self::search_lib_path(parent, &name)
+            .ok_or(format!("No .so file found at target directory"))?;
+        println!("Found library path: {}", lib_path);
+        let src_path_str = src_path.as_str().to_string();
+        Ok((src_path.to_string(), lib_path.to_string()))
+    }
+
+    fn parse_function_vec(
+        func_vals : &[toml::Value],
+        src_folder : &Path
+    ) -> Result<(Vec<Function>, Vec<Aggregate>, Vec<Job>), String> {
+        let mut funcs = Vec::new();
+        let mut aggs = Vec::new();
+        let mut jobs = Vec::new();
+        let mut docs : HashMap<String, Option<String>> = HashMap::new();
+        let parse_str = |val : &toml::Value| {
+            let s = toml::Value::try_into::<'_, String>(val.clone()).ok();
+            s
+        };
+        let parse_seq = |val : &toml::Value| {
+            let vs = toml::Value::try_into::<'_, Vec<String>>(val.clone()).ok();
+            vs
+        };
+        let parse_type = |val : &String| {
+            let ty : Option<SqlType> = (&val[..]).try_into().ok();
+            ty
+        };
+        for f in func_vals.iter() {
+            let agg = f.get("aggregate").and_then(parse_str);
+            let init_func = f.get("init").and_then(parse_str);
+            let state_func = f.get("state").and_then(parse_str);
+            let final_func = f.get("final").and_then(parse_str);
+            match (agg, init_func, state_func, final_func) {
+                (Some(name), Some(init_func), Some(state_func), Some(final_func)) => {
+                    let agg = Aggregate { name, init_func, state_func, final_func };
+                    println!("Found aggregate: {:?}", agg);
+                    aggs.push(agg);
+                },
+                _ => {
+                    let scalar = f.get("scalar").and_then(parse_str);
+                    let args = f.get("args")
+                        .and_then(parse_seq)
+                        .and_then(|args| {
+                            let types = args.iter().filter_map(parse_type)
+                                .collect::<Vec<_>>();
+                            if types.len() == args.len() {
+                                Some(types)
+                            } else {
+                                None
+                            }
+                        });
+                    let ret = f.get("ret")
+                        .and_then(parse_str)
+                        .as_ref()
+                        .and_then(parse_type);
+                    match (scalar, args, ret) {
+                        (Some(name), Some(args), Some(ret)) => {
+                            let var_arg = f.get("var_arg")
+                                .and_then(|v| {
+                                    let b = toml::Value::try_into::<bool>(v.clone()).ok();
+                                    b
+                                }).unwrap_or(false);
+                            let mut func = Function{ name, args, ret, doc : None, var_arg };
+                            println!("Found function: {:?}", func);
+                            docs.insert(func.name.clone(), None);
+                            funcs.push(func);
+                        },
+                        _ => {
+                            let job_name = f.get("job").and_then(parse_str);
+                            match job_name {
+                                Some(name) => {
+                                    docs.insert(name.clone(), None);
+                                    jobs.push(Job{name, doc : None});
+                                },
+                                None => return Err(format!("Invalid SQL metadata entry : {}", f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Load documentation
+        search_doc_at_dir(src_folder, &mut docs);
+        for func in funcs.iter_mut() {
+            match docs.get(&func.name) {
+                Some(Some(doc)) => func.doc = Some(doc.clone()),
+                _ => { }
+            }
+        }
+        for job in jobs.iter_mut() {
+            match docs.get(&job.name) {
+                Some(Some(doc)) => job.doc = Some(doc.clone()),
+                _ => { }
+            }
+        }
+        Ok((funcs, aggs, jobs))
+    }
+
     /// Returns (name, source path, lib path, parsed_functions, parsed aggregates) if successful.
     fn parse_toml(
         path : &Path
@@ -87,126 +241,46 @@ impl FunctionLoader {
         let mut f = File::open(&path)
             .map_err(|e| format!("Could not read toml file: {}", e) )?;
         f.read_to_string(&mut content);
+
+        /// Retrieve package
         let v : toml::Value = content.parse()
             .map_err(|e| format!("Could not parse toml file: {}", e) )?;
-        if let Some(pkg) = v.get("package") {
-            if let Some(name_value) = pkg.get("name") {
-                println!("package name = {}", name_value);
-                let name = if let toml::Value::String(s) = name_value {
-                    s.clone()
-                } else {
-                    return Err(String::from("Package name field should be a string"));
-                };
-                let func_vals = pkg.get("metadata")
-                    .and_then(|meta| { println!("meta={:?}", meta); meta.get("sql") })
-                    .and_then(|sql| { println!("sql={:?}", sql); sql.as_array() })
-                    .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
-                let mut funcs = Vec::new();
-                let mut aggs = Vec::new();
-                let mut jobs = Vec::new();
-                let mut docs : HashMap<String, Option<String>> = HashMap::new();
-                let parse_str = |val : &toml::Value| {
-                    let s = toml::Value::try_into::<'_, String>(val.clone()).ok();
-                    s
-                };
-                let parse_seq = |val : &toml::Value| {
-                    let vs = toml::Value::try_into::<'_, Vec<String>>(val.clone()).ok();
-                    vs
-                };
-                let parse_type = |val : &String| {
-                    let ty : Option<SqlType> = (&val[..]).try_into().ok();
-                    ty
-                };
-                for f in func_vals.iter() {
-                    let agg = f.get("aggregate").and_then(parse_str);
-                    let init_func = f.get("init").and_then(parse_str);
-                    let state_func = f.get("state").and_then(parse_str);
-                    let final_func = f.get("final").and_then(parse_str);
-                    match (agg, init_func, state_func, final_func) {
-                        (Some(name), Some(init_func), Some(state_func), Some(final_func)) => {
-                            let agg = Aggregate { name, init_func, state_func, final_func };
-                            println!("Found aggregate: {:?}", agg);
-                            aggs.push(agg);
-                        },
-                        _ => {
-                            let scalar = f.get("scalar").and_then(parse_str);
-                            let args = f.get("args")
-                                .and_then(parse_seq)
-                                .and_then(|args| {
-                                    let types = args.iter().filter_map(parse_type)
-                                        .collect::<Vec<_>>();
-                                    if types.len() == args.len() {
-                                        Some(types)
-                                    } else {
-                                        None
-                                    }
-                                });
-                            let ret = f.get("ret")
-                                .and_then(parse_str)
-                                .as_ref()
-                                .and_then(parse_type);
-                            match (scalar, args, ret) {
-                                (Some(name), Some(args), Some(ret)) => {
-                                    let var_arg = f.get("var_arg")
-                                        .and_then(|v| {
-                                            let b = toml::Value::try_into::<bool>(v.clone()).ok();
-                                            b
-                                        }).unwrap_or(false);
-                                    let mut func = Function{ name, args, ret, doc : None, var_arg };
-                                    println!("Found function: {:?}", func);
-                                    docs.insert(func.name.clone(), None);
-                                    funcs.push(func);
-                                },
-                                _ => {
-                                    let job_name = f.get("job").and_then(parse_str);
-                                    match job_name {
-                                        Some(name) => {
-                                            docs.insert(name.clone(), None);
-                                            jobs.push(Job{name, doc : None});
-                                        },
-                                        None => return Err(format!("Invalid SQL metadata entry : {}", f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                let src_path = v.get("lib")
-                    .and_then(|lib| lib.get("path"))
-                    .and_then(|path|
-                        if let toml::Value::String(path) = path {
-                            Some(path.clone())
-                        } else {
-                            None
-                        }
-                    ).unwrap_or("src/lib.rs".to_string());
-                println!("Found source path: {}", src_path);
-                let lib_path = Self::search_lib_path(parent, &name)
-                    .ok_or(format!("No .so file found at target directory"))?;
-                println!("Found library path: {}", lib_path);
-                let src_path_str = src_path.as_str().to_string();
+        let pkg = if let Some(pkg) = v.get("package") {
+            pkg
+        } else {
+            return Err(format!("Missing pkg entry"));
+        };
 
-                /// Load documentation
-                search_doc_at_dir(src_folder.as_path(), &mut docs);
-                for func in funcs.iter_mut() {
-                    match docs.get(&func.name) {
-                        Some(Some(doc)) => func.doc = Some(doc.clone()),
-                        _ => { }
-                    }
-                }
-                for job in jobs.iter_mut() {
-                    match docs.get(&job.name) {
-                        Some(Some(doc)) => job.doc = Some(doc.clone()),
-                        _ => { }
-                    }
-                }
-
-                return Ok((name.to_string(), src_path_str, lib_path, funcs, aggs, jobs));
+        // Get library name, root source path, and library path
+        let name = if let Some(name_value) = pkg.get("name") {
+            if let toml::Value::String(s) = name_value {
+                s.clone()
             } else {
-                return Err(String::from("Could not get crate name"));
+                return Err(String::from("Package name field should be a string"));
             }
         } else {
-            return Err(String::from("Could not get package table"));
+            return Err(format!("Missing package name"));
+        };
+        let(src_path, lib_path) = Self::get_src_lib_path(&v, parent, &name[..])?;
+
+        let sql_meta = pkg.get("metadata")
+            .and_then(|meta| { println!("meta={:?}", meta); meta.get("sql") })
+            .ok_or(String::from("Manifest missing 'sql' metadata field"))?;
+        match sql_meta {
+            toml::Value::String(s) => {
+                let funcs = Self::parse_sql_module(&s[..], &src_folder)?;
+                Ok((name.to_string(), src_path, lib_path, funcs, Vec::new(), Vec::new()))
+            },
+            toml::Value::Array(func_vals) => {
+                let (funcs, aggs, jobs) = Self::parse_function_vec(
+                    &func_vals[..],
+                    &src_folder.as_path()
+                )?;
+                Ok((name.to_string(), src_path, lib_path, funcs, aggs, jobs))
+            },
+            _ => {
+                Err(format!("sql metadata should be a string or table"))
+            }
         }
     }
 

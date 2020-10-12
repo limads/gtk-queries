@@ -11,7 +11,6 @@ use std::path::Path;
 use std::fmt::{self, Debug, Display};
 use std::any::{Any, TypeId};
 use std::default::Default;
-// use crate::tables::sqlite::SqliteColumn;
 use std::convert::{TryFrom, TryInto};
 use super::sql_type::*;
 use crate::tables::column::*;
@@ -19,6 +18,8 @@ use libloading::{Library, Symbol};
 use super::loader::*;
 use crate::tables::column::*;
 use super::function::*;
+use std::ffi::OsStr;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum FunctionMode {
@@ -273,6 +274,25 @@ pub fn parse_nested_signatures(
     Ok(sigs)
 }
 
+pub fn search_sources_in_crate(p : &Path) -> Vec<PathBuf> {
+    if p.is_dir() {
+        let mut sources = Vec::new();
+        let paths = fs::read_dir(p).unwrap();
+        for p in paths.filter_map(|p| p.ok() ) {
+            if p.path().is_dir() {
+                sources.extend(search_sources_in_crate(&p.path()));
+            }
+            if p.path().extension() == Some(OsStr::new("rs")) {
+                sources.push(p.path());
+            }
+        }
+        sources
+    } else {
+        println!("Tried to search for sources in non-dir path");
+        Vec::new()
+    }
+}
+
 #[test]
 fn parse_test() -> Result<(),()> {
     let test = r#"
@@ -444,24 +464,6 @@ pub fn info_from_toml(path : Path) -> Crate {
         println!("{}", e);
         return (String::from(""), None)
     });
-}
-
-pub fn search_sources_in_crate(path : Path) -> Vec<Path> {
-    let mut sources = Vec::new();
-    if p.path().is_dir() {
-        let paths = fs::read_dir(dir).unwrap();
-        for p in paths {
-            if p.path().is_dir() {
-                sources.extend(search_rust_crates(p.path()));
-            }
-            if p.path().extension() == Some(OsStr::new("rs")) {
-                sources.push(p);
-            }
-        }
-    } else {
-        println!("Tried to search for sources in non-dir path");
-        return Vec::new();
-    }
 }
 
 pub fn search_rust_crates(dir : &Path) -> Vec<Crate> {
