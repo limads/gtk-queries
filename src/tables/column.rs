@@ -33,6 +33,39 @@ impl<'a> Column {
         vec.into()
     }
 
+    /*pub fn get_integer(&self, ix : usize) -> Option<i64> {
+        match &self {
+            Column::I64(v) => v.get(ix),
+            Column::I8(v) => v.get(ix).map(|v| v as i64 ),
+            Column::I16(v) => v.get(ix).map(|v| v as i64 ),
+            Column::I32(v) => v.get(ix).map(|v| v as i64 ),
+            Column::U32(v) => v.get(ix).map(|v| v as i64 ),
+            _ => None
+        }
+    }
+
+    pub fn get_real(&self, ix : usize) -> Option<f64> {
+        match &self {
+            Column::F32(v) => v.get(ix),
+            Column::F64(v) => v.get(ix).map(|v| v as f64 ),
+            _ => None
+        }
+    }
+
+    pub fn get_text(&self, ix : usize) -> Option<String> {
+        match &self {
+            Column::Text(v) => v.get(ix).map(|v| v.clone() ),
+            _ => None
+        }
+    }
+
+    pub fn get_bytes(&self, ix : usize) -> Option<Vec<u8>> {
+        match &self {
+            Column::Bytes(b) => v.get(ix).map(|b| b.clone() ),
+            _ => None
+        }
+    }*/
+
     /*pub fn try_slice_bool(&'a self) -> Option<&'a [bool]> {
         match self {
             Column::Bool(b) => Some(&b[..]),

@@ -87,6 +87,7 @@ fn retrieve<'a, A, B, C, R>(
             1 => {
                 let sym : Symbol<'a, unsafe extern fn(A)->Result<R,String>> =
                     lib.get(f_name).map_err(|e| format!("{}",e))?;
+                println!("Recovered symbol: {:?}", sym);
                 let raw_fn = unsafe { sym.into_raw() };
                 conn.create_scalar_function(
                     &f.name,
@@ -101,6 +102,7 @@ fn retrieve<'a, A, B, C, R>(
             2 => {
                 let sym : Symbol<'a, unsafe extern fn(A,B)->Result<R,String>> =
                     lib.get(f_name).map_err(|e| format!("{}",e))?;
+                println!("Recovered symbol: {:?}", sym);
                 let raw_fn = unsafe { sym.into_raw() };
                 conn.create_scalar_function(
                     &f.name,
@@ -116,6 +118,7 @@ fn retrieve<'a, A, B, C, R>(
             3 => {
                 let sym : Symbol<'a, unsafe extern fn(A,B,C)->Result<R,String>> =
                     lib.get(f_name).map_err(|e| format!("{}",e))?;
+                println!("Recovered symbol: {:?}", sym);
                 let raw_fn = unsafe { sym.into_raw() };
                 conn.create_scalar_function(
                     &f.name,
@@ -217,6 +220,7 @@ where
         C : ToSql + FromSql + 'static,
         R : ToSql + FromSql + 'static
 {
+    println!("Registering {:?}", f);
     // We use i64 as a placeholder, only so that it satisfies ToSql.
     // The dispatch_arg is called recursively to fill in for the values
     // of f.

@@ -28,23 +28,50 @@ pub mod schema_tree;
 
 pub mod jobs;
 
-// pub mod report;
+pub mod table_popover;
 
 pub mod utils {
 
+    use gtk::prelude::*;
+    // use gio::prelude::*;
     use std::env;
     use gtk::*;
-    // use gio::prelude::*;
     use crate::tables::environment::TableEnvironment;
     use crate::table_notebook::*;
-    //use crate::functions::function_search::*;
     use crate::plots::plot_workspace::PlotWorkspace;
+    use crate::table_popover::TablePopover;
+
+    pub fn link_window<B>(btn : B, win : Window)
+    where
+        B : IsA<Button> + ButtonExt
+    {
+        {
+            let win = win.clone();
+            btn.connect_clicked(move |_| {
+                if win.get_visible() {
+                    win.grab_focus();
+                } else {
+                    win.show();
+                }
+            });
+        }
+        win.set_destroy_with_parent(false);
+        win.connect_delete_event(move |win, ev| {
+            win.hide();
+            glib::signal::Inhibit(true)
+        });
+        win.connect_destroy_event(move |win, ev| {
+            win.hide();
+            glib::signal::Inhibit(true)
+        });
+    }
 
     pub fn set_tables(
         table_env : &TableEnvironment,
         tables_nb : &mut TableNotebook,
         mapping_popover : Popover,
         workspace : PlotWorkspace,
+        table_popover : TablePopover
         //fn_popover : Popover
     ) {
         tables_nb.clear();
@@ -57,6 +84,7 @@ pub mod utils {
                 None,
                 mapping_popover.clone(),
                 workspace.clone(),
+                table_popover.clone()
                 //fn_popover.clone()
             );
         } else {
@@ -74,6 +102,7 @@ pub mod utils {
                         Some(t_rows),
                         mapping_popover.clone(),
                         workspace.clone(),
+                        table_popover.clone()
                         //fn_popover.clone()
                     );
                 } else {

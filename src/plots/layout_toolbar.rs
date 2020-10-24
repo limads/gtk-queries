@@ -2,22 +2,34 @@ use gtk::*;
 use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{environment::TableEnvironment};
+use crate::tables::environment::TableEnvironment;
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-use std::fs::File;
-use std::io::Read;
-use super::design_menu::*;
-use super::scale_menu::*;
-use super::layout_window::*;
+// use std::fs::File;
+// use std::io::Read;
+// use super::design_menu::*;
+// use super::scale_menu::*;
+// use super::layout_window::*;
 use super::mapping_menu::*;
 use super::plot_popover::*;
 use std::collections::HashMap;
-use crate::utils;
+// use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
-use std::default::Default;
+// use std::default::Default;
 use crate::plots::plot_workspace::PlotWorkspace;
+
+#[derive(Clone, Debug)]
+pub struct SelectedMapping {
+
+    ty : String,
+
+    pl_ix : usize,
+
+    global_ix : usize,
+
+    local_ix : usize
+}
 
 #[derive(Clone, Debug)]
 pub enum SelectionStatus {
@@ -26,10 +38,10 @@ pub enum SelectionStatus {
     New(usize, String),
 
     // Carries the selected plot index, global mapping index
-    Single(usize, usize),
+    Single(SelectedMapping),
 
     // Multiple mappings are selected and no useful information can be retrieved
-    Multiple,
+    Multiple(Vec<SelectedMapping>),
 
     // No mapping is selected
     None
@@ -566,6 +578,7 @@ impl LayoutToolbar {
         tbl_nb : TableNotebook,
         mapping_popover : Popover,
     ) {
+        println!("Remove mapping clicked");
         self.mapping_popover.hide();
         self.remove_mapping_btn.connect_clicked(move |_| {
             Self::remove_selected_mapping_page(
@@ -608,14 +621,14 @@ impl LayoutToolbar {
 
     /// Check which types are mapped to this set of column positions.
     /// Returns the types that are mapped to this set of columns (if any), the respective
-    /// plot position, and mapping (linear) position. Returns an empty vector otherwise.
+    /// plot position, mapping (global) position, and mapping (local) position. Returns an empty vector otherwise.
     /// If a mapping type is not passed, the search is performed over all possible mapping types.
     fn check_mapped(
         selected : &[usize],
         tbl_ix : usize,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_type : Option<&str>
-    ) -> Vec<(String, usize, usize)> {
+    ) -> Vec<SelectedMapping> {
         let mut mapped = Vec::new();
         if let Ok(menus) = mapping_menus.try_borrow() {
             for (i, m) in menus.iter().enumerate() {
@@ -630,7 +643,12 @@ impl LayoutToolbar {
                             None => true
                         };
                         if len_match && col_match && type_match {
-                            mapped.push((m.mapping_type.clone(), m.plot_ix, i));
+                            mapped.push(SelectedMapping{
+                                ty : m.mapping_type.clone(),
+                                pl_ix : m.plot_ix,
+                                global_ix : i,
+                                local_ix : m.mapping_name.borrow().parse::<usize>().unwrap()
+                            });
                         }
                     }
                 } else {
@@ -641,6 +659,38 @@ impl LayoutToolbar {
             println!("Failed acquiring reference to mapping menus (check_mapped)");
         }
         mapped
+    }
+
+    fn set_active_mapping(
+        unique_mapped : &SelectedMapping,
+        selection : &Rc<RefCell<SelectionStatus>>,
+        pl_view : &Rc<RefCell<PlotView>>,
+        plot_popover : &PlotPopover,
+        group_toolbar : &GroupToolbar,
+        add_mapping_btn : &ToolButton,
+        edit_mapping_btn : &ToolButton,
+        remove_mapping_btn : &ToolButton
+    ) {
+        *(selection.borrow_mut()) = SelectionStatus::Single(unique_mapped.clone());
+        if let Ok(mut pl_view) = pl_view.try_borrow_mut() {
+            pl_view.change_active_area(unique_mapped.pl_ix);
+        } else {
+            println!("Unable to acquire mutable reference to plot view");
+            return;
+        }
+        plot_popover.set_active_mapping(
+            unique_mapped.pl_ix,
+            Some(unique_mapped.local_ix)
+        );
+        if !group_toolbar.get_sensitive() {
+            group_toolbar.set_sensitive(true);
+        }
+        group_toolbar.switch_active_plot(unique_mapped.pl_ix);
+        group_toolbar.set_sensitive(false);
+
+        edit_mapping_btn.set_sensitive(true);
+        remove_mapping_btn.set_sensitive(true);
+        add_mapping_btn.set_sensitive(false);
     }
 
     fn build_add_mapping_toggles(
@@ -692,6 +742,7 @@ impl LayoutToolbar {
             let tbl_nb = tbl_nb.clone();
             let plot_popover = plot_popover.clone();
             let mapping_menus = mapping_menus.clone();
+            let plot_view = plot_view.clone();
             for (mapping_name, btn) in mapping_btns.iter().map(|(k, v)| (k.clone(), v.clone()) ) {
                 let add_mapping_btn = add_mapping_btn.clone();
                 let mapping_btns = mapping_btns.clone();
@@ -704,6 +755,7 @@ impl LayoutToolbar {
                 let tbl_nb = tbl_nb.clone();
                 let selection = selection.clone();
                 let group_toolbar = group_toolbar.clone();
+                let plot_view = plot_view.clone();
                 btn.connect_toggled(move |btn| {
                     println!("{} toggled to {}", mapping_name, btn.get_active());
                     let (tbl_ix, selected_ix) = tbl_nb.selected_table_and_cols()
@@ -728,11 +780,14 @@ impl LayoutToolbar {
                         mapping_menus.clone(),
                         Some(&mapping_name)
                     );
-                    Self::config_toggles_sensitive(
+                    let config_ans = Self::config_toggles_sensitive(
                         &add_mapping_btn,
                         &mapping_btns,
                         selected_ix.len()
                     );
+                    if let Err(e) = config_ans {
+                        println!("{}", e);
+                    }
                     if btn.get_active() {
                         println!("This mapped: {:?}", this_mapped);
                         println!("Left toggled: {:?}", toggled_btns);
@@ -743,7 +798,7 @@ impl LayoutToolbar {
                         }
                         //println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
                         match (this_mapped.len(), selected_ix.len()) {
-                            (0, n_cols) => {
+                            (0, _n_cols) => {
                                 *(selection.borrow_mut()) = SelectionStatus::New(0, mapping_name.clone());
                                 add_mapping_btn.set_sensitive(true);
                                 edit_mapping_btn.set_sensitive(false);
@@ -758,20 +813,17 @@ impl LayoutToolbar {
                             },
                             (1, n_cols) => {
                                 if n_cols >= 1 {
-                                    let (_, sel_plot_ix, sel_mapping_ix) = this_mapped[0];
-                                    *(selection.borrow_mut()) = SelectionStatus::Single(sel_plot_ix, sel_mapping_ix);
-                                    plot_popover.set_active_mapping(sel_plot_ix, Some(sel_mapping_ix));
-
-                                    if !group_toolbar.get_sensitive() {
-                                        group_toolbar.set_sensitive(true);
-                                    }
-                                    group_toolbar.switch_active_plot(sel_plot_ix);
-                                    group_toolbar.set_sensitive(false);
-
-                                    edit_mapping_btn.set_sensitive(true);
-                                    remove_mapping_btn.set_sensitive(true);
-                                    add_mapping_btn.set_sensitive(false);
-
+                                    let unique_mapped = &this_mapped[0];
+                                    Self::set_active_mapping(
+                                        &unique_mapped,
+                                        &selection,
+                                        &plot_view,
+                                        &plot_popover,
+                                        &group_toolbar,
+                                        &add_mapping_btn,
+                                        &edit_mapping_btn,
+                                        &remove_mapping_btn
+                                    );
                                 } else {
                                     *(selection.borrow_mut()) = SelectionStatus::None;
                                     edit_mapping_btn.set_sensitive(false);
@@ -782,7 +834,7 @@ impl LayoutToolbar {
                                 }
                             },
                             (_n_mapped, _n_cols) => {
-                                *(selection.borrow_mut()) = SelectionStatus::Multiple;
+                                *(selection.borrow_mut()) = SelectionStatus::Multiple(this_mapped.clone());
                                 add_mapping_btn.set_sensitive(false);
                                 edit_mapping_btn.set_sensitive(false);
                                 remove_mapping_btn.set_sensitive(false);
@@ -801,39 +853,68 @@ impl LayoutToolbar {
                         println!("This mapped: {:?}", this_mapped);
                         println!("Any mapped: {:?}", any_mapped);
                         println!("Left toggled: {:?}", toggled_btns);
-                        if toggled_btns.len() == 1 && any_mapped.len() >= 1 {
-                            let found_mapped = any_mapped.iter()
-                                .find(|(name, _, _)| &name[..] == &toggled_btns[0][..] );
-                            if let Some(mapped) = found_mapped {
-                                println!("Setting data of {:?} to plot popover", mapped);
-                                plot_popover.set_active_mapping(mapped.1, Some(mapped.2));
-                                add_mapping_btn.set_sensitive(false);
-                                edit_mapping_btn.set_sensitive(true);
-                                remove_mapping_btn.set_sensitive(true);
-                                //*(selection.borrow_mut()) = SelectionStatus::Single;
-                            } else {
-                                let add_on = toggled_btns.len() == 1 &&
-                                    (this_mapped.len() == 0 || &any_mapped[0].0 != &toggled_btns[0]);
-                                add_mapping_btn.set_sensitive(add_on);
-                                /*if add_on {
+                        match toggled_btns.len() {
+                            0 => {
+                                let mut any_new_available = false;
+                                for (btn_name, _) in mapping_btns.iter() {
+                                    if !any_mapped.iter().find(|m| &m.ty[..] == &btn_name[..] ).is_some() {
+                                        if !any_new_available {
+                                            any_new_available = true;
+                                        }
+                                    }
+                                }
+                                if any_new_available {
                                     group_toolbar.set_sensitive(true);
-                                    group_toolbar.set_active_default(None);
-                                }*/
+                                } else {
+                                    group_toolbar.set_sensitive(false);
+                                }
+                            },
+                            1 => {
+                                if any_mapped.len() >= 1 {
+                                    let found_mapped = any_mapped.iter()
+                                        .find(|sel| &sel.ty[..] == &toggled_btns[0][..] );
+                                    if let Some(unique_mapped) = found_mapped {
+                                        println!("Setting data of {:?} to plot popover", unique_mapped);
+                                        Self::set_active_mapping(
+                                            unique_mapped,
+                                            &selection,
+                                            &plot_view,
+                                            &plot_popover,
+                                            &group_toolbar,
+                                            &add_mapping_btn,
+                                            &edit_mapping_btn,
+                                            &remove_mapping_btn
+                                        );
+                                    } else {
+                                        let add_on = this_mapped.len() == 0 ||
+                                            &any_mapped[0].ty[..] != &toggled_btns[0];
+                                        add_mapping_btn.set_sensitive(add_on);
+                                        /*if add_on {
+                                            group_toolbar.set_sensitive(true);
+                                            group_toolbar.set_active_default(None);
+                                        }*/
+                                        edit_mapping_btn.set_sensitive(false);
+                                        remove_mapping_btn.set_sensitive(false);
+                                        /*if add_on {
+                                            *(selection.borrow_mut()) = SelectionStatus::New;
+                                        } else {
+                                            *(selection.borrow_mut()) = SelectionStatus::None;
+                                        }*/
+                                    }
+                                } else {
+                                    add_mapping_btn.set_sensitive(false);
+                                    edit_mapping_btn.set_sensitive(false);
+                                    remove_mapping_btn.set_sensitive(false);
+                                    // group_toolbar.set_inactive();
+                                    // group_toolbar.set_sensitive(false);
+                                    // *(selection.borrow_mut()) = SelectionStatus::None;
+                                }
+                            },
+                            _ => {
+                                add_mapping_btn.set_sensitive(false);
                                 edit_mapping_btn.set_sensitive(false);
                                 remove_mapping_btn.set_sensitive(false);
-                                /*if add_on {
-                                    *(selection.borrow_mut()) = SelectionStatus::New;
-                                } else {
-                                    *(selection.borrow_mut()) = SelectionStatus::None;
-                                }*/
                             }
-                        } else {
-                            add_mapping_btn.set_sensitive(false);
-                            edit_mapping_btn.set_sensitive(false);
-                            remove_mapping_btn.set_sensitive(false);
-                            // group_toolbar.set_inactive();
-                            // group_toolbar.set_sensitive(false);
-                            // *(selection.borrow_mut()) = SelectionStatus::None;
                         }
                     }
                 });
@@ -862,12 +943,15 @@ impl LayoutToolbar {
             println!("Unable to borrow from mapping menus");
         }
         for ix in invalid {
-            Self::remove_mapping_at_index(
+            let rem_ans = Self::remove_mapping_at_index(
                 plot_popover.clone(),
                 mapping_menus.clone(),
                 plot_view.clone(),
                 ix
             );
+            if let Err(e) = rem_ans {
+                println!("{}", e);
+            }
         }
     }
 
@@ -879,16 +963,25 @@ impl LayoutToolbar {
     ) -> Result<MappingMenu, String> {
         if let Ok(mut menus) = mapping_menus.try_borrow_mut() {
             if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
-                plot_popover.remove_mapping_at_ix(mapping_ix);
-                println!("Marked to remove: {}", mapping_ix);
-                let pl_ix = menus[mapping_ix].plot_ix;
+                println!("Before removal: {:?}", menus);
+                let (pl_ix, inner_mapping_ix) = plot_popover.remove_mapping_at_ix(mapping_ix);
+                println!("Marked to remove: {} (plot {}, inner index {})", mapping_ix, pl_ix, inner_mapping_ix);
+                // let pl_ix = menus[mapping_ix].plot_ix;
                 let removed = menus.remove(mapping_ix);
                 // assert!(menus[mapping_ix].plot_ix == pl_view.get_active_area());
-                let name = (mapping_ix).to_string();
-                pl_view.update(&mut UpdateContent::RemoveMapping(pl_ix, name));
-                for m in menus.iter_mut().skip(mapping_ix) {
+                // let name = (mapping_ix).to_string();
+                pl_view.update(&mut UpdateContent::RemoveMapping(
+                    pl_ix,
+                    inner_mapping_ix.to_string()
+                ));
+                println!("Remaining mappings: {:?}", menus);
+                println!("Changing mappings names");
+                let plot_mappings = menus
+                    .iter_mut()
+                    .filter(|m| m.plot_ix == pl_ix);
+                for m in plot_mappings.skip(inner_mapping_ix) {
                     if let Some(Ok(old_ix)) = m.get_mapping_name().map(|n| n.parse::<usize>()) {
-                        println!("Old index: {} New index: {}", old_ix, old_ix - 1 );
+                        println!("Old index: {} New index: {}", old_ix, old_ix - 1);
                         m.set_mapping_name((old_ix - 1).to_string());
                     } else {
                         println!("Unable to parse mapping menu name to usize");
@@ -910,7 +1003,7 @@ impl LayoutToolbar {
     ) {
         if let Some(mapping_ix) = plot_popover.get_selected_mapping() {
             if let Err(e) = Self::remove_mapping_at_index(plot_popover, mapping_menus, plot_view, mapping_ix) {
-                println!("{}", e);
+                println!("Error removing mapping: {}", e);
             }
         } else {
             println!("No current mapping selected");
@@ -983,20 +1076,22 @@ impl LayoutToolbar {
             return;
         };
         let mapped = Self::check_mapped(&selected[..], tbl_ix, mapping_menus.clone(), None);
-        let types : Vec<_> = mapped.iter().map(|(t, _, _)| t.as_str() ).collect();
+        let types : Vec<_> = mapped.iter().map(|sel| sel.ty.as_str() ).collect();
         println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
 
-        self.set_toggles_sensitive(selected.len());
+        if let Err(e) = self.set_toggles_sensitive(selected.len()) {
+            println!("{}", e);
+        }
         println!("Currently mapped data: {:?}", mapped);
 
-        if let Some((_, plot_ix, mapping_ix)) = mapped.last() {
+        if let Some(last_mapped) = mapped.last() {
 
             // If multiple plots are present, we set the last one as the current one.
             // This does not have any effects for the user for mappend.len() > 1 since
             // the edit/remove buttons will only the sensitive for the case mapped.len() == 1
             self.set_toggled_mappings(&types[..]);
 
-            plot_popover.set_active_mapping(*plot_ix, Some(*mapping_ix));
+            plot_popover.set_active_mapping(last_mapped.pl_ix, Some(last_mapped.local_ix));
             if mapped.len() == 1 {
                 self.edit_mapping_btn.set_sensitive(true);
                 self.remove_mapping_btn.set_sensitive(true);
@@ -1005,11 +1100,11 @@ impl LayoutToolbar {
                 self.remove_mapping_btn.set_sensitive(false);
             }
 
-            println!("Plot index: {} (update_mapping_status)", plot_ix);
+            println!("Plot index: {} (update_mapping_status)", last_mapped.pl_ix);
             if !self.group_toolbar.get_sensitive() {
                 self.group_toolbar.set_sensitive(true);
             }
-            self.group_toolbar.switch_active_plot(*plot_ix);
+            self.group_toolbar.switch_active_plot(last_mapped.pl_ix);
             self.group_toolbar.set_sensitive(false);
 
         } else {

@@ -1,11 +1,11 @@
 use std::fs::File;
-use std::io::{Read};
+use std::io::Read;
 use std::path::PathBuf;
 use crate::tables::sql::*;
 use super::source::*;
 use std::path::Path;
 use super::table::*;
-use std::rc::Rc;
+// use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::functions::loader::*;
 use std::str::FromStr;
@@ -347,7 +347,7 @@ impl TableEnvironment {
 
         // Case DataFusion
         match self.listener.engine.lock() {
-            Ok(mut engine) => {
+            Ok(engine) => {
                 match *engine {
                     #[cfg(feature="arrowext")]
                     SqlEngine::Arrow{ ref mut ctx } => {

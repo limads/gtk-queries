@@ -2,7 +2,7 @@ use gtk::*;
 use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{ environment::TableEnvironment };
+use crate::tables::environment::TableEnvironment;
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 use std::fs::File;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
-use std::default::Default;
+// use std::default::Default;
 use super::layout_window::LayoutWindow;
 
 /// PlotWorkspace encapsulates all plotting-related widgets.
@@ -415,6 +415,9 @@ impl PlotWorkspace {
                 }
             }
             format!("{}", n)
+
+            // Use global vs. local mapping index?
+            // format!("{}", menus.len())
         } else {
             println!("Unable to get reference to mapping menus");
             return;

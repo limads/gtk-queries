@@ -67,7 +67,7 @@ impl FunctionLoader {
             println!("Searching lib at {:?}", cand);
             if cand.as_path().exists() {
                 if let Some(path_str) = cand.as_path().to_str() {
-                    println!("Library found");
+                    println!("Compiled library found at {}", path_str);
                     return Some(path_str.to_string());
                 }
             }
@@ -590,28 +590,32 @@ impl FunctionLoader {
                 let path : String = r.get(1).unwrap();
                 let active_code : i32 = r.get(2).unwrap();
                 let active = if active_code == 1 { true } else { false };
-                let lib = Library::new(path.clone()).map_err(|_| "Library not found")?;
-                //let funcs = FunctionLibrary::load_functions(&conn, &name[..], &libr)?;
-                let mut lib = FunctionLibrary {
-                    funcs : Vec::new(),
-                    aggs : Vec::new(),
-                    jobs : Vec::new(),
-                    local_path : path,
-                    remote_path : None,
-                    name : name,
-                    lib,
-                    active
-                };
-                if let Err(e) = lib.reload_functions(&conn) {
-                    println!("{}", e);
+                match Library::new(path.clone()) {
+                    Ok(library) => {
+                        // let funcs = FunctionLibrary::load_functions(&conn, &name[..], &libr)?;
+                        let mut lib = FunctionLibrary {
+                            funcs : Vec::new(),
+                            aggs : Vec::new(),
+                            jobs : Vec::new(),
+                            local_path : path,
+                            remote_path : None,
+                            name : name,
+                            lib : library,
+                            active
+                        };
+                        if let Err(e) = lib.reload_functions(&conn) {
+                            println!("{}", e);
+                        }
+                        if let Err(e) = lib.reload_aggregates(&conn) {
+                            println!("{}", e);
+                        }
+                        if let Err(e) = lib.reload_jobs(&conn) {
+                            println!("{}", e);
+                        }
+                        libs.push(lib);
+                    },
+                    Err(e) => { println!("{}", e); }
                 }
-                if let Err(e) = lib.reload_aggregates(&conn) {
-                    println!("{}", e);
-                }
-                if let Err(e) = lib.reload_jobs(&conn) {
-                    println!("{}", e);
-                }
-                libs.push(lib);
             } else {
                 break;
             }

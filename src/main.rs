@@ -3,8 +3,8 @@ use gio::prelude::*;
 use std::env::args;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::fs::File;
-use std::io::Write;
+// use std::fs::File;
+// use std::io::Write;
 use gdk::{self, keys};
 use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate};
 use gtk_queries::conn_popover::*;
@@ -22,6 +22,7 @@ use gtk_queries::plots::layout_toolbar::*;
 use gtk_queries::file_list::FileList;
 use gtk_queries::schema_tree::SchemaTree;
 use gtk_queries::jobs::JobManager;
+use gtk_queries::table_popover::TablePopover;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -36,7 +37,8 @@ pub struct QueriesApp {
     paned_pos : Rc<RefCell<i32>>,
     main_menu : MainMenu,
     plot_workspace : PlotWorkspace,
-    schema_tree : SchemaTree
+    schema_tree : SchemaTree,
+    table_popover : TablePopover
 }
 
 /*fn adjust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
@@ -255,7 +257,7 @@ impl QueriesApp {
         }
     }
 
-    pub fn new_from_builder(builder : &Builder, _window : Window, full : bool) -> Self {
+    pub fn new_from_builder(builder : &Builder, window : Window, full : bool) -> Self {
         let main_paned : Paned =  builder.get_object("main_paned").unwrap();
         let paned_pos : Rc<RefCell<i32>> = Rc::new(RefCell::new(main_paned.get_position()));
         let sidebar_toggle : ToggleButton = builder.get_object("sidebar_toggle").unwrap();
@@ -268,6 +270,16 @@ impl QueriesApp {
         }
         let tables_nb = TableNotebook::new(&builder);
 
+        let table_popover : TablePopover = TablePopover::build(&builder);
+        {
+            let table_popover = table_popover.clone();
+            window.connect_set_focus(move |child, win| {
+                println!("Focus on main window");
+                if table_popover.popover.is_visible() {
+                    // table_popover.popover.hide();
+                }
+            });
+        }
         let main_stack : Stack = builder.get_object("main_stack").unwrap();
         let sidebar_stack : Stack = builder.get_object("sidebar_stack").unwrap();
         let content_stack : Stack = builder.get_object("content_stack").unwrap();
@@ -379,6 +391,7 @@ impl QueriesApp {
             let table_toggle = table_toggle.clone();
             let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             let file_list = file_list.clone();
+            let table_popover = table_popover.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 match update {
                     EnvironmentUpdate::Clear => {
@@ -392,6 +405,7 @@ impl QueriesApp {
                             &mut tables_nb.clone(),
                             mapping_popover.clone(),
                             workspace.clone(),
+                            table_popover.clone()
                         );
                         workspace.clear_mappings()
                             .map_err(|e| println!("{}", e) ).ok();
@@ -402,6 +416,7 @@ impl QueriesApp {
                             &mut tables_nb.clone(),
                             mapping_popover.clone(),
                             workspace.clone(),
+                            table_popover.clone()
                         );
                         workspace.update_mapping_data(
                             &t_env,
@@ -449,7 +464,8 @@ impl QueriesApp {
             paned_pos,
             main_menu,
             plot_workspace,
-            schema_tree
+            schema_tree,
+            table_popover
         }
     }
 
@@ -543,7 +559,9 @@ fn build_ui(app: &gtk::Application) {
         let sql_stack : Stack = queries_app.sql_editor.sql_stack.clone();
         let paned_pos = queries_app.paned_pos.clone();
         let mapping_popover = queries_app.plot_workspace.layout_toolbar.mapping_popover.clone();
+        let table_popover = queries_app.table_popover.clone();
         //let plot_notebook = queries_app.plot_sidebar.notebook.clone();
+
         win.connect_key_release_event(move |_win, ev_key| {
 
             // ALT pressed

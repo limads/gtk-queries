@@ -6,6 +6,7 @@ use gtk::prelude::*;
 use crate::plots::layout_window::*;
 use crate::plots::layout_toolbar::LayoutToolbar;
 use crate::plots::plot_workspace::PlotWorkspace;
+use crate::table_popover::TablePopover;
 
 #[derive(Clone)]
 pub struct TableNotebook {
@@ -60,6 +61,7 @@ impl TableNotebook {
         data : Option<Vec<Vec<String>>>,
         mapping_popover : Popover,
         workspace : PlotWorkspace,
+        table_popover : TablePopover
     ) {
         let img = Image::from_icon_name(
             Some(icon), IconSize::LargeToolbar
@@ -68,9 +70,24 @@ impl TableNotebook {
         self.nb.add(&(table_w.scroll_window));
         let box_label = Box::new(Orientation::Horizontal, 0);
         box_label.pack_start(&img, true, true, 0);
-        box_label.pack_start(
-            &Label::new(label), true, true, 0);
-        self.nb.set_tab_label(&(table_w.scroll_window), Some(&box_label));
+        box_label.pack_start(&Label::new(label), true, true, 0);
+        let ev_bx = EventBox::new();
+        ev_bx.add(&box_label);
+        ev_bx.connect_button_press_event(move |ev_box, ev| {
+            if ev.get_button() == 3 {
+                println!("Right click at current table");
+                //let rel_to_self = table_popover.popover.get_relative_to() == Some(ev_box.into());
+                //if !table_popover.popover.is_visible() || !rel_to_self {
+                //    if !rel_to_self {
+                table_popover.popover.hide();
+                table_popover.popover.set_relative_to(Some(ev_box));
+                //    }
+                table_popover.popover.show();
+                // }
+            }
+            glib::signal::Inhibit(false)
+        });
+        self.nb.set_tab_label(&(table_w.scroll_window), Some(&ev_bx));
         box_label.show_all();
         self.nb.show_all();
         if let Some(rows) = data {

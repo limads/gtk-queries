@@ -303,7 +303,7 @@ pub fn read_funcs_at_toplevel(items : &[Item]) -> Result<Vec<Function>, String> 
             Item::Fn(item_fn) => {
                 match Function::try_from(item_fn.clone()) {
                     Ok(f) => funcs.push(f),
-                    Err(e) => { println!("{}", e) }
+                    Err(e) => { println!("{}", e); return Err(e); }
                 }
             },
             _ => { }

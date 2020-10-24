@@ -148,7 +148,7 @@ pub fn function_signature(f : ItemFn) -> Result<Function, String> {
                 //let (ty, nested) = get_simple_type(typed.ty.to_token_stream())?;
                 let ty_str = format!("{}", typed.ty.to_token_stream());
                 let ty : SqlType = (&ty_str[..]).try_into()
-                    .map_err(|_| format!("Invalid argument type: {}", ty_str))?;
+                    .map_err(|_| format!("Invalid argument type for function {}: {}", name, ty_str))?;
                 args.push(ty);
                 // var_arg = nested;
             },
@@ -182,9 +182,21 @@ pub fn function_signature(f : ItemFn) -> Result<Function, String> {
                 }
             }*/
             let ty_str = format!("{}", bx_type.to_token_stream());
-            println!("Return: {}", ty_str);
-            let ret : SqlType = (&ty_str[..]).try_into()
-                .map_err(|_| format!("Invalid return type: {}", ty_str))?;
+
+            let result_err = "Return type must be Result<T,String> for T a String, f64, i64 or Vec<u8>";
+            let is_result = ty_str.split("<").next().map(|s| s.trim()) == Some("Result");
+            let is_err = ty_str.split(",").nth(1).map(|s| s.trim()) == Some("String >");
+            println!("is_result = {}; is_err = {}", is_result, is_err);
+            if !is_result || !is_err {
+                return Err(String::from(result_err));
+            }
+            let inner_ty = ty_str
+                .split(|c| if c == '<' || c == '>' || c == ',' { true } else { false })
+                .nth(1)
+                .unwrap()
+                .to_string();
+            let ret : SqlType = (&inner_ty[..]).try_into()
+                .map_err(|_| format!("Invalid return type for function {}: {}", name, ty_str))?;
             Ok( Function{ name, args, ret, doc, /*mode,*/ var_arg /*, var_ret*/ } )
         },
         _ => Err(format!("Invalid return type"))

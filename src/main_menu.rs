@@ -1,16 +1,16 @@
 use gtk::*;
-use gio::prelude::*;
+// use gio::prelude::*;
 use std::rc::Rc;
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::fs::File;
-use std::io::Read;
-use gdk::{self, keys};
-use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
-use sourceview::*;
+// use std::io::Read;
+use gdk;
+use crate::tables::environment::TableEnvironment;
+// use sourceview::*;
 use gtk::prelude::*;
-use crate::{status_stack::StatusStack };
-use crate::status_stack::*;
-use sourceview::View;
+// use crate::{status_stack::StatusStack };
+// use crate::status_stack::*;
+// use sourceview::View;
 use super::sql_editor::SqlEditor;
 use std::io::Write;
 use crate::table_notebook::TableNotebook;
@@ -42,28 +42,6 @@ pub struct MainMenu {
 }
 
 impl MainMenu {
-
-    fn link_window(btn : ModelButton, win : Window) {
-        {
-            let win = win.clone();
-            btn.connect_clicked(move |_| {
-                if win.get_visible() {
-                    win.grab_focus();
-                } else {
-                    win.show();
-                }
-            });
-        }
-        win.set_destroy_with_parent(false);
-        win.connect_delete_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });
-        win.connect_destroy_event(move |win, ev| {
-            win.hide();
-            glib::signal::Inhibit(true)
-        });
-    }
 
     fn build_save_table_btn(
         builder : &Builder,
@@ -185,10 +163,10 @@ impl MainMenu {
         let sql_open_btn : ModelButton = builder.get_object("sql_open_btn").unwrap();
         // engine_window.set_destroy_with_parent(false);
         // settings_window.set_destroy_with_parent(false);
-        Self::link_window(engine_btn.clone(), engine_window.clone());
-        Self::link_window(settings_btn.clone(), settings_window.clone());
-        Self::link_window(layout_btn.clone(), layout_window.clone());
-        Self::link_window(report_btn.clone(), report_window.clone());
+        utils::link_window(engine_btn.clone(), engine_window.clone());
+        utils::link_window(settings_btn.clone(), settings_window.clone());
+        utils::link_window(layout_btn.clone(), layout_window.clone());
+        utils::link_window(report_btn.clone(), report_window.clone());
 
         {
             let main_menu = main_menu.clone();

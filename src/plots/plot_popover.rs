@@ -2,21 +2,21 @@ use gtk::*;
 use gtk::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::tables::{environment::TableEnvironment};
+// use crate::tables::{environment::TableEnvironment};
 use crate::plots::plotview::GroupSplit;
-use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-use std::fs::File;
-use std::io::Read;
-use super::design_menu::*;
-use super::scale_menu::*;
-use super::layout_toolbar::*;
+// use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
+// use std::fs::File;
+// use std::io::Read;
+// use super::design_menu::*;
+// use super::scale_menu::*;
+// use super::layout_toolbar::*;
 use super::mapping_menu::*;
-use super::layout_window::*;
-use std::collections::HashMap;
-use crate::utils;
-use crate::table_notebook::TableNotebook;
-use crate::status_stack::*;
-use std::default::Default;
+// use super::layout_window::*;
+// use std::collections::HashMap;
+// use crate::utils;
+// use crate::table_notebook::TableNotebook;
+// use crate::status_stack::*;
+// use std::default::Default;
 use gdk::EventButton;
 
 #[derive(Clone, Debug)]
@@ -97,7 +97,7 @@ impl PlotPopover {
 
         {
             let plot_popover = plot_popover.clone();
-            plot_popover.data_popover.clone().connect_show(move |wid| {
+            plot_popover.data_popover.clone().connect_show(move |_wid| {
                 plot_popover.update_nav_sensitive();
                 plot_popover.update_stack();
             });
@@ -105,7 +105,7 @@ impl PlotPopover {
 
         {
             let plot_popover = plot_popover.clone();
-            plot_popover.data_popover.clone().connect_closed(move |pop| {
+            plot_popover.data_popover.clone().connect_closed(move |_pop| {
                 /*if let Ok(mut sel_mapping) = plot_popover.sel_mapping.try_borrow_mut() {
                     sel_mapping.curr_ix = 0;
                     println!("Current selection (closed): {:?}", sel_mapping);
@@ -216,9 +216,12 @@ impl PlotPopover {
             println!("Unable to borrow active mapping");
             return;
         };*/
+        println!("Showing first index of plot {}", plot_ix);
         self.set_active_mapping(plot_ix, Some(0) /*opt_active*/ );
     }
 
+    /// Sets the active mapping at the informed plot_ix and (local) plot index curr_ix
+    /// (if any).
     pub fn set_active_mapping(&self, plot_ix : usize, curr_ix : Option<usize>) {
         if let Ok(mut sel) = self.sel_mapping.try_borrow_mut() {
             sel.plot_ix = plot_ix;
@@ -226,26 +229,28 @@ impl PlotPopover {
             let children = self.mapping_stack.get_children();
             if children.len() == 1 {
                 self.show_empty();
+                println!("Tried to show plot {} at index {:?} but mapping list is empty", plot_ix, curr_ix);
             } else {
                 if let Some(curr_ix) = sel.curr_ix {
-                    if let Some(ix) = sel.valid_ix[plot_ix].get(curr_ix) {
-                        println!("Setting visible child at: {:?}", ix);
-                        if let Some(child) = children.get(*ix + 1) {
+                    if let Some(global_ix) = sel.valid_ix[plot_ix].get(curr_ix) {
+                        println!("Setting visible child at global index: {:?}", global_ix);
+                        if let Some(child) = children.get(*global_ix + 1) {
                             self.mapping_stack.set_visible_child(child);
                             self.mapping_stack.show_all();
                         } else {
-                            println!("No child found at index {}", sel.valid_ix[plot_ix][curr_ix]);
+                            println!("No child found at index {}", *global_ix+1);
                             self.show_empty();
                         }
                     } else {
-                        println!("No valid index selected");
+                        println!("No valid global index for plot {} at index {:?}", plot_ix, curr_ix);
                         self.show_empty();
                     }
                 } else {
+                    println!("No current index informed (showing empty window)");
                     self.show_empty();
                 }
             }
-            println!("Current selection (set_active): {:?}", sel);
+            println!("Current selection (set_active_mapping): {:?}", sel);
         } else {
             // TODO falling here
             println!("Failed to aquire mutable reference to sel_mapping");
@@ -268,7 +273,7 @@ impl PlotPopover {
                     self.forward_btn.set_sensitive(false);
                     self.backward_btn.set_sensitive(false);
                 },
-                n => {
+                _n => {
                     if let Some(curr_ix) = sel_mapping.curr_ix {
                         if curr_ix == 0 {
                             self.tbl_btn.set_sensitive(true);
@@ -316,7 +321,7 @@ impl PlotPopover {
                 } else {
                     if let Some(curr_ix) = sel.curr_ix {
                         // add +1 to account for the "empty plot" widget.
-                        if let Some(child) = children.get(curr_ix + 1) {
+                        if let Some(child) = valid_ixs.get(curr_ix).and_then(|ix| children.get(*ix+1)) {
                             child
                         } else {
                             println!("No child at index {} to update stack", valid_ixs[curr_ix]);
@@ -366,30 +371,38 @@ impl PlotPopover {
         self.update_nav_sensitive();
     }
 
-    /// Removes the selected mapping
-    pub fn remove_mapping_at_ix(&self, ix : usize) {
+    /// Removes the informed mapping (considering the global mapping index),
+    /// returning the corresponding plot index and within-plot mapping index.
+    pub fn remove_mapping_at_ix(&self, global_ix : usize) -> (usize, usize) {
         if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             // let offset_mapping_ix = sel_mapping.valid_ix[pl_ix][curr_ix];
 
             let children = self.mapping_stack.get_children();
-            if let Some(c) = children.get(ix + 1) {
+            if let Some(c) = children.get(global_ix + 1) {
                 self.mapping_stack.remove(c);
                 self.data_popover.hide();
             } else {
-                panic!("Invalid child position: {}", ix);
+                panic!("Invalid child position: {}", global_ix);
             }
             let pl_ix = sel_mapping.valid_ix
                 .iter()
-                .position(|v| v.iter().position(|i| *i == ix ).is_some() )
+                .position(|v| v.iter().position(|i| *i == global_ix ).is_some() )
                 .unwrap();
             let m_ix = sel_mapping.valid_ix[pl_ix]
                 .iter()
-                .position(|i| *i == ix )
+                .position(|i| *i == global_ix )
                 .unwrap();
-            println!("Removing at plot {} at plot index {}", pl_ix, m_ix);
+            println!("Removing at plot {} at valid index {}", pl_ix, m_ix);
             sel_mapping.valid_ix[pl_ix].remove(m_ix);
-            for m in sel_mapping.valid_ix[pl_ix].iter_mut().skip(m_ix) {
-                *m -= 1;
+            // for m in sel_mapping.valid_ix[pl_ix].iter_mut().skip(m_ix) {
+            //    *m -= 1;
+            // }
+            for pl_ix in sel_mapping.valid_ix.iter_mut() {
+                for vl_ix in pl_ix.iter_mut() {
+                    if *vl_ix > global_ix {
+                        *vl_ix -= 1;
+                    }
+                }
             }
             if sel_mapping.valid_ix[pl_ix].len() == 0 {
                 sel_mapping.plot_ix = 0;
@@ -398,11 +411,12 @@ impl PlotPopover {
                 sel_mapping.curr_ix = Some(0);
             }
             println!("Current selection (remove_selected_mapping): {:?}", sel_mapping);
+            self.update_stack();
+            self.update_nav_sensitive();
+            (pl_ix, m_ix)
         } else {
             panic!("Unable to retrieve mutable reference to selected mapping");
         }
-        self.update_stack();
-        self.update_nav_sensitive();
     }
 
     /// Show the data popover exclusively at an arbitrary position.

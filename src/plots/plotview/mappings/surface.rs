@@ -7,7 +7,8 @@ use super::utils;
 use super::super::context_mapper::Coord2D;
 use super::*;
 use cairo::Mesh;
-use bayes::signal::interp::{Interpolation2D};
+// use bayes::signal::interp::{Interpolation2D};
+use bayes::feature::mra::signal::interp::Interpolation2D;
 
 //#[derive(Debug)]
 pub struct SurfaceMapping {
@@ -19,7 +20,7 @@ pub struct SurfaceMapping {
     color_final : RGBA,
     col_names : [String; 3],
     source : String,
-    _interp_task : Option<Interpolation2D>
+    // _interp_task : Option<Interpolation2D>
 }
 
 /// Count everything clock-wise from bottom-left point of the patch.
@@ -56,7 +57,7 @@ impl SurfaceMapping {
             String::from("None"),
             String::from("None")
         ];
-        let interp_task = None;
+        // let interp_task = None;
         let source = String::new();
         let mut mapping = SurfaceMapping{
             color,
@@ -66,7 +67,7 @@ impl SurfaceMapping {
             z,
             col_names,
             z_lims,
-            _interp_task : interp_task,
+            // _interp_task : interp_task,
             source
         };
         mapping.update_layout(node);

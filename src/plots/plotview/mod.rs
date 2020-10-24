@@ -353,12 +353,12 @@ impl PlotGroup {
     }
 
     pub fn update_plot_property(&mut self, ix: usize, property : &str, value : &str) {
-        println!("Updating {} at {} to {}", ix, property, value);
+        // println!("Updating {} at {} to {}", ix, property, value);
         self.plots[ix].update_layout(property, value);
     }
 
     pub fn update_mapping(&mut self, ix : usize, id : &str, data : &Vec<Vec<f64>>) -> Result<(), Box<dyn Error>> {
-        println!("Updating {} at {} to {:?}", ix, id, data);
+        // println!("Updating {} at {} to {:?}", ix, id, data);
         self.plots[ix].update_mapping(id, data)
     }
 
@@ -379,7 +379,9 @@ impl PlotGroup {
     }
 
     pub fn remove_mapping(&mut self, ix : usize, id : &str) {
-        self.plots[ix].remove_mapping(id);
+        if let Err(e) = self.plots[ix].remove_mapping(id) {
+            println!("{}", e);
+        }
     }
 
     pub fn scale_info(&self, ix : usize, scale : &str) -> HashMap<String, String> {
@@ -779,7 +781,7 @@ impl PlotArea {
         let pos = id.parse::<usize>().unwrap();
         //let mut root = self.doc.get_root_element().expect("No root at remove");
         let xpath = String::from("object[@index='") + id +  "']";
-        println!("{}", xpath);
+        println!("Removing mapping at path: {}", xpath);
         let mut nodes = self.node.findnodes(&xpath[..]).expect("No node with informed id");
         let node = nodes.get_mut(0).expect("No first node with informed id");
         node.unlink_node();
@@ -795,6 +797,7 @@ impl PlotArea {
         for m in self.mappings.iter() {
             println!("Current mappings: {:?}", m.mapping_type());
         }
+        println!("Mapping {} removed successfully", id);
         Ok((mapping, node.clone()))
     }
 
