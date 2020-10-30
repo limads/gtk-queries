@@ -10,7 +10,7 @@ pub mod sql_type;
 
 pub mod parser;
 
-pub mod exec;
+// pub mod exec;
 
 // pub mod pg_exec;
 

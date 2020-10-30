@@ -32,7 +32,8 @@ rust_decimal = { version = "1.7.0", features = ["db-postgres"] }
 sqlparser = "0.6.1"
 nalgebra = "0.21.0"
 num-traits="0.2.11"
-bayes = { git = "https://github.com/limads/bayes.git" }
+bayes = { path = "../bayes" }
+mra = { path = "../mra", features = ["gsl"] }
 datafusion = { version = "1.0.0", optional = true }
 arrow = { version = "1.0.0", optional = true }
 libxml = "0.2.13"

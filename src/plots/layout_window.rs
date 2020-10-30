@@ -10,15 +10,16 @@ use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
-use super::mapping_menu::{*, MappingMenu};
+use super::mapping_menu::MappingMenu;
 use super::plot_popover::*;
 use std::collections::HashMap;
-use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
 use super::plot_workspace::PlotWorkspace;
 use std::io::Write;
 use std::io::{Seek, SeekFrom};
+use std::path::Path;
+use crate::utils::RecentList;
 
 #[derive(Clone)]
 pub struct LayoutWindow {
@@ -32,7 +33,7 @@ pub struct LayoutWindow {
     file_combo : ComboBoxText,
 
     // Holds (File, Recent paths, file_updated)
-    pub recent : Rc<RefCell<(File, Vec<String>)>>,
+    pub recent : RecentList,
     pub horiz_ar_scale : Scale,
     pub vert_ar_scale : Scale
 }
@@ -61,31 +62,15 @@ const ALL_PATHS : [&'static str; 8] = [
 
 impl LayoutWindow {
 
-    pub fn load_recent_paths(recent : Rc<RefCell<(File, Vec<String>)>>) {
-        if let Ok(mut t) = recent.try_borrow_mut() {
-            let (ref mut f, ref mut path_v) = *t;
-            let mut content = String::new();
-            if let Ok(_) = f.read_to_string(&mut content) {
-                path_v.clear();
-                path_v.extend(content.lines().map(|l| { println!("line: {:?}", l); l.to_string() }));
-            } else {
-                println!("Failed reading path sequence file");
-            }
-        } else {
-            println!("Failed acquiring reference to recent files");
-        }
-    }
-
     pub fn update_recent_paths(
         file_combo : ComboBoxText,
-        recent : Rc<RefCell<(File, Vec<String>)>>,
+        recent : &RecentList,
         layout_path : Rc<RefCell<Option<String>>>
     ) {
         let mut opt_active : Option<String> = None;
-        if let (Ok(t), Ok(opt_path)) = (recent.try_borrow_mut(), layout_path.try_borrow()) {
-            let (f, path_v) = &*t;
+        if let Ok(opt_path) = layout_path.try_borrow() {
             file_combo.remove_all();
-            for (i, path) in path_v.iter().enumerate() {
+            for (i, path) in recent.loaded_paths().iter().enumerate() {
                 let id = format!("{}", i);
                 file_combo.append(Some(&id[..]), &path[..]);
                 if let Some(current_path) = &*opt_path {
@@ -104,45 +89,13 @@ impl LayoutWindow {
         }
     }
 
-    pub fn push_recent_path(recent : Rc<RefCell<(File, Vec<String>)>>, path : String) {
-        if let Ok(mut t) = recent.try_borrow_mut() {
-            let (ref mut f, ref mut path_v) = *t;
-            println!("Current paths: {:?}", path_v);
-            println!("New path: {:?}", path);
-            if let Some(pos) = path_v.iter().position(|p| &p[..] == &path[..]) {
-                path_v.remove(pos);
-            }
-            path_v.push(path.clone());
-            println!("Path vector = {:?}", path_v);
-            if path_v.len() >= 11 {
-                path_v.remove(0);
-            }
-            let mut path_file = String::new();
-            for p in path_v.iter() {
-                path_file += &format!("{}\n", p)[..];
-            }
-            f.seek(SeekFrom::Start(0)).unwrap();
-            println!("Path file: {:?}", path_file);
-            if let Err(e) = f.write_all(&path_file.into_bytes()) {
-                println!("Error writing to file: {}", e);
-                return;
-            }
-            if let Err(e) = f.flush() {
-                println!("{}", e);
-                return;
-            }
-        } else {
-            println!("Could not get mutable reference to recent layouts file for writing");
-        }
-    }
-
     pub fn connect_window_show(&self, win : &Window, layout_path : Rc<RefCell<Option<String>>>) {
         let file_combo = self.file_combo.clone();
         let recent = self.recent.clone();
         win.connect_show(move |_| {
             Self::update_recent_paths(
                 file_combo.clone(),
-                recent.clone(),
+                &recent,
                 layout_path.clone()
             );
         });
@@ -166,7 +119,7 @@ impl LayoutWindow {
         layout_file_combo : ComboBoxText,
         pl_view : Rc<RefCell<PlotView>>,
         file_combo : ComboBoxText,
-        recent : Rc<RefCell<(File, Vec<String>)>>,
+        recent : RecentList,
         layout_path : Rc<RefCell<Option<String>>>
     ) -> FileChooserDialog {
         let xml_save_dialog : FileChooserDialog = builder.get_object("xml_save_dialog").unwrap();
@@ -199,11 +152,11 @@ impl LayoutWindow {
                                     let path_str = path.to_str()
                                         .map(|s| s.to_string())
                                         .unwrap_or(String::new());
-                                    Self::push_recent_path(recent.clone(), path_str.clone());
+                                    recent.push_recent_path(path_str.clone());
                                     *(layout_path.borrow_mut()) = Some(path_str.clone());
                                     Self::update_recent_paths(
                                         file_combo.clone(),
-                                        recent.clone(),
+                                        &recent,
                                         layout_path.clone()
                                     );
                                 },
@@ -332,15 +285,8 @@ impl LayoutWindow {
         }
 
         let file_combo : ComboBoxText = builder.get_object("layout_file_combo").unwrap();
-        let f = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .append(false)
-            .open("assets/plot_layout/recent_paths.csv")
-            .unwrap();
-        let recent = Rc::new(RefCell::new((f, Vec::new())));
-        Self::load_recent_paths(recent.clone());
-        Self::update_recent_paths(file_combo.clone(), recent.clone(), layout_path.clone());
+        let recent = RecentList::new(Path::new("assets/plot_layout/recent_paths.csv"), 11).unwrap();
+        Self::update_recent_paths(file_combo.clone(), &recent, layout_path.clone());
         let open_btn : Button = builder.get_object("layout_open_btn").unwrap();
         let save_btn : Button = builder.get_object("layout_save_btn").unwrap();
         let clear_btn : Button = builder.get_object("layout_clear_btn").unwrap();
@@ -521,10 +467,10 @@ impl LayoutWindow {
                                 group_toolbar.clone()
                             );
                             if load_ok {
-                                Self::push_recent_path(recent.clone(), path_str.clone());
+                                recent.push_recent_path(path_str.clone());
                                 Self::update_recent_paths(
                                     layout_window.file_combo.clone(),
-                                    recent.clone(),
+                                    &recent,
                                     layout_path.clone()
                                 );
                             } else {
