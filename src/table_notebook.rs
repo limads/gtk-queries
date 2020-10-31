@@ -59,7 +59,7 @@ impl TableNotebook {
         label : Option<&str>,
         err_msg : Option<&str>,
         data : Option<Vec<Vec<String>>>,
-        mapping_popover : Popover,
+        // mapping_popover : Popover,
         workspace : PlotWorkspace,
         table_popover : TablePopover
     ) {
@@ -96,7 +96,7 @@ impl TableNotebook {
 
             // Left-click events
             {
-                let mapping_popover = mapping_popover.clone();
+                let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
                 // let mapping_menus = sidebar.mapping_menus.clone();
                 // let layout_toolbar = sidebar.layout_toolbar.clone();
                 // let plot_popover = sidebar.plot_popover.clone();
@@ -110,7 +110,7 @@ impl TableNotebook {
 
             // Right-click events
             {
-                let mapping_popover = mapping_popover.clone();
+                let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
                 let mapping_menus = workspace.mapping_menus.clone();
                 let layout_toolbar = workspace.layout_toolbar.clone();
                 let plot_popover = workspace.plot_popover.clone();

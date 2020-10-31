@@ -67,10 +67,11 @@ impl LayoutWindow {
         recent : &RecentList,
         layout_path : Rc<RefCell<Option<String>>>
     ) {
+        // recent.load_recent_paths();
         let mut opt_active : Option<String> = None;
         if let Ok(opt_path) = layout_path.try_borrow() {
             file_combo.remove_all();
-            for (i, path) in recent.loaded_paths().iter().enumerate() {
+            for (i, path) in recent.loaded_items().iter().enumerate() {
                 let id = format!("{}", i);
                 file_combo.append(Some(&id[..]), &path[..]);
                 if let Some(current_path) = &*opt_path {
@@ -152,7 +153,7 @@ impl LayoutWindow {
                                     let path_str = path.to_str()
                                         .map(|s| s.to_string())
                                         .unwrap_or(String::new());
-                                    recent.push_recent_path(path_str.clone());
+                                    recent.push_recent(path_str.clone());
                                     *(layout_path.borrow_mut()) = Some(path_str.clone());
                                     Self::update_recent_paths(
                                         file_combo.clone(),
@@ -467,7 +468,7 @@ impl LayoutWindow {
                                 group_toolbar.clone()
                             );
                             if load_ok {
-                                recent.push_recent_path(path_str.clone());
+                                recent.push_recent(path_str.clone());
                                 Self::update_recent_paths(
                                     layout_window.file_combo.clone(),
                                     &recent,

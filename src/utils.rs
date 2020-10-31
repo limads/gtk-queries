@@ -18,6 +18,9 @@ struct InnerList {
     mem : usize
 }
 
+/// Ref-counted list of strings that keeps its content synchronized with
+/// a plain text file. This is used to save the list of commands executed
+/// by the user and to save the list of last plot layout files opened by the user.
 #[derive(Debug, Clone)]
 pub struct RecentList(Rc<RefCell<InnerList>>);
 
@@ -35,7 +38,23 @@ impl RecentList {
         Some(recent)
     }
 
-    pub fn push_recent_path(&self, path : String) {
+    fn write_to_file(lines : &[String], f : &mut File) {
+        let mut path_file = String::new();
+        for p in lines.iter() {
+            path_file += &format!("{}\n", p)[..];
+        }
+        f.seek(SeekFrom::Start(0)).unwrap();
+        if let Err(e) = f.write_all(&path_file.into_bytes()) {
+            println!("Error writing to file: {}", e);
+            return;
+        }
+        if let Err(e) = f.flush() {
+            println!("{}", e);
+            return;
+        }
+    }
+
+    pub fn push_recent(&self, path : String) {
         if let Ok(mut t) = self.0.try_borrow_mut() {
             // println!("Current paths: {:?}", t.lines);
             // println!("New path: {:?}", path);
@@ -47,22 +66,24 @@ impl RecentList {
             if t.lines.len() >= t.mem {
                 t.lines.remove(0);
             }
-            let mut path_file = String::new();
-            for p in t.lines.iter() {
-                path_file += &format!("{}\n", p)[..];
-            }
-            t.f.seek(SeekFrom::Start(0)).unwrap();
-            // println!("Path file: {:?}", path_file);
-            if let Err(e) = t.f.write_all(&path_file.into_bytes()) {
-                println!("Error writing to file: {}", e);
-                return;
-            }
-            if let Err(e) = t.f.flush() {
-                println!("{}", e);
-                return;
-            }
+            let lines = t.lines.clone();
+            Self::write_to_file(&lines[..], &mut t.f);
         } else {
             println!("Could not get mutable reference to recent layouts file for writing");
+        }
+    }
+
+    pub fn remove(&self, txt : &str) {
+        if let Ok(mut t) = self.0.try_borrow_mut() {
+            if let Some(ix) = t.lines.iter().position(|l| &l[..] == txt) {
+                t.lines.remove(ix);
+                let lines = t.lines.clone();
+                Self::write_to_file(&lines[..], &mut t.f);
+            } else {
+                println!("Entry {} not available to be removed", txt);
+            }
+        } else {
+            println!("Unable to borrow recent path");
         }
     }
 
@@ -82,7 +103,7 @@ impl RecentList {
         }
     }
 
-    pub fn loaded_paths(&self) -> Vec<String> {
+    pub fn loaded_items(&self) -> Vec<String> {
         if let Ok(t) = self.0.try_borrow() {
             t.lines.clone()
         } else {
@@ -118,10 +139,11 @@ where
     });
 }
 
+/// Add tables resulting from a query sequence.
 pub fn set_tables(
     table_env : &TableEnvironment,
     tables_nb : &mut TableNotebook,
-    mapping_popover : Popover,
+    // mapping_popover : Popover,
     workspace : PlotWorkspace,
     table_popover : TablePopover
     //fn_popover : Popover
@@ -134,7 +156,7 @@ pub fn set_tables(
             None,
             Some("No queries"),
             None,
-            mapping_popover.clone(),
+            // mapping_popover.clone(),
             workspace.clone(),
             table_popover.clone()
             //fn_popover.clone()
@@ -143,7 +165,7 @@ pub fn set_tables(
         tables_nb.clear();
         for t_rows in all_tbls {
             let nrows = t_rows.len();
-            //println!("New table with {} rows", nrows);
+            // println!("New table with {} rows", nrows);
             if nrows > 0 {
                 let ncols = t_rows[0].len();
                 let name = format!("({} x {})", nrows - 1, ncols);
@@ -152,7 +174,7 @@ pub fn set_tables(
                     Some(&name[..]),
                     None,
                     Some(t_rows),
-                    mapping_popover.clone(),
+                    // mapping_popover.clone(),
                     workspace.clone(),
                     table_popover.clone()
                     //fn_popover.clone()

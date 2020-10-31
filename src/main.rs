@@ -270,16 +270,6 @@ impl QueriesApp {
         }
         let tables_nb = TableNotebook::new(&builder);
 
-        let table_popover : TablePopover = TablePopover::build(&builder);
-        {
-            let table_popover = table_popover.clone();
-            window.connect_set_focus(move |child, win| {
-                println!("Focus on main window");
-                if table_popover.popover.is_visible() {
-                    // table_popover.popover.hide();
-                }
-            });
-        }
         let main_stack : Stack = builder.get_object("main_stack").unwrap();
         let sidebar_stack : Stack = builder.get_object("sidebar_stack").unwrap();
         let content_stack : Stack = builder.get_object("content_stack").unwrap();
@@ -314,6 +304,23 @@ impl QueriesApp {
             status_stack.clone(),
             sidebar_stack.clone()
         );
+
+        let table_popover : TablePopover = TablePopover::build(
+            &builder,
+            plot_workspace.clone(),
+            table_env.clone(),
+            tables_nb.clone()
+        );
+
+        {
+            let table_popover = table_popover.clone();
+            window.connect_set_focus(move |child, win| {
+                println!("Focus on main window");
+                if table_popover.popover.is_visible() {
+                    // table_popover.popover.hide();
+                }
+            });
+        }
 
         let file_list = FileList::build(&builder);
         let mut sql_editor = SqlEditor::build(
@@ -389,7 +396,7 @@ impl QueriesApp {
             let query_toggle = query_toggle.clone();
             let plot_toggle = plot_toggle.clone();
             let table_toggle = table_toggle.clone();
-            let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
+            // let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             let file_list = file_list.clone();
             let table_popover = table_popover.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
@@ -403,7 +410,7 @@ impl QueriesApp {
                         utils::set_tables(
                             &t_env,
                             &mut tables_nb.clone(),
-                            mapping_popover.clone(),
+                            // mapping_popover.clone(),
                             workspace.clone(),
                             table_popover.clone()
                         );
@@ -414,7 +421,7 @@ impl QueriesApp {
                         utils::set_tables(
                             &t_env,
                             &mut tables_nb.clone(),
-                            mapping_popover.clone(),
+                            // mapping_popover.clone(),
                             workspace.clone(),
                             table_popover.clone()
                         );
