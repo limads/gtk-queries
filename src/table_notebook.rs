@@ -73,16 +73,15 @@ impl TableNotebook {
         box_label.pack_start(&Label::new(label), true, true, 0);
         let ev_bx = EventBox::new();
         ev_bx.add(&box_label);
+        let tbl_ix = self.len();
         ev_bx.connect_button_press_event(move |ev_box, ev| {
             if ev.get_button() == 3 {
                 println!("Right click at current table");
+                table_popover.show_at(&ev_box, tbl_ix);
                 //let rel_to_self = table_popover.popover.get_relative_to() == Some(ev_box.into());
                 //if !table_popover.popover.is_visible() || !rel_to_self {
                 //    if !rel_to_self {
-                table_popover.popover.hide();
-                table_popover.popover.set_relative_to(Some(ev_box));
-                //    }
-                table_popover.popover.show();
+
                 // }
             }
             glib::signal::Inhibit(false)

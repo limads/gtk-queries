@@ -57,9 +57,23 @@ pub struct ColAggregate {
 
 }*/
 
+pub enum SqlAggregate<'a, T> {
+    State(&'a Context<'a>),
+    Final(&'a T),
+}
+
 pub type SqlSymbol<'a, T> = Symbol<'a, unsafe extern fn(&Context)->rusqlite::Result<T,rusqlite::Error>>;
 
+pub type AggSymbol<'a, T> = Symbol<'a, unsafe extern fn(SqlAggregate<'a, T>)->rusqlite::Result<T, rusqlite::Error>>;
+
 pub enum LoadedFunc<'a> {
+    F64(SqlSymbol<'a, f64>),
+    I32(SqlSymbol<'a, i32>),
+    Text(SqlSymbol<'a, String>),
+    Bytes(SqlSymbol<'a, Vec<u8>>)
+}
+
+pub enum LoadedAgg<'a> {
     F64(SqlSymbol<'a, f64>),
     I32(SqlSymbol<'a, i32>),
     Text(SqlSymbol<'a, String>),

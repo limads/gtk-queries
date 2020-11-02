@@ -635,8 +635,8 @@ impl TableEnvironment {
         self.tables.last().map(|t| t.clone())
     }
 
-    fn get_table_by_index(&self, idx : usize) -> Result<&Table,&'static str> {
-        match self.tables.get(idx) {
+    fn get_table_by_index(&mut self, idx : usize) -> Result<&mut Table,&'static str> {
+        match self.tables.get_mut(idx) {
             Some(t) => Ok(t),
             None => Err("No table at informed index")
         }
@@ -647,8 +647,13 @@ impl TableEnvironment {
         tbl.get_column(col_ix).ok_or("Invalid column index")
     }*/
 
-    pub fn get_text_at_index(&self, idx : usize) -> Option<String> {
+    /// Gets the textual representation of the table at the given index,
+    /// optionally updating the table formatting before doing so.
+    pub fn get_text_at_index(&mut self, idx : usize, opt_fmt : Option<TableSettings>) -> Option<String> {
         if let Ok(tbl) = self.get_table_by_index(idx) {
+            if let Some(fmt) = opt_fmt {
+                tbl.update_format(fmt);
+            }
             Some(tbl.to_string())
         } else {
             None

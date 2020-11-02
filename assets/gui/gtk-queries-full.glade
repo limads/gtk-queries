@@ -337,6 +337,11 @@
       </object>
     </child>
   </object>
+  <object class="GtkAdjustment" id="adjustment1">
+    <property name="upper">100</property>
+    <property name="step_increment">1</property>
+    <property name="page_increment">10</property>
+  </object>
   <object class="GtkAdjustment" id="adjustment_opacity">
     <property name="upper">1</property>
     <property name="step_increment">0.01</property>
@@ -3397,9 +3402,10 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkComboBoxText">
+                      <object class="GtkComboBoxText" id="tbl_format_combo">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="active">0</property>
                         <items>
                           <item translatable="yes">CSV</item>
                           <item translatable="yes">HTML</item>
@@ -3447,17 +3453,19 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkComboBoxText">
+                          <object class="GtkComboBoxText" id="tbl_bool_combo">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <property name="margin_left">6</property>
                             <property name="margin_right">6</property>
                             <property name="margin_top">6</property>
                             <property name="margin_bottom">6</property>
+                            <property name="active">0</property>
                             <items>
-                              <item translatable="yes">'True' or 'False'</item>
                               <item translatable="yes">'true' or 'false'</item>
+                              <item translatable="yes">'True' or 'False'</item>
                               <item translatable="yes">'t' or 'f'</item>
+                              <item translatable="yes">'T' or 'F'</item>
                               <item translatable="yes">'1' or '0'</item>
                             </items>
                           </object>
@@ -3494,13 +3502,14 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkComboBoxText">
+                          <object class="GtkComboBoxText" id="tbl_null_combo">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <property name="margin_left">6</property>
                             <property name="margin_right">6</property>
                             <property name="margin_top">6</property>
                             <property name="margin_bottom">6</property>
+                            <property name="active">0</property>
                             <items>
                               <item translatable="yes">Omit</item>
                               <item translatable="yes">'NULL'</item>
@@ -3537,14 +3546,19 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkSpinButton">
+                          <object class="GtkSpinButton" id="tbl_prec_spin">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="margin_left">6</property>
                             <property name="margin_right">6</property>
                             <property name="margin_top">12</property>
                             <property name="margin_bottom">12</property>
+                            <property name="input_purpose">number</property>
+                            <property name="adjustment">adjustment1</property>
                             <property name="climb_rate">1</property>
+                            <property name="digits">1</property>
+                            <property name="numeric">True</property>
+                            <property name="value">8</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -3593,14 +3607,14 @@
                         <property name="can_focus">False</property>
                         <property name="layout_style">expand</property>
                         <child>
-                          <object class="GtkRadioButton" id="radiobutton2">
+                          <object class="GtkRadioButton" id="align_left_radio">
                             <property name="label" translatable="yes">Left</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">False</property>
                             <property name="active">True</property>
                             <property name="draw_indicator">True</property>
-                            <property name="group">radiobutton1</property>
+                            <property name="group">align_center_radio</property>
                           </object>
                           <packing>
                             <property name="expand">True</property>
@@ -3609,14 +3623,14 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkRadioButton" id="radiobutton1">
+                          <object class="GtkRadioButton" id="align_center_radio">
                             <property name="label" translatable="yes">Center</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">False</property>
                             <property name="active">True</property>
                             <property name="draw_indicator">True</property>
-                            <property name="group">radiobutton2</property>
+                            <property name="group">align_left_radio</property>
                           </object>
                           <packing>
                             <property name="expand">True</property>
@@ -3625,14 +3639,14 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkRadioButton">
+                          <object class="GtkRadioButton" id="align_right_radio">
                             <property name="label" translatable="yes">Right</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">False</property>
                             <property name="active">True</property>
                             <property name="draw_indicator">True</property>
-                            <property name="group">radiobutton1</property>
+                            <property name="group">align_center_radio</property>
                           </object>
                           <packing>
                             <property name="expand">True</property>
@@ -3665,7 +3679,7 @@
                     <property name="homogeneous">True</property>
                     <property name="layout_style">expand</property>
                     <child>
-                      <object class="GtkButton">
+                      <object class="GtkButton" id="clipboard_tbl_btn">
                         <property name="label" translatable="yes">Copy to clipboard</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
@@ -3680,7 +3694,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkButton">
+                      <object class="GtkButton" id="save_tbl_btn">
                         <property name="label" translatable="yes">Save</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
@@ -3749,7 +3763,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkEntry">
+                      <object class="GtkEntry" id="db_table_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="margin_left">6</property>
@@ -3779,7 +3793,7 @@
                     <property name="margin_top">6</property>
                     <property name="margin_bottom">6</property>
                     <child>
-                      <object class="GtkCheckButton">
+                      <object class="GtkCheckButton" id="col_subset_check">
                         <property name="label" translatable="yes">Column subset</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
@@ -3793,7 +3807,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkEntry">
+                      <object class="GtkEntry" id="col_subset_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                       </object>
@@ -3811,7 +3825,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkCheckButton">
+                  <object class="GtkCheckButton" id="create_check">
                     <property name="label" translatable="yes">Create if not exists</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -3829,7 +3843,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkCheckButton">
+                  <object class="GtkCheckButton" id="strict_check">
                     <property name="label" translatable="yes">Use strict schema</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -3847,7 +3861,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="finish_upload_button">
+                  <object class="GtkButton" id="copy_db_btn">
                     <property name="label" translatable="yes">Copy to database</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
@@ -5173,43 +5187,6 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">3</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="save_tbl_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="text" translatable="yes">Export table</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">4</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="report_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="text" translatable="yes">Build report</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">5</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkSeparator">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
             <property name="position">6</property>
           </packing>
         </child>
@@ -5248,19 +5225,6 @@
             <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="position">9</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="engine_btn">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="text" translatable="yes">Extensions</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">11</property>
           </packing>
         </child>
         <child>

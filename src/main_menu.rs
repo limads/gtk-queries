@@ -21,9 +21,9 @@ use crate::utils;
 pub struct MainMenu {
     main_menu : PopoverMenu,
     main_toggle : ToggleButton,
-    engine_btn : ModelButton,
+    // engine_btn : ModelButton,
     sql_open_btn : ModelButton,
-    engine_window : Window,
+    // engine_window : Window,
     settings_btn : ModelButton,
     sql_new_btn : ModelButton,
     sql_save_btn : ModelButton,
@@ -31,64 +31,17 @@ pub struct MainMenu {
     // jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
-    report_window : Window,
-    report_btn : ModelButton,
+    // report_window : Window,
+    // report_btn : ModelButton,
     layout_btn : ModelButton,
     save_img_btn : ModelButton,
-    save_tbl_btn : ModelButton,
+    // save_tbl_btn : ModelButton,
     // sql_open_dialog : FileChooserDialog,
     // library_list_box : ListBox,
     // fn_list_box : ListBox
 }
 
 impl MainMenu {
-
-    fn build_save_table_btn(
-        builder : &Builder,
-        tables_nb : TableNotebook,
-        tbl_env : Rc<RefCell<TableEnvironment>>
-    ) -> ModelButton {
-        let tbl_btn : ModelButton =
-            builder.get_object("save_tbl_btn").unwrap();
-        let save_dialog : FileChooserDialog =
-            builder.get_object("save_tbl_dialog").unwrap();
-        save_dialog.connect_response(move |dialog, resp| {
-            match resp {
-                ResponseType::Other(1) => {
-                    if let Some(path) = dialog.get_filename() {
-                        let ext = path.as_path()
-                            .extension()
-                            .map(|ext| ext.to_str().unwrap_or(""));
-                        if let Some(ext) = ext {
-                            if let Ok(t) = tbl_env.try_borrow() {
-                                match ext {
-                                    "db" | "sqlite" | "sqlite3" => {
-                                        t.try_backup(path);
-                                    },
-                                    _ => {
-                                        if let Ok(mut f) = File::create(path) {
-                                            let idx = tables_nb.get_page_index();
-                                            if let Some(content) = t.get_text_at_index(idx) {
-                                                let _ = f.write_all(&content.into_bytes());
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                println!("Unable to get reference to table environment");
-                            }
-                        }
-                    }
-                },
-                _ => { }
-            }
-        });
-        tbl_btn.connect_clicked(move |_btn| {
-            save_dialog.run();
-            save_dialog.hide();
-        });
-        tbl_btn
-    }
 
     fn build_save_image_btn(
         builder : &Builder,
@@ -150,12 +103,12 @@ impl MainMenu {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
         let sql_new_btn : ModelButton = builder.get_object("sql_new_btn").unwrap();
         let main_toggle : ToggleButton = builder.get_object("main_toggle").unwrap();
-        let engine_btn : ModelButton = builder.get_object("engine_btn").unwrap();
+        // let engine_btn : ModelButton = builder.get_object("engine_btn").unwrap();
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
         let settings_btn : ModelButton = builder.get_object("settings_btn").unwrap();
-        let engine_window : Window = builder.get_object("engine_window").unwrap();
-        let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
-        let report_window : Window = builder.get_object("report_window").unwrap();
+        // let engine_window : Window = builder.get_object("engine_window").unwrap();
+        // let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
+        // let report_window : Window = builder.get_object("report_window").unwrap();
         //let jobs_window : Window = builder.get_object("jobs_window").unwrap();
         let settings_window : Window = builder.get_object("settings_window").unwrap();
         let layout_window : Window = builder.get_object("layout_window").unwrap();
@@ -163,10 +116,10 @@ impl MainMenu {
         let sql_open_btn : ModelButton = builder.get_object("sql_open_btn").unwrap();
         // engine_window.set_destroy_with_parent(false);
         // settings_window.set_destroy_with_parent(false);
-        utils::link_window(engine_btn.clone(), engine_window.clone());
+        // utils::link_window(engine_btn.clone(), engine_window.clone());
         utils::link_window(settings_btn.clone(), settings_window.clone());
         utils::link_window(layout_btn.clone(), layout_window.clone());
-        utils::link_window(report_btn.clone(), report_window.clone());
+        // utils::link_window(report_btn.clone(), report_window.clone());
 
         {
             let main_menu = main_menu.clone();
@@ -201,13 +154,13 @@ impl MainMenu {
             let sql_editor = sql_editor.clone();
             let content_stack = content_stack.clone();
             let query_toggle = query_toggle.clone();
-            sql_new_btn.connect_clicked(move |btn|{
+            sql_new_btn.connect_clicked(move |_btn|{
                 sql_editor.add_fresh_editor(content_stack.clone(), query_toggle.clone());
             });
         }
 
         let save_img_btn = Self::build_save_image_btn(&builder, view);
-        let save_tbl_btn = Self::build_save_table_btn(&builder, tbl_nb, tbl_env);
+        // let save_tbl_btn = Self::build_save_table_btn(&builder, tbl_nb, tbl_env);
         // let sql_open_dialog = Self::build_sql_open_dialog(&builder, &editor);
         // let sql_save_dialog = Self::build_sql_save_dialog(&builder, &editor);
 
@@ -230,8 +183,8 @@ impl MainMenu {
         MainMenu {
             main_menu,
             main_toggle,
-            engine_btn,
-            engine_window,
+            // engine_btn,
+            // engine_window,
             settings_btn,
             settings_window,
             layout_window,
@@ -240,9 +193,9 @@ impl MainMenu {
             sql_new_btn,
             sql_save_btn,
             save_img_btn,
-            save_tbl_btn,
-            report_window,
-            report_btn
+            // save_tbl_btn,
+            // report_window,
+            // report_btn
             // jobs_btn,
             //jobs_window
             // sql_open_dialog,

@@ -14,6 +14,11 @@ use datafusion::logicalplan::aggregate_expr;
 use arrow::datatypes::{ArrowPrimitiveType,ArrowNativeType,ArrowNumericType};
 use crate::tables::{table::Table, column::*, nullable_column::*};
 
+/*
+Perhaps we can implement TableProvider for a foreign PostgreSQL table,
+and let the user manipulate the data in-memory?
+*/
+
 /// Copies into a column from the Array type A into Rust native type N
 fn primitive_to_column<A, N>(arr : &Arc<dyn Array>) -> Result<Column, String>
 where

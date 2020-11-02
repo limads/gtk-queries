@@ -8,6 +8,8 @@ use bayes::sample::csv;
 use std::fmt::{self, Display};
 use std::string::ToString;
 use num_traits::cast::ToPrimitive;
+use std::str::FromStr;
+use std::default::Default;
 
 /// Data-owning structure that encapsulate named columns.
 /// Implementation guarantees all columns are of the same size.
@@ -15,7 +17,8 @@ use num_traits::cast::ToPrimitive;
 pub struct Table {
     names : Vec<String>,
     cols : Vec<Column>,
-    nrows : usize
+    nrows : usize,
+    format : TableSettings
 }
 
 impl Table {
@@ -34,7 +37,7 @@ impl Table {
                 return Err("Number of rows mismatch at table creation");
             }
         }
-        Ok(Self { names, cols, nrows })
+        Ok(Self { names, cols, nrows, format : Default::default() })
     }
 
     pub fn new_from_text(
@@ -194,22 +197,56 @@ impl Table {
         q
     }
 
+    pub fn to_csv(&self) -> String {
+        let mut content = String::new();
+        for row in self.text_rows() {
+            for (i, field) in row.iter().enumerate() {
+                if i >= 1 {
+                    content += ",";
+                }
+                content += &field[..];
+            }
+            content += "\n";
+        }
+        content
+    }
+
     pub fn to_markdown(&self) -> String {
         let mut rows = self.text_rows();
         let mut md = String::new();
         for (i, row) in rows.drain(..).enumerate() {
             for d in row.iter() {
                 md += &format!("|{}", d);
-                md += &format!("|\n");
             }
+            md += &format!("|\n");
             if i == 0 {
                 for _ in 0..row.len() {
-                    md += "|:---:";
+                    let header_sep = match self.format.align {
+                        Align::Left => "|:---",
+                        Align::Center => "|:---:",
+                        Align::Right => "|---:",
+                    };
+                    md += header_sep;
                 }
                 md += "|\n";
             }
         }
         md
+    }
+
+    pub fn to_html(&self) -> String {
+        let mut html = String::new();
+        /*
+        <html>
+        <body>
+        <table>
+        <th><td>Header</td></th>
+        <tr><td>Hello</td></tr>
+        </table>
+        </body>
+        </html>
+        */
+        html
     }
 
     pub fn shape(&self) -> (usize, usize) {
@@ -247,21 +284,20 @@ impl Table {
         self
     }
 
+    pub fn update_format(&mut self, settings : TableSettings) {
+        self.format = settings;
+    }
+
 }
 
 impl Display for Table {
 
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut content = String::new();
-        for row in self.text_rows() {
-            for (i, field) in row.iter().enumerate() {
-                if i >= 1 {
-                    content += ",";
-                }
-                content += &field[..];
-            }
-            content += "\n";
-        }
+        let mut content = match self.format.format {
+            Format::Csv => self.to_csv(),
+            Format::Markdown => self.to_markdown(),
+            Format::Html => unimplemented!()
+        };
         write!(f, "{}", content)
     }
 
@@ -377,4 +413,100 @@ impl<'a> Columns<'a> {
 
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Format {
+    Csv,
+    Markdown,
+    Html
+}
+
+impl FromStr for Format {
+
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "CSV" => Ok(Format::Csv),
+            "HTML" => Ok(Format::Html),
+            "Markdown" => Ok(Format::Markdown),
+            _ => Err(())
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Align {
+    Left,
+    Center,
+    Right
+}
+
+#[derive(Debug, Clone)]
+pub enum BoolField {
+    Char,
+    CharUpper,
+    Word,
+    WordUpper,
+    Integer
+}
+
+impl FromStr for BoolField {
+
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "'t' or 'f'" => Ok(Self::Char),
+            "'T' or 'F'" => Ok(Self::CharUpper),
+            "'true' or 'False'" => Ok(Self::Word),
+            "'TRUE' or 'FALSE'" => Ok(Self::WordUpper),
+            "'1' or '0'" => Ok(Self::WordUpper),
+            _ => Err(())
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum NullField {
+    Word,
+    WordUpper,
+    Omit
+}
+
+impl FromStr for NullField {
+
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "null" => Ok(Self::Word),
+            "NULL" => Ok(Self::WordUpper),
+            "Omit'" => Ok(Self::Omit),
+            _ => Err(())
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TableSettings {
+    pub format : Format,
+    pub align : Align,
+    pub bool_field : BoolField,
+    pub null_field : NullField,
+    pub prec : usize
+}
+
+impl Default for TableSettings {
+
+    fn default() -> Self {
+        Self {
+            format : Format::Csv,
+            align : Align::Left,
+            bool_field : BoolField::Word,
+            null_field : NullField::Omit,
+            prec : 8
+        }
+    }
+
+}
 
