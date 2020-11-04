@@ -197,14 +197,28 @@ impl Table {
         q
     }
 
+    /// Decide if column at ix should be displayed, according to the current display rules.
+    fn show_column(&self, ix : usize) -> bool {
+        if let Some(show) = self.format.show_only.as_ref() {
+            show.iter()
+                .find(|s| &s[..] == &self.names[ix][..] )
+                .is_some()
+        } else {
+            true
+        }
+    }
+
     pub fn to_csv(&self) -> String {
         let mut content = String::new();
         for row in self.text_rows() {
             for (i, field) in row.iter().enumerate() {
-                if i >= 1 {
-                    content += ",";
+                // Skip columns that should not be shown
+                if self.show_column(i) {
+                    if i >= 1 {
+                        content += ",";
+                    }
+                    content += &field[..];
                 }
-                content += &field[..];
             }
             content += "\n";
         }
@@ -215,18 +229,22 @@ impl Table {
         let mut rows = self.text_rows();
         let mut md = String::new();
         for (i, row) in rows.drain(..).enumerate() {
-            for d in row.iter() {
-                md += &format!("|{}", d);
+            for (j, field) in row.iter().enumerate() {
+                if self.show_column(j) {
+                    md += &format!("|{}", field);
+                }
             }
             md += &format!("|\n");
             if i == 0 {
-                for _ in 0..row.len() {
-                    let header_sep = match self.format.align {
-                        Align::Left => "|:---",
-                        Align::Center => "|:---:",
-                        Align::Right => "|---:",
-                    };
-                    md += header_sep;
+                for j in 0..row.len() {
+                    if self.show_column(j) {
+                        let header_sep = match self.format.align {
+                            Align::Left => "|:---",
+                            Align::Center => "|:---:",
+                            Align::Right => "|---:",
+                        };
+                        md += header_sep;
+                    }
                 }
                 md += "|\n";
             }
@@ -493,7 +511,8 @@ pub struct TableSettings {
     pub align : Align,
     pub bool_field : BoolField,
     pub null_field : NullField,
-    pub prec : usize
+    pub prec : usize,
+    pub show_only : Option<Vec<String>>
 }
 
 impl Default for TableSettings {
@@ -504,9 +523,29 @@ impl Default for TableSettings {
             align : Align::Left,
             bool_field : BoolField::Word,
             null_field : NullField::Omit,
-            prec : 8
+            prec : 8,
+            show_only : None
         }
     }
 
 }
+
+pub fn full_csv_display(tbl : &mut Table, cols : Vec<String>) -> String {
+    let show = if cols.len() == 0 {
+        None
+    } else {
+        Some(cols)
+    };
+    let fmt = TableSettings {
+        format : Format::Csv,
+        align : Align::Left,
+        bool_field : BoolField::Char,
+        null_field : NullField::WordUpper,
+        prec : 12,
+        show_only : show
+    };
+    tbl.update_format(fmt);
+    format!("{}", tbl)
+}
+
 

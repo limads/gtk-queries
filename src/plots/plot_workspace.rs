@@ -10,13 +10,12 @@ use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
-use super::mapping_menu::{*, MappingMenu};
+use super::mapping_menu::MappingMenu;
 use super::plot_popover::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
-// use std::default::Default;
 use super::layout_window::LayoutWindow;
 
 /// PlotWorkspace encapsulates all plotting-related widgets.
@@ -292,8 +291,8 @@ impl PlotWorkspace {
             mapping_menus.clone(),
             plot_popover.mapping_stack.clone(),
             layout_path.clone(),
-            design_menu.clone(),
-            scale_menus.clone(),
+            // design_menu.clone(),
+            // scale_menus.clone(),
             layout_toolbar.group_toolbar.clone()
         );
         layout_toolbar.connect_add_mapping_clicked(
@@ -352,7 +351,7 @@ impl PlotWorkspace {
             let tbl_nb = tbl_nb.clone();
             let plot_popover = plot_popover.clone();
             let layout_toolbar = layout_toolbar.clone();
-            plot_popover.tbl_btn.clone().connect_clicked(move |btn| {
+            plot_popover.tbl_btn.clone().connect_clicked(move |_btn| {
                 if let Some(mapping_ix) = plot_popover.get_selected_mapping() {
                     layout_toolbar.update_selected_mapping(tbl_nb.clone(), mapping_menus.clone(), mapping_ix);
                     table_toggle.set_active(true);
@@ -585,7 +584,9 @@ impl PlotWorkspace {
 
     /// Clear mappings and layout
     pub fn clear(&self) {
-        self.clear_mappings();
+        if let Err(e) = self.clear_mappings() {
+            println!("{}", e);
+        };
         if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
             pl_view.change_active_area(0);
             pl_view.update(&mut UpdateContent::Clear(String::from("assets/plot_layout/layout-unique.xml")));

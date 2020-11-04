@@ -1,10 +1,10 @@
 use gtk::*;
 use std::rc::Rc;
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use crate::table_widget::*;
 use gtk::prelude::*;
-use crate::plots::layout_window::*;
-use crate::plots::layout_toolbar::LayoutToolbar;
+// use crate::plots::layout_window::*;
+// use crate::plots::layout_toolbar::LayoutToolbar;
 use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_popover::TablePopover;
 
@@ -222,7 +222,7 @@ impl TableNotebook {
 
     pub fn set_selected_cols(&self, global_ixs : &[usize]) {
         let mut base_ix : usize = 0;
-        for (i, tbl) in self.tbls.borrow().iter().enumerate() {
+        for (_i, tbl) in self.tbls.borrow().iter().enumerate() {
             let ncols = tbl.dimensions().1;
             let curr_ixs : Vec<usize> = global_ixs.iter()
                 .filter(|ix| **ix >= base_ix && **ix < base_ix + ncols)

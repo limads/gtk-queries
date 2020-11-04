@@ -103,7 +103,7 @@ pub trait Mapping {
 
     fn update_extra_data(&mut self, values : Vec<Vec<String>>);
 
-    fn update_layout(&mut self, node : &Node);
+    fn update_layout(&mut self, node : &Node) -> Result<(), String>;
 
     fn properties(&self) -> HashMap<String, String>;
 

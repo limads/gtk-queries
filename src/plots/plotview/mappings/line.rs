@@ -22,7 +22,7 @@ pub struct LineMapping {
 }
 
 impl LineMapping {
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self, String> {
         let color = gdk::RGBA{
             red:0.0,
             green:0.0,
@@ -39,8 +39,8 @@ impl LineMapping {
         ];
         let source = String::new();
         let mut mapping = LineMapping{color, x, y, width, dash_n, col_names, source};
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 
     fn build_dash(n : i32) -> Vec<f64> {
@@ -102,13 +102,27 @@ impl Mapping for LineMapping {
         println!("Mapping has no extra data");
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
-        self.width = props["width"].parse().unwrap();
-        self.dash_n = props["dash"].parse().unwrap();
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
+        self.color = props.get("color")
+            .ok_or(format!("color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse color property"))?;
+        self.width = props.get("width")
+            .ok_or(format!("width property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse width property"))?;
+        self.dash_n = props.get("dash")
+            .ok_or(format!("dash property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse dash property"))?;
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

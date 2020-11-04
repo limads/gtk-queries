@@ -10,6 +10,8 @@ use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::io::{Read, Write, Seek, SeekFrom};
+use crate::tables::table::Table;
+use crate::status_stack::{Status, StatusStack};
 
 #[derive(Debug)]
 struct InnerList {
@@ -129,18 +131,18 @@ where
         });
     }
     win.set_destroy_with_parent(false);
-    win.connect_delete_event(move |win, ev| {
+    win.connect_delete_event(move |win, _ev| {
         win.hide();
         glib::signal::Inhibit(true)
     });
-    win.connect_destroy_event(move |win, ev| {
+    win.connect_destroy_event(move |win, _ev| {
         win.hide();
         glib::signal::Inhibit(true)
     });
 }
 
 /// Add tables resulting from a query sequence.
-pub fn set_tables(
+pub fn set_tables_from_query(
     table_env : &TableEnvironment,
     tables_nb : &mut TableNotebook,
     // mapping_popover : Popover,
@@ -182,6 +184,44 @@ pub fn set_tables(
             } else {
                 println!("No rows to display");
             }
+        }
+    }
+}
+
+/// Add an external table to the environment/notebook,
+/// parseable from the CSV at the txt argument
+pub fn add_external_table(
+    table_env : &Rc<RefCell<TableEnvironment>>,
+    tables_nb : &TableNotebook,
+    txt : String,
+    workspace : &PlotWorkspace,
+    table_popover : &TablePopover,
+    status_stack : &StatusStack
+) -> Result<(), String> {
+    match Table::new_from_text(txt) {
+        Ok(tbl) => {
+            let rows = tbl.text_rows();
+            if let Ok(mut t_env) = table_env.try_borrow_mut() {
+                if let Err(e) = t_env.append_external_table(tbl) {
+                    Err(format!("Error appending table: {}", e))?;
+                }
+            } else {
+                Err(format!("Unable to borrow table environment"))?;
+            }
+            tables_nb.add_page(
+                "bash-symbolic",
+                Some("Std. Output (1)"),
+                None,
+                Some(rows),
+                workspace.clone(),
+                table_popover.clone()
+            );
+            status_stack.update(Status::Ok);
+            Ok(())
+        },
+        Err(e) => {
+            status_stack.update(Status::SqlErr(e.into()));
+            Err(format!("Error parsing table: {}", e))
         }
     }
 }
@@ -229,4 +269,5 @@ pub fn show_popover_on_toggle(popover : &Popover, toggle : &ToggleButton) {
         });
     }
 }
+
 

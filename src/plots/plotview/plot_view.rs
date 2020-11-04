@@ -170,10 +170,14 @@ impl PlotView {
                 self.parent.queue_draw();
             },
             UpdateContent::ColumnNames(m_name, cols) => {
-                self.plot_group.update_mapping_columns(active, &m_name, cols.to_vec());
+                if let Err(e) = self.plot_group.update_mapping_columns(active, &m_name, cols.to_vec()) {
+                    println!("{}", e);
+                }
             },
             UpdateContent::Source(m_name, source) => {
-                self.plot_group.update_source(active, &m_name, source.clone());
+                if let Err(e) = self.plot_group.update_source(active, &m_name, source.clone()) {
+                    println!("{}", e);
+                };
             },
             UpdateContent::NewMapping(m_name, m_type, plot_ix) => {
                 self.insert_mapping(*plot_ix, m_name.clone(), m_type.clone());

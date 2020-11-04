@@ -1,7 +1,7 @@
 use gtk::*;
 use std::rc::Rc;
-use std::cell::{RefCell};
-use super::plotview::plot_view::{PlotView};
+use std::cell::RefCell;
+use super::plotview::plot_view::PlotView;
 use super::layout_aux::*;
 use std::collections::HashMap;
 use gtk::prelude::*;

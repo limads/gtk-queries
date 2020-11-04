@@ -1,16 +1,16 @@
+use gdk;
 use gtk::*;
-use gio::prelude::*;
+// use gio::prelude::*;
 // use std::env::args;
 use std::rc::Rc;
 use std::cell::RefCell;
 // use std::fs::File;
 // use std::io::Write;
-use gdk::{self, keys};
-use sourceview::*;
+// use sourceview::*;
 use gtk::prelude::*;
 // use crate::{utils, table_notebook::TableNotebook };
 use crate::utils::RecentList;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, /*Sender,*/ Receiver};
 use std::thread;
 use std::process::Command;
 use std::path::Path;
@@ -18,12 +18,14 @@ use crate::plots::plot_workspace::PlotWorkspace;
 use crate::tables::environment::TableEnvironment;
 use crate::table_notebook::TableNotebook;
 use glib;
-use crate::tables::table::Table;
+// use crate::tables::table::Table;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::str::FromStr;
 use crate::tables::table::{Format, TableSettings, NullField, BoolField, Align};
 use std::default::Default;
+use crate::utils;
+use crate::status_stack::StatusStack;
 
 struct Output {
     cmd : String,
@@ -386,7 +388,11 @@ pub struct CopyBox {
 
 impl CopyBox {
 
-    pub fn build(builder : &Builder) -> Self {
+    pub fn build(
+        builder : &Builder,
+        tables_nb : &TableNotebook,
+        tbl_env : &Rc<RefCell<TableEnvironment>>
+    ) -> Self {
         let action = Rc::new(RefCell::new(CopyAction{
             dst : String::new(),
             cols : Vec::new(),
@@ -406,15 +412,38 @@ impl CopyBox {
         {
             let action = action.clone();
             col_subset_entry.connect_preedit_changed(move |_spin, txt| {
-                let cols : Vec<_> = txt.split(',').map(|col| col.trim().to_string() ).collect();
-                action.borrow_mut().cols = cols;
+                if txt.len() == 0 {
+                    action.borrow_mut().cols.clear();
+                } else {
+                    let cols : Vec<_> = txt.split(',').map(|col| col.trim().to_string() ).collect();
+                    println!("cols: {:?}", cols);
+                    action.borrow_mut().cols = cols;
+                }
             });
         }
         let col_subset_check : CheckButton = builder.get_object("col_subset_check").unwrap();
         let create_check : CheckButton = builder.get_object("create_check").unwrap();
         let strict_check : CheckButton = builder.get_object("strict_check").unwrap();
         let copy_db_btn : Button = builder.get_object("copy_db_btn").unwrap();
-
+        {
+            let tables_nb = tables_nb.clone();
+            let tbl_env = tbl_env.clone();
+            let action = action.clone();
+            copy_db_btn.connect_clicked(move |_btn| {
+                let idx = tables_nb.get_page_index();
+                if let Ok(mut t_env) = tbl_env.try_borrow_mut() {
+                    if let Ok(action) = action.try_borrow() {
+                        if let Err(e) = t_env.copy_to_database(idx, &action.dst[..], &action.cols[..]) {
+                            println!("{}", e);
+                        }
+                    } else {
+                        println!("Unable to borrow action");
+                    }
+                } else {
+                    println!("Unable to borrow table environment");
+                }
+            });
+        }
         Self {
             db_table_entry,
             col_subset_entry,
@@ -464,7 +493,8 @@ impl TablePopover {
         builder :  &Builder,
         workspace : PlotWorkspace,
         table_env : Rc<RefCell<TableEnvironment>>,
-        tables_nb : TableNotebook
+        tables_nb : TableNotebook,
+        status_stack : StatusStack
     ) -> Self {
         let popover : Popover = builder.get_object("table_popover").unwrap();
         // let command_box : Box = builder.get_object("command_box").unwrap();
@@ -481,7 +511,7 @@ impl TablePopover {
 
         let save_bx = SaveTblBox::build(&builder, &tables_nb, &table_env);
         let (cmd_bx, ans_recv) = CommandBox::new(&builder);
-        let copy_bx = CopyBox::build(&builder);
+        let copy_bx = CopyBox::build(&builder, &tables_nb, &table_env);
         let selected = Rc::new(RefCell::new(None));
         let table_popover = Self {
             popover,
@@ -507,47 +537,43 @@ impl TablePopover {
         {
             let cmd_bx = table_popover.cmd_bx.clone();
             let table_popover = table_popover.clone();
+            let table_popover = table_popover.clone();
             glib::timeout_add_local(16, move || {
                 if let Ok(out) = ans_recv.try_recv() {
                     cmd_bx.cmd_entry.set_sensitive(true);
                     cmd_bx.clear_btn.set_sensitive(true);
                     cmd_bx.run_btn.set_sensitive(true);
                     if out.status {
-                        if let Ok(tbl) = Table::new_from_text(out.txt.clone()) {
-                            let rows = tbl.text_rows();
-                            if let Ok(mut t_env) = table_env.try_borrow_mut() {
-                                if let Err(e) = t_env.append_external_table(tbl) {
-                                    println!("Error appending table: {}", e);
-                                }
-                            } else {
-                                println!("Unable to borrow table environment");
-                                return glib::source::Continue(true);
+                        let add_res = utils::add_external_table(
+                            &table_env,
+                            &tables_nb,
+                            out.txt.clone(),
+                            &workspace,
+                            &table_popover,
+                            &status_stack
+                        );
+                        match add_res {
+                            Ok(_) => {
+                                cmd_bx.recent.push_recent(out.cmd.clone());
+                                CommandBox::update_commands(&cmd_bx.recent, &cmd_bx.cmd_list);
+                            },
+                            Err(e) => {
+                                println!("{}", e);
+                                tables_nb.add_page(
+                                    "bash-symbolic",
+                                    None,
+                                    Some(&e[..]),
+                                    None,
+                                    workspace.clone(),
+                                    table_popover.clone()
+                                );
                             }
-                            tables_nb.add_page(
-                                "bash-symbolic",
-                                Some("Std. Output (1)"),
-                                None,
-                                Some(rows),
-                                workspace.clone(),
-                                table_popover.clone()
-                            );
-                            cmd_bx.recent.push_recent(out.cmd.clone());
-                            CommandBox::update_commands(&cmd_bx.recent, &cmd_bx.cmd_list);
-                        } else {
-                            tables_nb.add_page(
-                                "bash-symbolic",
-                                None,
-                                Some(&format!("Command output: {}", out.txt.clone())),
-                                None,
-                                workspace.clone(),
-                                table_popover.clone()
-                            );
                         }
                     } else {
                         tables_nb.add_page(
                             "bash-symbolic",
                             None,
-                            Some(&out.txt),
+                            Some(&format!("Command output: {}",&out.txt)[..]),
                             None,
                             workspace.clone(),
                             table_popover.clone()

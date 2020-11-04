@@ -21,7 +21,7 @@ pub struct ScatterMapping {
 }
 
 impl ScatterMapping {
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self,String> {
         let color = gdk::RGBA{
             red: 0.0,
             green: 0.0,
@@ -37,8 +37,8 @@ impl ScatterMapping {
         ];
         let source = String::new();
         let mut mapping = ScatterMapping{color, x, y, radius, col_names, source};
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 }
 
@@ -70,12 +70,23 @@ impl Mapping for ScatterMapping {
         println!("Mapping has no extra data");
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
-        self.radius = props["radius"].parse().unwrap();
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
+        self.color = props.get("color")
+            .ok_or(format!("color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse color property"))?;
+        self.radius = props.get("radius")
+            .ok_or(format!("radius property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse radius property"))?;
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

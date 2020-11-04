@@ -1,20 +1,26 @@
+use glib;
 use gtk::*;
 use gio::prelude::*;
 use std::rc::Rc;
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 use gdk::{self, keys};
 use crate::tables::{environment::TableEnvironment, environment::EnvironmentUpdate};
 use sourceview::{self, *};
 use gtk::prelude::*;
-use crate::{status_stack::StatusStack};
+use crate::status_stack::StatusStack;
 use crate::status_stack::*;
 use sourceview::View;
 use super::file_list::FileList;
 use std::io::Write;
 use std::path::Path;
 use crate::schema_tree::SchemaTree;
+use crate::utils;
+use super::table_notebook::TableNotebook;
+use crate::plots::plot_workspace::PlotWorkspace;
+use crate::table_popover::TablePopover;
+use crate::header_toggle::HeaderToggle;
 
 pub enum ExecStatus {
     File(String, usize),
@@ -58,9 +64,12 @@ impl SqlEditor {
 
     fn save_file(path : &Path, content : String) -> bool {
         if let Ok(mut f) = File::create(path) {
-            f.write_all(content.as_bytes());
-            println!("Content written to file");
-            true
+            if f.write_all(content.as_bytes()).is_ok() {
+                println!("Content written to file");
+                true
+            } else {
+                false
+            }
         } else {
             println!("Unable to write into file");
             false
@@ -284,7 +293,7 @@ impl SqlEditor {
         let sql_editor = self.clone();
         let table_toggle = self.table_toggle.clone();
         let file_list = self.file_list.clone();
-        gtk::timeout_add(16, move || {
+        glib::timeout_add_local(16, move || {
             let mut req_tree_update = false;
             if let Ok(mut sent) = sql_editor.query_sent.try_borrow_mut() {
                 if *sent {
@@ -387,7 +396,7 @@ impl SqlEditor {
         let buffer = view.get_buffer().unwrap()
             .downcast::<sourceview::Buffer>().unwrap();
         let manager = StyleSchemeManager::new();
-        let available = println!("available schemes: {:?}", manager.get_scheme_ids());
+        println!("available schemes: {:?}", manager.get_scheme_ids());
         let scheme = manager.get_scheme("queries").unwrap();
         buffer.set_style_scheme(Some(&scheme));
         buffer.set_highlight_syntax(true);
@@ -403,7 +412,7 @@ impl SqlEditor {
         buffer.set_language(Some(&lang));
         Self::connect_source_key_press(&view, &refresh_btn);
         let buffer = view.get_buffer().unwrap();
-        buffer.connect_changed(move |buf| {
+        buffer.connect_changed(move |_buf| {
             file_list.mark_current_unsaved();
         });
 
@@ -423,12 +432,14 @@ impl SqlEditor {
 
     pub fn build(
         builder : Builder,
-        table_toggle : ToggleButton,
-        query_toggle : ToggleButton,
+        header_toggle : HeaderToggle,
         status_stack : StatusStack,
         content_stack : Stack,
         t_env : Rc<RefCell<TableEnvironment>>,
-        file_list : &FileList
+        tables_nb : TableNotebook,
+        file_list : &FileList,
+        workspace : PlotWorkspace,
+        table_popover : TablePopover
     ) -> Self {
         let view : View =
             builder.get_object("query_source").unwrap();
@@ -497,7 +508,7 @@ impl SqlEditor {
         {
             let update_clock = update_clock.clone();
             let refresh_btn = refresh_btn.clone();
-            gtk::timeout_add(500, move || {
+            glib::timeout_add_local(500, move || {
                if let Ok(mut update) = update_clock.try_borrow_mut() {
                     match *update {
                         (false, _, _) => {
@@ -615,19 +626,23 @@ impl SqlEditor {
             //sql_new_btn,
             //sql_load_btn,
             query_file_label,
-            table_toggle,
+            table_toggle : header_toggle.table_toggle.clone(),
             file_list : file_list.clone(),
         };
 
         Self::connect_sql_load(
             sql_editor.sql_load_dialog.clone(),
-            //t_env.clone(),
-            sql_editor.query_file_label.clone(),
+            sql_editor.t_env.clone(),
+            tables_nb.clone(),
+            // sql_editor.query_file_label.clone(),
             &file_list,
             content_stack,
-            query_toggle.clone(),
+            header_toggle.query_toggle.clone(),
             sql_editor.refresh_btn.clone(),
-            sql_editor.clone()
+            sql_editor.clone(),
+            workspace,
+            table_popover,
+            sql_editor.status_stack.clone()
         );
 
         Self::connect_sql_save(&sql_editor);
@@ -664,13 +679,17 @@ impl SqlEditor {
 
     fn connect_sql_load(
         sql_load_dialog : FileChooserDialog,
-        // table_env : Rc<RefCell<TableEnvironment>>,
-        query_file_label : Label,
+        table_env : Rc<RefCell<TableEnvironment>>,
+        tables_nb : TableNotebook,
+        // query_file_label : Label,
         file_list : &FileList,
         content_stack : Stack,
         query_toggle : ToggleButton,
         refresh_btn : Button,
-        sql_editor : SqlEditor
+        sql_editor : SqlEditor,
+        workspace : PlotWorkspace,
+        table_popover : TablePopover,
+        status_stack : StatusStack
     ) {
         let file_list = file_list.clone();
         sql_load_dialog.connect_response(move |dialog, resp|{
@@ -678,18 +697,46 @@ impl SqlEditor {
             match resp {
                 ResponseType::Other(1) => {
                     if let Some(path) = dialog.get_filename() {
-                        if let Some(name) = Self::clip_name(&path) {
-                            println!("Adding disk file: {:?}", name);
-                            file_list.add_disk_file(
-                                path.as_path(),
-                                &name[..],
-                                content_stack.clone(),
-                                query_toggle.clone(),
-                                refresh_btn.clone(),
-                                sql_editor.clone()
-                            );
-                        } else {
-                            println!("Could not retrieve name");
+                        match path.extension().and_then(|ext| ext.to_str() ) {
+                            Some("sql") => {
+                                if let Some(name) = Self::clip_name(&path) {
+                                    println!("Adding disk source file: {:?}", name);
+                                    file_list.add_disk_file(
+                                        path.as_path(),
+                                        &name[..],
+                                        content_stack.clone(),
+                                        query_toggle.clone(),
+                                        refresh_btn.clone(),
+                                        sql_editor.clone()
+                                    );
+                                } else {
+                                    println!("Could not retrieve name");
+                                }
+                            },
+                            Some("csv") => {
+                                let mut txt = String::new();
+                                if let Ok(mut f) = File::open(&path) {
+                                    if let Err(e) = f.read_to_string(&mut txt) {
+                                        println!("{}", e);
+                                    }
+                                    let add_res = utils::add_external_table(
+                                        &table_env,
+                                        &tables_nb,
+                                        txt,
+                                        &workspace,
+                                        &table_popover,
+                                        &status_stack
+                                    );
+                                    if let Err(e) = add_res {
+                                        println!("{}", e);
+                                    }
+                                } else {
+                                    println!("Unable to open external file");
+                                }
+                            },
+                            _ => {
+                                println!("Extension should be SQL or CSV");
+                            }
                         }
                     } else {
                         println!("Could not get path");

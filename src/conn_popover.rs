@@ -1,3 +1,4 @@
+use glib;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gtk::*;
@@ -172,7 +173,7 @@ impl ConnPopover {
         _switch : Switch
     ) {
         //let switch = switch.clone();
-        gtk::timeout_add(160, move || {
+        glib::timeout_add_local(160, move || {
             //&switch.set_state(false);
             glib::Continue(false)
         });

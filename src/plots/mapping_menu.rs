@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 use crate::plots::layout_aux::*;
-use crate::tables::{environment::TableEnvironment};
+use crate::tables::environment::TableEnvironment;
 use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
@@ -609,7 +609,7 @@ impl MappingMenu {
             source.tbl_pos = None;
             source.tbl_ixs.clear();
             source.query.clear();
-            source.col_names.clone();
+            source.col_names.clear();
         } else {
             println!("Could not get mutable reference to table source");
         }

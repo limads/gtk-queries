@@ -3,7 +3,7 @@ use gtk::*;
 // use crate::*;
 use std::collections::HashMap;
 use gtk::prelude::*;
-use crate::plots::plotview::plot_view::{PlotView, /*UpdateContent*/ };
+use crate::plots::plotview::plot_view::PlotView;
 // use crate::plots::plotview::PlotArea;
 use super::layout_aux::*;
 use std::rc::Rc;

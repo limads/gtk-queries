@@ -12,6 +12,7 @@ use std::str::FromStr;
 use std::cmp::{Eq, PartialEq};
 use std::hash::Hash;
 use std::fmt;
+use super::postgre;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
@@ -30,6 +31,9 @@ pub enum EnvironmentUpdate {
 
     /// Preserve last column sequence, just update the data.
     Refresh,
+
+    /// External table added to environment (by loading CSV file or executing command)
+    NewExternal
 
 }
 
@@ -687,7 +691,8 @@ impl TableEnvironment {
             if curr_ixs.len() > 0 {
                 let mut cols = Columns::new();
                 cols = cols.clone().take_and_extend(tbl.get_columns(&curr_ixs));
-                let query = self.get_queries().get(i).cloned().unwrap();
+                let query = self.get_queries().get(i).cloned()
+                    .unwrap_or(String::new());
                 return Some((cols, i, query));
             }
             base_ix += ncols;
@@ -768,6 +773,7 @@ impl TableEnvironment {
         tbl : Table
     ) -> Result<(), &'static str> {
         self.tables.push(tbl);
+        self.history.push(EnvironmentUpdate::NewExternal);
         Ok(())
     }
 
@@ -799,6 +805,23 @@ impl TableEnvironment {
                 self.send_current_query(true).map_err(|e| println!("{}", e) ).ok();
             },
             _ => { }
+        }
+    }
+
+    pub fn copy_to_database(&mut self, tbl_ix : usize, dst : &str, cols : &[String]) -> Result<(), String> {
+        if let Ok(mut engine) = self.listener.engine.lock() {
+            match *engine {
+                SqlEngine::PostgreSql{ ref mut conn, .. } => {
+                    if let Some(tbl) = self.tables.get_mut(tbl_ix) {
+                        postgre::copy_table_to_postgres(conn, tbl, dst, cols)
+                    } else {
+                        Err(String::from("Invalid index"))
+                    }
+                },
+                _ => unimplemented!()
+            }
+        } else {
+            Err(String::from("Engine unavailable for copy"))
         }
     }
 

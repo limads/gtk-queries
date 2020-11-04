@@ -5,8 +5,8 @@ use std::cell::RefCell;
 use crate::tables::environment::TableEnvironment;
 use crate::plots::plotview::GroupSplit;
 use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
-use std::fs::{File, OpenOptions};
-use std::io::Read;
+use std::fs::File;
+//use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
@@ -117,7 +117,7 @@ impl LayoutWindow {
     fn build_save_dialog(
         builder : &Builder,
         save_btn : Button,
-        layout_file_combo : ComboBoxText,
+        // layout_file_combo : ComboBoxText,
         pl_view : Rc<RefCell<PlotView>>,
         file_combo : ComboBoxText,
         recent : RecentList,
@@ -185,8 +185,8 @@ impl LayoutWindow {
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_stack : Stack,
         layout_path : Rc<RefCell<Option<String>>>,
-        design_menu : DesignMenu,
-        scale_menus : (ScaleMenu, ScaleMenu),
+        // design_menu : DesignMenu,
+        // scale_menus : (ScaleMenu, ScaleMenu),
         layout_group_toolbar : GroupToolbar
     ) -> LayoutWindow {
         let group_toolbar_top : Toolbar = builder.get_object("group_toolbar_top").unwrap();
@@ -297,7 +297,7 @@ impl LayoutWindow {
         let xml_save_dialog = Self::build_save_dialog(
             &builder,
             save_btn.clone(),
-            file_combo.clone(),
+            // file_combo.clone(),
             plot_view.clone(),
             file_combo.clone(),
             recent.clone(),
@@ -408,6 +408,7 @@ impl LayoutWindow {
                 let combo_txt = combo.clone().downcast::<ComboBoxText>().unwrap();
                 let opt_path_str = combo_txt.get_active_text()
                     .map(|s| s.as_str().to_string() );
+                println!("Active text = {:?}", opt_path_str);
                 let path_str = match opt_path_str {
                     Some(path) => {
                         // Only accept changes from a user-derived action (i.e. not pointing
@@ -510,8 +511,13 @@ impl LayoutWindow {
                     Ok(_) => {
                         layout_window.reset(pl.group_split());
                         group_toolbar.set_active_default(Some(pl.group_split()));
-                        *(layout_path.borrow_mut()) = Some(string_path);
-                        true
+                        if let Ok(mut layout_path) = layout_path.try_borrow_mut() {
+                            *layout_path = Some(string_path);
+                            true
+                        } else {
+                            println!("Unable to borrow layout path mutably");
+                            false
+                        }
                     },
                     Err(e) => { println!("Unable to load layout: {}", e); false }
                 }

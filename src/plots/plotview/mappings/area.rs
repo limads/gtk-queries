@@ -23,7 +23,7 @@ pub struct AreaMapping {
 
 impl AreaMapping {
 
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self, String> {
         let x = Vec::<f64>::new();
         let ymin = Vec::<f64>::new();
         let ymax = Vec::<f64>::new();
@@ -40,8 +40,8 @@ impl AreaMapping {
         ];
         let source = String::new();
         let mut mapping = AreaMapping{ x, ymin, ymax, color, col_names, source };
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 
     pub fn draw_bound<'a>(
@@ -129,13 +129,26 @@ impl Mapping for AreaMapping {
         self.ymax = values[2].clone();
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
-        self.color.alpha = props["opacity"].parse().unwrap();
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
-        self.col_names[2] = props["ymax"].clone();
+        self.color = props.get("color")
+            .ok_or(format!("Color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse opacity property"))?;
+        self.color.alpha = props.get("opacity")
+            .ok_or(format!("Color opacity not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse opacity property"))?;
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        self.col_names[2] = props.get("ymax")
+            .ok_or(format!("ymax opacity not found"))?
+            .clone();
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

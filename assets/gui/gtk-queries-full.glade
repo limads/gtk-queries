@@ -3556,7 +3556,6 @@
                             <property name="input_purpose">number</property>
                             <property name="adjustment">adjustment1</property>
                             <property name="climb_rate">1</property>
-                            <property name="digits">1</property>
                             <property name="numeric">True</property>
                             <property name="value">8</property>
                           </object>
@@ -6360,6 +6359,7 @@
   <object class="GtkFileFilter" id="sql_filter">
     <patterns>
       <pattern>*.sql</pattern>
+      <pattern>*.csv</pattern>
     </patterns>
   </object>
   <object class="GtkFileChooserDialog" id="sql_load_dialog">

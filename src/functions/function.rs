@@ -360,7 +360,7 @@ fn search_doc_at_item(item : Item, docs : &mut HashMap<String, Option<String>>) 
                 Visibility::Public(_) => {
                     println!("Found function at source: {}", item_fn.sig.ident.to_string());
                     let fn_name = item_fn.sig.ident.to_string();
-                    if let Some(mut val) = docs.get_mut(&fn_name) {
+                    if let Some(val) = docs.get_mut(&fn_name) {
                         if val.is_none() {
                             *val = parser::load_doc(&item_fn);
                         }
@@ -404,7 +404,9 @@ pub fn search_doc_at_dir(dir : &Path, docs : &mut HashMap<String, Option<String>
                         println!("Found rs file: {:?}", entry);
                         let mut content = String::new();
                         if let Ok(mut file) = fs::File::open(&entry.path()) {
-                            file.read_to_string(&mut content);
+                            if let Err(e) = file.read_to_string(&mut content) {
+                                println!("{}", e);
+                            }
                             search_doc_at_tree(&content, docs);
                         } else {
                             println!("Error reading file at {:?}", entry);

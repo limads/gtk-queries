@@ -420,8 +420,7 @@ impl SqlEngine {
             None => {
                 let conn = rusqlite::Connection::open_in_memory()
                     .and_then(|conn| {
-                        rusqlite::vtab::csvtab::load_module(&conn)
-                            .map_err(|e| format!("{}", e));
+                        rusqlite::vtab::csvtab::load_module(&conn)?;
                         if let Ok(loader) = loader.lock() {
                             Self::bind_sqlite3_udfs(&conn, &*loader);
                         } else {

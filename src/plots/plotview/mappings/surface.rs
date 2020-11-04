@@ -35,7 +35,7 @@ struct CoordPatch {
 
 impl SurfaceMapping {
 
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self, String> {
         let color = gdk::RGBA{
             red:0.0,
             green:0.0,
@@ -70,8 +70,8 @@ impl SurfaceMapping {
             // _interp_task : interp_task,
             source
         };
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 
     fn create_uniform_coords(mapper : &ContextMapper, n : usize) -> Vec<CoordPatch> {
@@ -309,18 +309,41 @@ impl Mapping for SurfaceMapping {
         println!("Mapping has no extra data");
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
-        self.color_final = props["final_color"].parse().unwrap();
-        self.color.alpha = props["opacity"].parse::<f64>().unwrap() / 100.0;
-        self.color_final.alpha = props["opacity"].parse::<f64>().unwrap() / 100.0;
-        let z_min = props["z_min"].parse().unwrap();
-        let z_max = props["z_max"].parse().unwrap();
+        self.color = props.get("color")
+            .ok_or(format!("color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse color property"))?;
+        self.color_final = props.get("final_color")
+            .ok_or(format!("final_color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse final_color property"))?;
+        self.color.alpha = props.get("opacity")
+            .ok_or(format!("opacity property not found"))?
+            .parse::<f64>()
+            .map(|op| op / 100.0)
+            .map_err(|_| format!("Unable to parse opacity property"))?;
+        self.color_final.alpha = self.color.alpha;
+        let z_min = props.get("z_min")
+            .ok_or(format!("z_min property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse z_min property"))?;
+        let z_max = props.get("z_max")
+            .ok_or(format!("z_max property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse z_max property"))?;
         self.z_lims = (z_min, z_max);
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
-        self.col_names[2] = props["z"].clone();
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        self.col_names[2] = props.get("z")
+            .ok_or(format!("z property not found"))?
+            .clone();
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

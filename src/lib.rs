@@ -32,4 +32,6 @@ pub mod table_popover;
 
 pub mod utils;
 
+pub mod header_toggle;
+
 

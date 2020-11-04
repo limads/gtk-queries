@@ -81,7 +81,7 @@ impl FunctionLoader {
     fn parse_sql_file(module_name : Option<&str>, path : &Path) -> Result<Vec<Function>, String> {
         let mut content = String::new();
         let mut f = File::open(path).unwrap();
-        f.read_to_string(&mut content);
+        f.read_to_string(&mut content).map_err(|e| format!("{}", e))?;
         let t : syn::File = syn::parse_str(&content).map_err(|e| format!("{}", e) )?;
         if let Some(module_name) = module_name {
             for item in t.items {
@@ -435,7 +435,7 @@ impl FunctionLoader {
         let mut content = String::new();
         let mut f = File::open(path_str)
             .map_err(|e| format!("Could not read .rs file: {}", e) )?;
-        f.read_to_string(&mut content);
+        f.read_to_string(&mut content).map_err(|e| format!("{}", e) )?;
         let funcs = parser::parse_top_level_funcs(&content)?;
         println!("Loaded functions = {:?}", funcs);
         Ok((String::new(), funcs.len()))
@@ -533,20 +533,21 @@ impl FunctionLoader {
         Ok(())
     }
 
-    fn update_full_registry(&mut self) {
+    fn update_full_registry(&mut self) -> Result<(), String> {
         let lib_names : Vec<String> = self.libs.iter()
             .map(|lib| lib.name.clone() )
             .collect();
         for name in lib_names.iter() {
-            self.update_crate(&name[..]);
+            self.update_crate(&name[..])?;
         }
+        Ok(())
     }
 
     fn update_crate(&mut self, name : &str) -> Result<(), String> {
         if let Some(lib) = self.libs.iter().find(|lib| lib.name == name ) {
             let path = lib.local_path.clone();
-            self.remove_crate(&lib.name.clone()[..]);
-            self.add_crate(&path[..]);
+            self.remove_crate(&lib.name.clone()[..])?;
+            self.add_crate(&path[..])?;
             Ok(())
         } else {
             Err(format!("Library {} not found", name))

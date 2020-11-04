@@ -421,7 +421,7 @@ impl FunctionRegistry {
                 println!("Not possible to lock loader");
             }
         });*/
-        let mut n = lib_list_box.get_children().len() as i32; - 1;
+        let mut n = lib_list_box.get_children().len() as i32; //- 1;
         if let Ok(mut loader) = loader.lock() {
             for f in loader.fn_list_for_lib(&lib_name[..]) {
                 if fn_prefix.map(|p| f.name.starts_with(p) ).unwrap_or(true) {

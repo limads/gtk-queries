@@ -1,9 +1,13 @@
-use postgres::{self, types::FromSql, types::ToSql };
+use postgres::{self, Client, types::FromSql, types::ToSql };
 use rust_decimal::Decimal;
 use super::column::*;
 use super::nullable_column::*;
 use super::table::*;
 use postgres::types::Type;
+use std::io::Write;
+use std::error::Error;
+use crate::tables::table::{self, Table, Align, Format, TableSettings, BoolField, NullField};
+use crate::utils;
 
 pub fn col_as_opt_vec<'a, T>(
     rows : &'a [postgres::row::Row],
@@ -72,6 +76,34 @@ pub fn try_any_float(rows : &[postgres::row::Row], ix : usize) -> Result<Nullabl
         }
     }
 }*/
+
+pub fn copy_table_to_postgres(
+    client : &mut Client,
+    tbl : &mut Table,
+    dst : &str,
+    cols : &[String]
+) -> Result<(), String> {
+    let copy_stmt = match cols.len() {
+        0 => format!("COPY {} FROM stdin", dst),
+        n => {
+            let mut cols_agg = String::new();
+            for i in 0..n {
+                cols_agg += &cols[n];
+                if i <= n-1 {
+                    cols_agg += ",";
+                }
+            }
+            format!("COPY {} ({}) FROM stdin", dst, cols_agg)
+        }
+    };
+    println!("{}", copy_stmt);
+    let mut writer = client.copy_in(&copy_stmt[..])
+        .map_err(|e| format!("{}", e) )?;
+    let tbl_content = table::full_csv_display(tbl, cols.into());
+    writer.write_all(tbl_content.as_bytes()).map_err(|e| format!("{}", e) )?;
+    writer.finish().map_err(|e| format!("{}", e) )?;
+    Ok(())
+}
 
 pub fn build_table_from_postgre(rows : &[postgres::row::Row]) -> Result<Table, &'static str> {
     let names : Vec<String> = rows.get(0)

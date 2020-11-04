@@ -29,7 +29,7 @@ pub struct BarMapping {
 
 impl BarMapping {
 
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self, String> {
         let color = gdk::RGBA{
             red: 0.0,
             green: 0.0,
@@ -57,8 +57,8 @@ impl BarMapping {
             col_names, bar_width, origin, bar_spacing, horizontal,
             source
         };
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 
     fn adjust_bar(&mut self) {
@@ -143,19 +143,46 @@ impl Mapping for BarMapping {
         println!("Mapping has no extra data");
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
-        self.center_anchor = props["center_anchor"].parse().unwrap();
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
-        self.col_names[2] = props["width"].clone();
-        self.col_names[3] = props["height"].clone();
-        self.origin.0 = props["origin_x"].parse().unwrap();
-        self.origin.1 = props["origin_y"].parse().unwrap();
-        self.bar_width = props["bar_width"].parse().unwrap();
-        self.bar_spacing = props["bar_spacing"].parse().unwrap();
-        let new_horiz = props["horizontal"].parse().unwrap();
+        self.color = props.get("color")
+            .ok_or(format!("Color property not found"))?
+            .parse().unwrap();
+        self.center_anchor = props.get("center_anchor")
+            .ok_or(format!("Center anchor property not found"))?
+            .parse().unwrap();
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        self.col_names[2] = props.get("width")
+            .ok_or(format!("width property not found"))?
+            .clone();
+        self.col_names[3] = props.get("height")
+            .ok_or(format!("height property not found"))?
+            .clone();
+        self.origin.0 = props.get("origin_x")
+            .ok_or(format!("origin_x property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse origin_x property"))?;
+        self.origin.1 = props.get("origin_y")
+            .ok_or(format!("origin_y property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse origin_y property"))?;
+        self.bar_width = props.get("bar_width")
+            .ok_or(format!("bar_width property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse bar_width property"))?;
+        self.bar_spacing = props.get("bar_spacing")
+            .ok_or(format!("bar_spacing property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse bar_spacing property"))?;
+        let new_horiz = props.get("horizontal")
+            .ok_or(format!("horizontal property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse horizontal property"))?;
         if self.horizontal != new_horiz {
             mem::swap(&mut self.w, &mut self.h);
             self.horizontal = new_horiz;
@@ -165,6 +192,7 @@ impl Mapping for BarMapping {
         println!("y: {:?}", self.y);
         println!("w: {:?}", self.w);
         println!("h: {:?}", self.h);
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

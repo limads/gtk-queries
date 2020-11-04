@@ -140,8 +140,8 @@ pub fn function_signature(f : ItemFn) -> Result<Function, String> {
     let mut args : Vec<SqlType> = Vec::new();
     // let mut mode = FunctionMode::Simple;
     let mut doc_content = String::new();
-    let mut var_arg = false;
-    let mut var_ret = false;
+    let var_arg = false;
+    let var_ret = false;
     for input in inputs {
         match input {
             FnArg::Typed(typed) => {

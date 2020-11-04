@@ -23,7 +23,7 @@ pub struct TextMapping {
 
 impl TextMapping {
 
-    pub fn new(node : &Node) -> Self {
+    pub fn new(node : &Node) -> Result<Self,String> {
         let x = Vec::<f64>::new();
         let y = Vec::<f64>::new();
         let text = Vec::<String>::new();
@@ -41,8 +41,8 @@ impl TextMapping {
         ];
         let source = String::new();
         let mut mapping = TextMapping{ x, y, text, font, color, col_names, source};
-        mapping.update_layout(node);
-        mapping
+        mapping.update_layout(node)?;
+        Ok(mapping)
     }
 
     // Calls to update_data(.) can call this
@@ -100,13 +100,23 @@ impl Mapping for TextMapping {
         }
     }
 
-    fn update_layout(&mut self, node : &Node) {
+    fn update_layout(&mut self, node : &Node) -> Result<(), String> {
         let props = utils::children_as_hash(node, "property");
-        self.color = props["color"].parse().unwrap();
+        self.color = props.get("color")
+            .ok_or(format!("color property not found"))?
+            .parse()
+            .map_err(|_| format!("Unable to parse color property"))?;
         self.font = FontData::new_from_string(&props["font"]);
-        self.col_names[0] = props["x"].clone();
-        self.col_names[1] = props["y"].clone();
-        self.col_names[2] = props["text"].clone();
+        self.col_names[0] = props.get("x")
+            .ok_or(format!("x property not found"))?
+            .clone();
+        self.col_names[1] = props.get("y")
+            .ok_or(format!("y property not found"))?
+            .clone();
+        self.col_names[2] = props.get("text")
+            .ok_or(format!("text property not found"))?
+            .clone();
+        Ok(())
     }
 
     fn properties(&self) -> HashMap<String, String> {

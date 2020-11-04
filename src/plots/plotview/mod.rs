@@ -289,14 +289,13 @@ impl PlotGroup {
             },
             ThreeLeft | ThreeTop | ThreeRight | ThreeBottom => if self.plots.len() != 3 {
                 return Err("'Three' split require 3 plots".into());
-            },
-            _ => unimplemented!()
+            }
         }
         self.reload_layout_data()
-            .map_err(|_| "Could not reload layout data")?;
+            .map_err(|e| format!("Could not reload layout data: {}", e))?;
         for plot in self.plots.iter_mut() {
             plot.reload_mappings()
-                .map_err(|()| "Could not reload mappings from informed layout")?;
+                .map_err(|e| format!("Could not reload mappings from informed layout: {}", e))?;
         }
         // println!("h: {}; v : {}; split: {:?}", self.h_ratio, self.v_ratio, self.split);
         Ok(())
@@ -552,37 +551,38 @@ impl PlotArea {
 
     /// Reloads all mappings from XML definition,
     /// clearing any existent data.
-    pub fn reload_mappings(&mut self) -> Result<(),()> {
+    pub fn reload_mappings(&mut self) -> Result<(),String> {
         // let root = self.doc.get_root_element()
         //    .expect("Root node not found");
         self.mappings.clear();
         if let Ok(mappings) = self.node.findnodes("object[@class='mapping']") {
             //println!("mappings to add -> {:?}", mappings);
-            for mapping_node in mappings {
+            for (i, mapping_node) in mappings.iter().enumerate() {
                 let mapping_ix = mapping_node
-                    .get_attribute("index").expect("No attr");
+                    .get_attribute("index")
+                    .ok_or(format!("Missing 'index' attribute for mapping at position {}", i))?;
                 let mapping_type = mapping_node
-                    .get_attribute("type").expect("No attr");
+                    .get_attribute("type")
+                    .ok_or(format!("Missing 'type' attribute for mapping {}", mapping_ix))?;
                 let mapping : Option<Box<dyn Mapping>> = match &mapping_type[..] {
-                    "line" => Some( Box::new(LineMapping::new(&mapping_node)) ),
-                    "scatter" => Some( Box::new(ScatterMapping::new(&mapping_node)) ),
-                    "bar" => Some( Box::new(BarMapping::new(&mapping_node)) ),
-                    "text" => Some( Box::new(TextMapping::new(&mapping_node)) ),
-                    "area" => Some( Box::new(AreaMapping::new(&mapping_node)) ),
-                    "surface" => Some( Box::new(SurfaceMapping::new(&mapping_node)) ),
-                    _ => { println!("Unrecognized mapping"); None }
+                    "line" => Some( Box::new(LineMapping::new(&mapping_node)?) ),
+                    "scatter" => Some( Box::new(ScatterMapping::new(&mapping_node)?) ),
+                    "bar" => Some( Box::new(BarMapping::new(&mapping_node)?) ),
+                    "text" => Some( Box::new(TextMapping::new(&mapping_node)?) ),
+                    "area" => Some( Box::new(AreaMapping::new(&mapping_node)?) ),
+                    "surface" => Some( Box::new(SurfaceMapping::new(&mapping_node)?) ),
+                    _ => None
                 };
                 if let Some(m) = mapping{
                     self.mappings.insert(mapping_ix.parse::<usize>().unwrap(), m);
                 } else {
-                    println!("Unknown mapping added");
-                    return Err(());
+                    return Err(format!("Unrecognized mapping type: {}", mapping_type));
                 }
             }
+            Ok(())
         } else {
-            println!("No mappings to load");
+            Err(format!("Error finding mapping nodes"))
         }
-        Ok(())
     }
 
     /// Parses the XML file definition at self.doc
@@ -657,27 +657,27 @@ impl PlotArea {
             }
             match mtype {
                 MappingType::Line => {
-                    let line_mapping = LineMapping::new(&new_mapping);
+                    let line_mapping = LineMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(line_mapping));
                 },
                 MappingType::Scatter => {
-                    let scatter_mapping = ScatterMapping::new(&new_mapping);
+                    let scatter_mapping = ScatterMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(scatter_mapping));
                 },
                 MappingType::Bar => {
-                    let bar_mapping = BarMapping::new(&new_mapping);
+                    let bar_mapping = BarMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(bar_mapping));
                 },
                 MappingType::Text => {
-                    let text_mapping = TextMapping::new(&new_mapping);
+                    let text_mapping = TextMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(text_mapping));
                 },
                 MappingType::Area => {
-                    let area_mapping = AreaMapping::new(&new_mapping);
+                    let area_mapping = AreaMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(area_mapping));
                 },
                 MappingType::Surface => {
-                    let surface_mapping = SurfaceMapping::new(&new_mapping);
+                    let surface_mapping = SurfaceMapping::new(&new_mapping)?;
                     self.mappings.insert(m_ix, Box::new(surface_mapping));
                 }
             }
@@ -841,12 +841,11 @@ impl PlotArea {
     }
 
     /* Given a resolvable full path to a property, update it. */
-    pub fn update_layout(&mut self, property : &str, value : &str) {
+    pub fn update_layout(&mut self, property : &str, value : &str) -> Result<(), String> {
         // let root = self.doc.get_root_element().expect("No root");
         // println!("{} : {}", property, value);
         if property.is_empty() || value.is_empty() {
-            println!("Informed empty property!");
-            return;
+            return Err(format!("Informed empty property!"));
         }
         match self.node.findnodes(&property) {
             Ok(mut props) => {
@@ -861,7 +860,7 @@ impl PlotArea {
                         Some(ref class) if class == "mapping" => {
                             if let Some(index) = parent.get_attribute("index") {
                                 if let Some(m) = self.mappings.get_mut(index.parse::<usize>().unwrap()) {
-                                    m.update_layout( &parent );
+                                    m.update_layout( &parent )?;
                                 } else {
                                     println!("No mapping at {} available", index);
                                 }
@@ -888,6 +887,7 @@ impl PlotArea {
                 println!("No property {} found at node {:?} ({:?})", property, self.node, e);
             }
         }
+        Ok(())
     }
 
     pub fn clear_all_data(&mut self) {
