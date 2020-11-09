@@ -17,7 +17,7 @@ use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
 use super::plot_workspace::PlotWorkspace;
 use std::io::Write;
-use std::io::{Seek, SeekFrom};
+// use std::io::{Seek, SeekFrom};
 use std::path::Path;
 use crate::utils::RecentList;
 
@@ -35,7 +35,9 @@ pub struct LayoutWindow {
     // Holds (File, Recent paths, file_updated)
     pub recent : RecentList,
     pub horiz_ar_scale : Scale,
-    pub vert_ar_scale : Scale
+    pub vert_ar_scale : Scale,
+    layout_width_entry : Entry,
+    layout_height_entry : Entry
 }
 
 const ALL_LAYOUTS : [GroupSplit; 8] = [
@@ -253,7 +255,10 @@ impl LayoutWindow {
                     // TODO load all layouts at beginning.
                     if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                         pl_view.change_active_area(0);
-                        pl_view.update(&mut UpdateContent::Clear(format!("assets/plot_layout/layout-{}.xml", path)));
+                        let clear_path = format!("assets/plot_layout/layout-{}.xml", path);
+                        if let Err(e) = pl_view.update(&mut UpdateContent::Clear(clear_path)) {
+                            println!("{}", e);
+                        }
                     } else {
                         println!("Unable to get mutable reference to plotview");
                     }
@@ -321,6 +326,46 @@ impl LayoutWindow {
             });
         }
 
+        let layout_width_entry : Entry = builder.get_object("layout_width_entry").unwrap();
+        let layout_height_entry : Entry = builder.get_object("layout_height_entry").unwrap();
+        
+        {
+            let plot_view = plot_view.clone();
+            layout_width_entry.connect_focus_out_event(move |entry, _ev| {
+                let txt = entry.get_text();
+                if let Ok(mut pl) = plot_view.try_borrow_mut() {
+                    if let Ok(w) = txt.parse::<usize>() {
+                        if let Err(e) = pl.update(&mut UpdateContent::Dimensions(Some(w), None)) {
+                            println!("{}", e);
+                        }
+                    } else {
+                        println!("Unable to borrow field as text");
+                    }
+                } else {
+                    println!("Unable to borrow plotview");
+                }
+                glib::signal::Inhibit(true)
+            });
+        }
+        
+        {
+            let plot_view = plot_view.clone();
+            layout_height_entry.connect_focus_out_event(move |entry, _ev| {
+                let txt = entry.get_text();
+                if let Ok(mut pl) = plot_view.try_borrow_mut() {
+                    if let Ok(h) = txt.parse::<usize>() {
+                        if let Err(e) = pl.update(&mut UpdateContent::Dimensions(None, Some(h))) {
+                            println!("{}", e);
+                        }
+                    } else {
+                        println!("Unable to borrow field as text");
+                    }
+                } else {
+                    println!("Unable to borrow plotview");
+                }
+                glib::signal::Inhibit(true)
+            });
+        }
         LayoutWindow {
             toggles,
             open_btn,
@@ -332,7 +377,9 @@ impl LayoutWindow {
             file_combo,
             recent,
             horiz_ar_scale,
-            vert_ar_scale
+            vert_ar_scale,
+            layout_width_entry,
+            layout_height_entry
         }
     }
 

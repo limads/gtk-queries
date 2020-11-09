@@ -10,6 +10,8 @@ pub struct PlotView {
 
 pub enum UpdateContent {
 
+    Dimensions(Option<usize>, Option<usize>),
+    
     /// Used to evaluate plot-specific characteristics.
     /// Layout path, Layout value
     Layout(String, String),
@@ -134,11 +136,14 @@ impl PlotView {
         }
     }
 
-    pub fn update(&mut self, content : &mut UpdateContent) {
+    pub fn update(&mut self, content : &mut UpdateContent) -> Result<(), String> {
 
         //if let Ok(mut ref_area) = self.plot_area.try_borrow_mut() {
         let active = self.active_area;
         match content {
+            UpdateContent::Dimensions(w, h) => {
+                self.plot_group.set_dimensions(*w, *h);
+            },
             UpdateContent::Layout(key, property) => {
                 self.plot_group.update_plot_property(active, &key, &property);
                 /*if self.plot_area.reload_layout_data().is_err() {
@@ -151,7 +156,7 @@ impl PlotView {
             UpdateContent::Design(key, property) => {
                 self.plot_group.update_design(&key, &property);
                 self.parent.queue_draw();
-            }
+            },
             UpdateContent::Data(key, data) => {
                 if let Err(e) = self.plot_group.update_mapping(active, &key, data) {
                     println!("Error updating mapping {:}: {}", key, e);
@@ -213,10 +218,7 @@ impl PlotView {
                 self.parent.queue_draw();
             }
         }
-
-        //} else {
-        //    println!("Could not get mutable reference to plot area");
-        //}
+        Ok(())
     }
 }
 

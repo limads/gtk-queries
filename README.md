@@ -6,11 +6,25 @@ Queries is an experimental SQL client for PostgreSQL and Sqlite3 with support fo
 
 ## System requirements
 
-The GNU Scientific Library (![libgsl](https://www.gnu.org/software/gsl/)) should be installed on the system:
+The following libraries are assumed to be installed on the system to run a precompiled version of queries:
 
-```
-sudo apt install libgsl23
-```
+- `sqlite3` 
+
+- `libgsl25`
+
+- `libgslcblas0`
+
+- `libcairo2`
+
+To build queries, you will also need:
+
+- `libcairo2-dev`
+
+- `libpango1.0-dev`
+
+- `libatk1.0-dev`
+
+- `libgtksourceview*` (Including development and glade catalog files).
 
 ## Build
 

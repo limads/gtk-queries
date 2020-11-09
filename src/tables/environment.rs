@@ -451,7 +451,7 @@ impl TableEnvironment {
     /// return the update event that happened (Refresh or NewTables).
     pub fn maybe_update_from_query_results(&mut self) -> Option<Result<EnvironmentUpdate,String>> {
         let results = self.listener.maybe_get_result()?;
-        println!("Query results: {:?}", results);
+        // println!("Query results: {:?}", results);
         self.tables.clear();
         self.queries.clear();
         self.exec_results.clear();
@@ -731,6 +731,11 @@ impl TableEnvironment {
         }
     }
 
+
+    pub fn all_tables(&self) -> &[Table] {
+        &self.tables[..]
+    }
+
     pub fn all_tables_as_rows(&self) -> Vec<Vec<Vec<String>>> {
         let mut tables = Vec::new();
         for t in self.tables.iter() {
@@ -744,9 +749,9 @@ impl TableEnvironment {
         }*/
     }
 
-    pub fn all_tables<'a>(&'a self) -> Vec<&'a Table> {
-        self.tables.iter().map(|t| t).collect()
-    }
+    //pub fn all_tables<'a>(&'a self) -> Vec<&'a Table> {
+    //    self.tables.iter().map(|t| t).collect()
+    //}
 
     pub fn all_tables_as_csv(&self) -> Vec<String> {
         let mut tbls_csv = Vec::new();

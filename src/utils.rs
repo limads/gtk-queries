@@ -35,7 +35,11 @@ impl RecentList {
             .append(false)
             .open(path)
             .ok()?;
-        let recent = RecentList(Rc::new(RefCell::new(InnerList { f, lines : Vec::new(), mem })));
+        let recent = RecentList(Rc::new(RefCell::new(InnerList {
+            f,
+            lines : Vec::new(),
+            mem
+        })));
         recent.load_recent_paths();
         Some(recent)
     }
@@ -151,7 +155,7 @@ pub fn set_tables_from_query(
     //fn_popover : Popover
 ) {
     tables_nb.clear();
-    let all_tbls = table_env.all_tables_as_rows();
+    let all_tbls = table_env.all_tables();
     if all_tbls.len() == 0 {
         tables_nb.add_page(
             "application-exit",
@@ -165,17 +169,21 @@ pub fn set_tables_from_query(
         );
     } else {
         tables_nb.clear();
-        for t_rows in all_tbls {
-            let nrows = t_rows.len();
+        for table in all_tbls.iter() {
+            let (nrows, ncols) = table.shape();
             // println!("New table with {} rows", nrows);
             if nrows > 0 {
-                let ncols = t_rows[0].len();
-                let name = format!("({} x {})", nrows - 1, ncols);
+                let (mut name, icon) = match table.table_info() {
+                    (Some(name), Some(rel)) => (name, format!("{}.svg", rel)),
+                    (Some(name), None) => (name, format!("grid-black.svg")),
+                    _ => (format!(""), format!("grid-black.svg"))
+                };
+                name += &format!(" ({} x {})", nrows - 1, ncols);
                 tables_nb.add_page(
-                    "network-server-symbolic",
+                    &icon[..],
                     Some(&name[..]),
                     None,
-                    Some(t_rows),
+                    Some(table.text_rows()),
                     // mapping_popover.clone(),
                     workspace.clone(),
                     table_popover.clone()

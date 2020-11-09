@@ -20,8 +20,8 @@ mod text;
 use std::any::Any;
 use std::error;
 use std::{fmt, fs::File};
-use cairo::SvgSurface;
-use std::env;
+use cairo::{SvgSurface, PsSurface, ImageSurface, Format};
+use std::path::Path;
 
 pub mod mappings;
 
@@ -86,6 +86,8 @@ pub struct PlotGroup {
 
     v_ratio : f64,
 
+    dimensions : (usize, usize),
+    
     parser : Parser,
 
     doc : Document
@@ -98,13 +100,30 @@ impl PlotGroup {
         let parser : Parser = Default::default();
         let doc = parser.parse_file(&layout_path)
             .map_err(|e| format!("Failed parsing XML file: {}", e) )?;
-        let root = doc.get_root_element().unwrap();
+        let root = doc.get_root_element().ok_or(format!("No root node"))
+            .map_err(|_| format!("No root node"))?;
+            
         let design_node = root
             .findnodes("object[@class='design']")
-            .expect("No design node")
-            .first().cloned().expect("No design node");
+            .ok()
+            .and_then(|nodes| nodes.first().cloned() )
+            .ok_or(format!("No design node"))?;
         let design = PlotDesign::new(&design_node)
-            .expect("Failed instantiating design");
+            .map_err(|e| format!("Failed instantiating design: {}", e))?;
+            
+        let dim_node = root
+            .findnodes("object[@class='dimensions']")
+            .ok()
+            .and_then(|nodes| nodes.first().cloned() )
+            .ok_or(format!("No dimensions node"))?;
+        let dims = utils::children_as_hash(&dim_node, "property");
+        
+        let width = dims.get("width")
+            .and_then(|w| w.parse::<usize>().ok() )
+            .ok_or(format!("Missing width property"))?;
+        let height = dims.get("height")
+            .and_then(|h| h.parse::<usize>().ok() )
+            .ok_or(format!("Missing height property"))?; 
         let mut plot_group = Self{
             parser,
             doc,
@@ -112,17 +131,84 @@ impl PlotGroup {
             split : GroupSplit::Unique,
             v_ratio : 0.5,
             h_ratio : 0.5,
-            design };
+            design,
+            dimensions : (width, height) 
+        };
         plot_group.load_layout(layout_path)?;
         Ok(plot_group)
     }
 
-    pub fn draw_to_file(&mut self, path : &str, w : usize, h : usize) {
+    pub fn set_dimensions(&mut self, opt_w : Option<usize>, opt_h : Option<usize>) {
+        let root = self.doc.get_root_element().unwrap();
+        let dim_node = root
+            .findnodes("object[@class='dimensions']")
+            .expect("No dimensions node")
+            .first()
+            .cloned()
+            .expect("No dimensions node");
+        let set_new = |node : &Node, name : &str, value : usize| {
+            match node.findnodes(name) {
+                Ok(mut props) => {
+                    if let Some(p) = props.iter_mut().next() {
+                        if let Err(e) = p.set_content(&(value.to_string())) {
+                            println!("Error setting node content: {}", e);
+                            return;
+                        }
+                    } else {
+                        println!("No property named {} found", name);
+                    }
+                },
+                _ => { println!("Failed at finding property {}", name); }
+            }
+        };
+
+        if let Some(w) = opt_w {
+            self.dimensions.0 = w;
+            set_new(&dim_node, "width", w);
+        }        
+        if let Some(h) = opt_h {
+            self.dimensions.1 = h;
+            set_new(&dim_node, "height", h);
+        }
+    }
+    
+    pub fn draw_to_file(&mut self, path : &str) -> Result<(), String> {
         // TODO Error creating SVG surface: "error while writing to output stream
-        let surf = SvgSurface::new(w as f64, h as f64, Some(path))
-            .expect("Error creating SVG surface");
-        let ctx = Context::new(&surf);
-        self.draw_to_context(&ctx, 0, 0, w as i32, h as i32);
+        match Path::new(path).extension().and_then(|e| e.to_str() ) {
+            Some("svg") => {
+                let surf = SvgSurface::new(
+                    self.dimensions.0 as f64, 
+                    self.dimensions.1 as f64, 
+                    Some(path)
+                ).map_err(|_| "Error creating SVG surface")?;
+                let ctx = Context::new(&surf);
+                self.draw_to_context(&ctx, 0, 0, self.dimensions.0 as i32, self.dimensions.1 as i32);
+            },
+            Some("png") => {
+                let surf = ImageSurface::create(
+                    Format::ARgb32,
+                    self.dimensions.0 as i32, 
+                    self.dimensions.1 as i32, 
+                ).map_err(|_| "Error creating SVG surface")?;
+                let ctx = Context::new(&surf);
+                // ctx.scale(3.0, 3.0);
+                self.draw_to_context(&ctx, 0, 0, self.dimensions.0 as i32, self.dimensions.1 as i32);
+                let mut f = File::create(path).map_err(|e| format!("Unable to open PNG file:{}", e))?;
+                surf.write_to_png(&mut f).map_err(|e| format!("{}", e) )?;
+            },
+            Some("eps") => {
+                let surf = PsSurface::new(
+                    self.dimensions.0 as f64, 
+                    self.dimensions.1 as f64,
+                    path
+                ).map_err(|_| "Error creating SVG surface")?;
+                surf.set_eps(true);
+                let ctx = Context::new(&surf);
+                self.draw_to_context(&ctx, 0, 0, self.dimensions.0 as i32, self.dimensions.1 as i32);
+            },
+            _ => return Err(format!("Invalid extension"))
+        };
+        Ok(())
     }
 
     pub fn size(&self) -> usize {
@@ -353,7 +439,9 @@ impl PlotGroup {
 
     pub fn update_plot_property(&mut self, ix: usize, property : &str, value : &str) {
         // println!("Updating {} at {} to {}", ix, property, value);
-        self.plots[ix].update_layout(property, value);
+        if let Err(e) = self.plots[ix].update_layout(property, value) {
+            println!("{}", e);
+        }
     }
 
     pub fn update_mapping(&mut self, ix : usize, id : &str, data : &Vec<Vec<f64>>) -> Result<(), Box<dyn Error>> {
@@ -737,16 +825,22 @@ impl PlotArea {
             }
         });
         if new_min < old_min {
-            self.update_layout(
+            let ans = self.update_layout(
                 &format!("object[@name='{}']/property[@name='from']", dim_name)[..],
                 &new_min.to_string()
             );
+            if let Err(e) = ans {
+                println!("{}", e);
+            }
         }
         if new_max > old_max {
-            self.update_layout(
+            let ans = self.update_layout(
                 &format!("object[@name='{}']/property[@name='to']", dim_name)[..],
                 &new_max.to_string()
             );
+            if let Err(e) = ans {
+                println!("{}", e);
+            }
         }
     }
 
@@ -869,11 +963,17 @@ impl PlotArea {
                             }
                         },
                         Some(ref class) if class != "mapping" => {
-                            println!("Updated property: {:?}", self.node.findnodes(property).unwrap().iter().next().unwrap().get_content());
+                            println!(
+                                "Updated property: {:?}", 
+                                self.node.findnodes(property).unwrap().iter().next().unwrap().get_content()
+                            );
                             if let Err(e) = self.reload_layout_node() {
                                 println!("Could not apply property {} ({})", property, e);
                             }
-                            println!("Updated property after reload: {:?}", self.node.findnodes(property).unwrap().iter().next().unwrap().get_content());
+                            println!(
+                                "Updated property after reload: {:?}", 
+                                self.node.findnodes(property).unwrap().iter().next().unwrap().get_content()
+                            );
                         },
                         _ => {
                             println!("Layout item missing class attribute.");

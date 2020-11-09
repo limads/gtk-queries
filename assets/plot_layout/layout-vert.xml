@@ -10,6 +10,10 @@
         <property name="grid_width">1</property>
         <property name="font">Monospace Regular 12</property>
     </object>
+    <object name="dimensions" class="dimensions">
+    	<property name="width">800</property>
+    	<property name="height">600</property>
+    </object>
     <plotarea position="0">
       <object class="grid_segment" name="x">
         <property name="label">X Label</property>

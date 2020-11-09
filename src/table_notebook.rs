@@ -7,11 +7,22 @@ use gtk::prelude::*;
 // use crate::plots::layout_toolbar::LayoutToolbar;
 use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_popover::TablePopover;
+use std::collections::HashMap;
+use gdk_pixbuf::Pixbuf;
+
+const ICONS : [&'static str; 5] = [
+    "grid-black.svg",
+    "inner.svg",
+    "left.svg",
+    "right.svg",
+    "full.svg"
+];
 
 #[derive(Clone)]
 pub struct TableNotebook {
     pub nb : Notebook,
-    pub tbls : Rc<RefCell<Vec<TableWidget>>>
+    pub tbls : Rc<RefCell<Vec<TableWidget>>>,
+    icons : HashMap<&'static str, Pixbuf>
 }
 
 impl TableNotebook {
@@ -20,7 +31,14 @@ impl TableNotebook {
         let nb : Notebook =
             builder.get_object("tables_notebook").unwrap();
         let tbls = Rc::new(RefCell::new(Vec::new()));
-        let tbl_nb = TableNotebook{nb, tbls};
+        let mut icons = HashMap::new();
+
+        for icon in ICONS.iter() {
+            let pix = Pixbuf::from_file_at_scale(&format!("assets/icons/{}", icon), 16, 16, true).unwrap();
+            icons.insert(*icon, pix);
+        }
+
+        let tbl_nb = TableNotebook{nb, tbls, icons};
         {
             let tbl_nb = tbl_nb.clone();
             tbl_nb.nb.clone().connect_change_current_page(move |_, _| {
@@ -63,9 +81,13 @@ impl TableNotebook {
         workspace : PlotWorkspace,
         table_popover : TablePopover
     ) {
-        let img = Image::from_icon_name(
-            Some(icon), IconSize::LargeToolbar
+        let img = Image::from_pixbuf(
+            Some(&self.icons[icon])
         );
+        // img.set_margin_bottom(6);
+        img.set_margin_start(6);
+        // img.set_margin_top(6);
+        img.set_margin_end(6);
         let mut table_w = TableWidget::new();
         self.nb.add(&(table_w.scroll_window));
         let box_label = Box::new(Orientation::Horizontal, 0);

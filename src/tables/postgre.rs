@@ -185,7 +185,7 @@ pub fn build_table_from_postgre(rows : &[postgres::row::Row]) -> Result<Table, &
     }
     let cols : Vec<Column> = null_cols.drain(0..names.len())
         .map(|nc| nc.to_column()).collect();
-    Ok(Table::new(names, cols)?)
+    Ok(Table::new(None, names, cols)?)
 }
 
 

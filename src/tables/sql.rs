@@ -1,6 +1,6 @@
 use postgres::{self, Client, tls::NoTls};
 use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
-use sqlparser::ast::{Statement, Function, Select, Value, Expr, SetExpr, SelectItem, Ident};
+use sqlparser::ast::{Statement, Function, Select, Value, Expr, SetExpr, SelectItem, Ident, TableFactor, Join, JoinOperator};
 use sqlparser::parser::{Parser, ParserError};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::sync::{Arc, Mutex};
@@ -13,9 +13,9 @@ use super::table::*;
 use std::path::PathBuf;
 use super::postgre;
 use super::sqlite;
-use crate::functions::{*, function::*, loader::*};
+use crate::functions::{function::*, loader::*};
 use rusqlite::functions::*;
-use libloading::Symbol;
+// use libloading::Symbol;
 use crate::tables::environment::{DBObject, DBType};
 use std::convert::TryInto;
 use std::collections::HashMap;
@@ -604,7 +604,7 @@ impl SqlEngine {
                     if let Some(names) = names {
                         let mut schem_hash = HashMap::new();
                         for (schema, table) in schemata.iter().zip(names.iter()) {
-                            let mut tables = schem_hash.entry(schema.clone()).or_insert(Vec::new());
+                            let tables = schem_hash.entry(schema.clone()).or_insert(Vec::new());
                             tables.push(table.clone());
                         }
                         Some(schem_hash)
@@ -626,7 +626,7 @@ impl SqlEngine {
     // select * from information_schema.constraint_column_usage where table_name='experiment';
 
     fn get_postgre_columns(&mut self, schema_name : &str, tbl_name : &str) -> Option<DBObject> {
-        let col_query = format!("select column_name,data_type \
+        let col_query = format!("select column_name::text,data_type::text \
             from information_schema.columns where table_name = '{}' and table_schema='{}';", tbl_name, schema_name);
         let ans = self.try_run(col_query, false).map_err(|e| println!("{}", e) ).ok()?;
         if let Some(q_res) = ans.get(0) {
@@ -751,11 +751,65 @@ impl SqlEngine {
         }
     }
 
+    fn append_relation(t_expr : &TableFactor, out : &mut String) {
+        match t_expr {
+            TableFactor::Table{ name, .. } => {
+                if !out.is_empty() {
+                    *out += " : ";
+                }
+                *out += &name.to_string();
+            },
+            TableFactor::Derived{ .. } | TableFactor::NestedJoin(_) => {
+
+            }
+        }
+    }
+
+    fn table_name_from_sql(sql : &str) -> Option<(String, String)> {
+        let dialect = PostgreSqlDialect{};
+        let ast = Parser::parse_sql(&dialect, sql).ok()?;
+        if let Some(Statement::Query(q)) = ast.get(0) {
+            if let SetExpr::Select(s) = &q.body {
+                println!("{:?}", s);
+                let mut from_names = String::new();
+                let mut relation = String::new();
+                for t_expr in s.from.iter() {
+                    Self::append_relation(&t_expr.relation, &mut from_names);
+                    for join in t_expr.joins.iter() {
+                        Self::append_relation(&join.relation, &mut from_names);
+                        if relation.is_empty() {
+                            match join.join_operator {
+                                JoinOperator::Inner(_) => relation += "inner",
+                                JoinOperator::LeftOuter(_) => relation += "left",
+                                JoinOperator::RightOuter(_) => relation += "right",
+                                JoinOperator::FullOuter(_) => relation += "full",
+                                _ => { }
+                            }
+                        }
+                    }
+                }
+                println!("Name: {:?}", from_names);
+                println!("Relation: {:?}", relation);
+                Some((from_names, relation))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn query_postgre(conn : &mut postgres::Client, q : &str) -> QueryResult {
         match conn.query(q, &[]) {
             Ok(rows) => {
                 match postgre::build_table_from_postgre(&rows[..]) {
-                    Ok(tbl) => {
+                    Ok(mut tbl) => {
+                        if let Some((name, relation)) = Self::table_name_from_sql(q) {
+                            tbl.set_name(Some(name));
+                            if !relation.is_empty() {
+                                tbl.set_relation(Some(relation));
+                            }
+                        }
                         QueryResult::Valid(q.to_string(), tbl)
                     },
                     Err(e) => QueryResult::Invalid(e.to_string())
@@ -773,7 +827,13 @@ impl SqlEngine {
                 match prep_stmt.query(rusqlite::NO_PARAMS) {
                     Ok(rows) => {
                         match sqlite::build_table_from_sqlite(rows) {
-                            Ok(tbl) => {
+                            Ok(mut tbl) => {
+                                if let Some((name, relation)) = Self::table_name_from_sql(q) {
+                                    tbl.set_name(Some(name));
+                                    if !relation.is_empty() {
+                                        tbl.set_relation(Some(relation));
+                                    }
+                                }
                                 QueryResult::Valid(q.to_string(), tbl)
                             },
                             Err(e) => {

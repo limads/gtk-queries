@@ -212,7 +212,7 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
         }
     }
     if curr_row == 0 {
-        Ok(Table::new(names, empty_cols)?)
+        Ok(Table::new(None, names, empty_cols)?)
     } else {
         let mut null_cols : Vec<NullableColumn> = sqlite_cols
             .drain(0..sqlite_cols.len())
@@ -222,7 +222,7 @@ pub fn build_table_from_sqlite(mut rows : rusqlite::Rows) -> Result<Table, &'sta
         }
         let cols : Vec<Column> = null_cols.drain(0..null_cols.len())
             .map(|nc| nc.to_column()).collect();
-        Ok(Table::new(names, cols)?)
+        Ok(Table::new(None, names, cols)?)
     }
 }
 

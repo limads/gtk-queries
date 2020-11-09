@@ -1,9 +1,7 @@
 use postgres::{self, types::ToSql };
-use std::convert::{TryInto};
+use std::convert::TryInto;
 use rust_decimal::Decimal;
 use super::column::*;
-use super::nullable_column::*;
-//use bayes::sample::table::csv;
 use bayes::sample::csv;
 use std::fmt::{self, Display};
 use std::string::ToString;
@@ -15,6 +13,8 @@ use std::default::Default;
 /// Implementation guarantees all columns are of the same size.
 #[derive(Debug, Clone)]
 pub struct Table {
+    name : Option<String>,
+    relation : Option<String>,
     names : Vec<String>,
     cols : Vec<Column>,
     nrows : usize,
@@ -23,7 +23,7 @@ pub struct Table {
 
 impl Table {
 
-    pub fn new(names : Vec<String>, cols : Vec<Column>) -> Result<Self, &'static str> {
+    pub fn new(name : Option<String>, names : Vec<String>, cols : Vec<Column>) -> Result<Self, &'static str> {
         if names.len() != cols.len() {
             return Err("Differing number of names and columns");
         }
@@ -37,7 +37,20 @@ impl Table {
                 return Err("Number of rows mismatch at table creation");
             }
         }
-        Ok(Self { names, cols, nrows, format : Default::default() })
+        Ok(Self { name, relation : None, names, cols, nrows, format : Default::default() })
+    }
+
+    /// Returns (name, relation) pair
+    pub fn table_info(&self) -> (Option<String>, Option<String>) {
+        (self.name.clone(), self.relation.clone())
+    }
+
+    pub fn set_name(&mut self, name : Option<String>) {
+        self.name = name;
+    }
+
+    pub fn set_relation(&mut self, relation : Option<String>) {
+        self.relation = relation;
     }
 
     pub fn new_from_text(
@@ -75,7 +88,7 @@ impl Table {
                     }
                     names.push(name);
                 }
-                Ok(Table::new(names, parsed_cols)?)
+                Ok(Table::new(None, names, parsed_cols)?)
             },
             Err(e) => {
                 println!("Error when creating table from text source : {}", e);

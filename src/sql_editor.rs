@@ -391,7 +391,8 @@ impl SqlEditor {
     }
 
     // TODO Query the folders /usr/share/gtksourceview-4/styles or
-    // /usr/local/share/gtksourceview-4/styles for styles
+    // /usr/local/share/gtksourceview-4/styles for styles or
+    // /usr/share/gtksourceview-3.0/styles
     fn configure_view(view : &View, refresh_btn : &Button, file_list : FileList) {
         let buffer = view.get_buffer().unwrap()
             .downcast::<sourceview::Buffer>().unwrap();

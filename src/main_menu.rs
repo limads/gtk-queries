@@ -66,7 +66,9 @@ impl MainMenu {
                     if let Some(path) = dialog.get_filename() {
                         if let Ok(mut pl) = pl_view.try_borrow_mut() {
                             if let Some(p) = path.to_str() {
-                                pl.plot_group.draw_to_file(p, 800, 600);
+                                if let Err(e) = pl.plot_group.draw_to_file(p) {
+                                    println!("{}", e);
+                                }
                             } else {
                                 println!("Could not retrieve path as str");
                             }

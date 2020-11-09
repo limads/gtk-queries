@@ -8,7 +8,7 @@ use super::super::context_mapper::Coord2D;
 use super::*;
 use cairo::Mesh;
 // use bayes::signal::interp::{Interpolation2D};
-use mra::interp::Interpolation2D;
+use morlet::interp::Interpolation2D;
 
 //#[derive(Debug)]
 pub struct SurfaceMapping {

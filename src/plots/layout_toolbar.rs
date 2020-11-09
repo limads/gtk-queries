@@ -125,8 +125,12 @@ impl GroupToolbar {
                         println!("Unable to borrow plot selection");
                         return;
                     }
-                    (*plot_view.borrow_mut()).set_active_area(i as usize);
-                    println!("Current active area: {:?}", *active.borrow());
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.set_active_area(i as usize);
+                        // println!("Current active area: {:?}", *active.borrow());
+                    } else {
+                        println!("Unable to borrow plot view mutably");
+                    }
 
                     /*match *selection.borrow_mut() {
                         SelectionStatus::New(ref mut ix, _) => {
