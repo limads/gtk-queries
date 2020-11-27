@@ -86,7 +86,8 @@ impl LayoutWindow {
             println!("Could not read recent file contents");
         }
         if let Some(active_id) = opt_active {
-            file_combo.set_active_id(Some(&active_id[..]));
+            // file_combo.set_active_id(Some(&active_id[..]));
+            file_combo.set_active_id(None);
         } else {
             file_combo.set_active_iter(None);
         }

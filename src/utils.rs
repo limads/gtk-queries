@@ -178,7 +178,7 @@ pub fn set_tables_from_query(
                     (Some(name), None) => (name, format!("grid-black.svg")),
                     _ => (format!(""), format!("grid-black.svg"))
                 };
-                name += &format!(" ({} x {})", nrows - 1, ncols);
+                name += &format!(" ({} x {})", nrows, ncols);
                 tables_nb.add_page(
                     &icon[..],
                     Some(&name[..]),
@@ -278,4 +278,15 @@ pub fn show_popover_on_toggle(popover : &Popover, toggle : &ToggleButton) {
     }
 }
 
-
+pub fn break_string(content : &mut String, line_length : usize) {
+    let mut break_next = false;
+    for i in 1..content.len() {
+        if i % line_length == 0  {
+            break_next = true;
+        }
+        if break_next && content.chars().nth(i) == Some(' ') {
+            content.replace_range(i..i+1, "\n");
+            break_next = false;
+        }
+    }
+}

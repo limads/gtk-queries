@@ -350,6 +350,8 @@ impl PlotPopover {
 
         let new_curr_ix = if let Ok(mut sel_mapping) = self.sel_mapping.try_borrow_mut() {
             let pl_ix = m.plot_ix;
+            
+            // TODO failing this assertion when saving XML file
             assert!(sel_mapping.valid_ix[pl_ix].iter().find(|i| **i == pos).is_none());
             sel_mapping.valid_ix[pl_ix].push(pos);
             let new_curr_ix = Some(sel_mapping.valid_ix[pl_ix].len() - 1);

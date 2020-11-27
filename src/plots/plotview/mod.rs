@@ -405,6 +405,7 @@ impl PlotGroup {
     pub fn get_layout_as_text(&self) -> String {
         let mut opts : SaveOptions = Default::default();
         opts.format = true;
+        opts.non_significant_whitespace = true;
         //self.doc.to_string(opts)
         self.doc.to_string_with_options(opts)
     }
@@ -872,24 +873,29 @@ impl PlotArea {
 
     pub fn remove_mapping(&mut self, id : &str) -> Result<(Box<dyn Mapping>, Node), String> {
         let n = self.mappings.len();
-        let pos = id.parse::<usize>().unwrap();
+        let pos = id.parse::<usize>().map_err(|e| format!("Node id is not an integer: {}", id))?;
         //let mut root = self.doc.get_root_element().expect("No root at remove");
         let xpath = String::from("object[@index='") + id +  "']";
         println!("Removing mapping at path: {}", xpath);
-        let mut nodes = self.node.findnodes(&xpath[..]).expect("No node with informed id");
-        let node = nodes.get_mut(0).expect("No first node with informed id");
+        let mut nodes = self.node.findnodes(&xpath[..])
+            .map_err(|_| format!("No node with informed id: {}", id))?;
+        let node = nodes.get_mut(0)
+            .ok_or(format!("No first node with informed id: {}", id))?;
         node.unlink_node();
-        for i in (pos + 1)..n {
-            let xpath = String::from("object[@index='") + &i.to_string()[..] +  "']";
-            let mut nodes = self.node.findnodes(&xpath[..]).expect("No node with informed id");
-
-            // TODO panicking here at node removal
-            let node = nodes.get_mut(0).expect("No first node with informed id");
-            node.set_attribute("index", &((i - 1).to_string())[..]).expect("No index property");
-        }
         let mapping = self.mappings.remove(pos);
+        for i in (pos + 1)..n {
+            let next_xpath = String::from("object[@index='") + &i.to_string()[..] +  "']";
+            let mut nodes = self.node.findnodes(&next_xpath[..])
+                .map_err(|e| format!("No next node with informed id: {}", i))?;
+
+            // TODO error here at node removal
+            let next_node = nodes.get_mut(0).ok_or(format!("No first node with informed id: {}", id))?;
+            next_node.set_attribute("index", &((i - 1).to_string())[..])
+                .map_err(|e| format!("Node {} missing index property", i));
+        }
+        self.reload_mappings()?;
         for m in self.mappings.iter() {
-            println!("Current mappings: {:?}", m.mapping_type());
+            println!("Current remaining mappings: {:?}", m.mapping_type());
         }
         println!("Mapping {} removed successfully", id);
         Ok((mapping, node.clone()))

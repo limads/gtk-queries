@@ -26,12 +26,9 @@ use crate::tables::table::{Format, TableSettings, NullField, BoolField, Align};
 use std::default::Default;
 use crate::utils;
 use crate::status_stack::StatusStack;
-
-struct Output {
-    cmd : String,
-    status : bool,
-    txt : String
-}
+use std::io::BufWriter;
+use std::io::Read;
+use crate::command::{self, *};
 
 #[derive(Clone)]
 struct CommandBox {
@@ -39,44 +36,25 @@ struct CommandBox {
     cmd_entry : Entry,
     clear_btn : Button,
     run_btn : Button,
-    recent : RecentList
+    recent : RecentList,
+    // executor : Rc<RefCell<Executor>>
 }
 
 impl CommandBox {
 
-    fn run_command(cmd : &str) -> Result<String, String> {
-        let split_cmd : Vec<_> = cmd.split(' ').collect();
-        let cmd_name = split_cmd.get(0).ok_or(String::from("Command name missing"))?;
-        let output = Command::new(&cmd_name)
-            .args(split_cmd.get(1..).unwrap_or(&[]))
-            .output()
-            .map_err(|e| format!("{}", e))?;
-        let status = output.status;
-        let stderr : Option<String> = String::from_utf8(output.stderr).ok();
-        if status.success() {
-            if status.code() == Some(0) {
-                if let Ok(stdout) = String::from_utf8(output.stdout) {
-                    Ok(stdout)
-                } else {
-                    Err(format!("Unable to parse stdout"))
-                }
-            } else {
-                Err(format!("Command error ({:?}): {}", status.code(), stderr.unwrap_or(String::new())))
-            }
-        } else {
-            Err(format!("{}", stderr.unwrap_or(String::new())))
-        }
-    }
+    // To run a shell-like string, we can pass the shell to stdin of /bin/sh like:
+    // echo 'echo "hello"' | /bin/sh
 
-    fn new(builder : &Builder) -> (Self, Receiver<Output>) {
+    fn new(
+        builder : &Builder, 
+        table_notebook : &TableNotebook, 
+        tbl_env : Rc<RefCell<TableEnvironment>>
+    ) -> Self /*Receiver<Output>)*/ {
         let cmd_entry : Entry = builder.get_object("cmd_entry").unwrap();
         let run_btn : Button = builder.get_object("cmd_run_btn").unwrap();
         let clear_btn : Button = builder.get_object("cmd_clear_btn").unwrap();
         let recent = RecentList::new(Path::new("registry/commands.csv"), 11).unwrap();
         let cmd_list : ListBox = builder.get_object("cmd_list").unwrap();
-
-        let (cmd_send, cmd_recv) = channel::<String>();
-        let (ans_send, ans_recv) = channel::<Output>();
 
         {
             let cmd_entry = cmd_entry.clone();
@@ -91,43 +69,33 @@ impl CommandBox {
             });
         }
 
-        thread::spawn(move || {
-            loop {
-                if let Ok(cmd) = cmd_recv.recv() {
-                    match Self::run_command(&cmd[..]) {
-                        Ok(txt) => {
-                            if let Err(e) = ans_send.send(Output { cmd, status : true, txt }) {
-                                println!("{}", e);
-                            }
-                        },
-                        Err(txt) => {
-                            if let Err(e) = ans_send.send(Output { cmd, status : false, txt }) {
-                                println!("{}", e);
-                            }
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
-        });
-
         {
             let cmd_entry = cmd_entry.clone();
             let clear_btn = clear_btn.clone();
+            let table_notebook = table_notebook.clone();
             run_btn.connect_clicked(move |run_btn| {
                 let g_txt = cmd_entry.get_text();
                 let txt = g_txt.as_str();
                 if txt.len() >= 1  {
-                    match cmd_send.send(String::from(txt)) {
-                        Ok(_) => {
-                            cmd_entry.set_sensitive(false);
-                            clear_btn.set_sensitive(false);
-                            run_btn.set_sensitive(false);
-                        },
-                        Err(e) => {
-                            println!("{}", e);
+                    if let Ok(t_env) = tbl_env.try_borrow_mut() {
+                        let ix = table_notebook.get_page_index();
+                        if let Some(tbl_csv) = t_env.all_tables().get(ix).map(|tbl| tbl.to_csv() ) {    
+                            // Moved to Executor::queue_command
+                            /*match cmd_send.send((String::from(txt), tbl_csv)) {
+                                Ok(_) => {
+                                    cmd_entry.set_sensitive(false);
+                                    clear_btn.set_sensitive(false);
+                                    run_btn.set_sensitive(false);
+                                },
+                                Err(e) => {
+                                    println!("{}", e);
+                                }
+                            }*/
+                        } else {
+                            println!("Invalid table index");
                         }
+                    } else {
+                        println!("Unable to borrow table");
                     }
                 }
             });
@@ -140,7 +108,7 @@ impl CommandBox {
             recent,
             cmd_list
         };
-        (list, ans_recv)
+        list
     }
 
     fn update_commands(
@@ -510,7 +478,7 @@ impl TablePopover {
         // let finish_upload_btn : Button = builder.get_object("finish_upload_button").unwrap();
 
         let save_bx = SaveTblBox::build(&builder, &tables_nb, &table_env);
-        let (cmd_bx, ans_recv) = CommandBox::new(&builder);
+        let cmd_bx = CommandBox::new(&builder, &tables_nb, table_env.clone());
         let copy_bx = CopyBox::build(&builder, &tables_nb, &table_env);
         let selected = Rc::new(RefCell::new(None));
         let table_popover = Self {
@@ -539,7 +507,7 @@ impl TablePopover {
             let table_popover = table_popover.clone();
             let table_popover = table_popover.clone();
             glib::timeout_add_local(16, move || {
-                if let Ok(out) = ans_recv.try_recv() {
+                /*if let Ok(out) = ans_recv.try_recv() {
                     cmd_bx.cmd_entry.set_sensitive(true);
                     cmd_bx.clear_btn.set_sensitive(true);
                     cmd_bx.run_btn.set_sensitive(true);
@@ -579,7 +547,7 @@ impl TablePopover {
                             table_popover.clone()
                         );
                     }
-                }
+                }*/
                 glib::source::Continue(true)
             });
         }

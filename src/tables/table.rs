@@ -114,8 +114,9 @@ impl Table {
         Ok(dyn_rows)
     }
 
+    /// Show all content as text (including column header)
     pub fn text_rows(&self) -> Vec<Vec<String>> {
-        let txt_cols : Vec<_> = self.cols.iter().map(|c| c.display_content()).collect();
+        let txt_cols = self.text_cols();
         if txt_cols.len() == 0 {
             Vec::new()
         } else {
@@ -132,6 +133,11 @@ impl Table {
             }
             rows
         }
+    }
+    
+    /// Show sequence of column data (omiting column headers).
+    pub fn text_cols(&self) -> Vec<Vec<String>> {
+        self.cols.iter().map(|c| c.display_content(self.format.prec) ).collect()
     }
 
     /// Returns a SQL string (valid for SQlite3/PostgreSQL subset)

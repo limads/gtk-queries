@@ -30,6 +30,7 @@ impl Display for SqliteColumn {
 impl SqliteColumn {
 
     fn new(decl_type : &str) -> Result<Self, &'static str> {
+        println!("Declared type: {}", decl_type);
         match decl_type {
             "integer" | "int" | "INTEGER" | "INT" => Ok(SqliteColumn::I64(Vec::new())),
             "real" | "REAL" => Ok(SqliteColumn::F64(Vec::new())),

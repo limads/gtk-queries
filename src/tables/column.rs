@@ -2,6 +2,7 @@ use postgres::types::ToSql;
 use std::marker::Sync;
 use rust_decimal::Decimal;
 use super::nullable_column::*;
+use num_traits::ToPrimitive;
 
 // TODO create Array<Column> for N-D Postgre arrays, that carries a vector of Columns
 // and a dimensionality metadata.
@@ -120,7 +121,21 @@ impl<'a> Column {
         }
     }
 
-    pub fn display_content(&'a self) -> Vec<String> {
+    fn display_with_precision(value : f64, prec : usize) -> String {
+        match prec {
+            1 => format!("{:.1}", value),
+            2 => format!("{:.2}", value),
+            3 => format!("{:.3}", value),
+            4 => format!("{:.4}", value),
+            5 => format!("{:.5}", value),
+            6 => format!("{:.6}", value),
+            7 => format!("{:.7}", value),
+            8 => format!("{:.8}", value),
+            _ => format!("{}", value)
+        }
+    }
+    
+    pub fn display_content(&'a self, prec : usize) -> Vec<String> {
         match self {
             Column::Bool(v) => v.iter().map(|e| e.to_string() ).collect(),
             Column::I8(v) => v.iter().map(|e| e.to_string() ).collect(),
@@ -128,12 +143,20 @@ impl<'a> Column {
             Column::I32(v) => v.iter().map(|e| e.to_string() ).collect(),
             Column::U32(v) => v.iter().map(|e| e.to_string() ).collect(),
             Column::I64(v) => v.iter().map(|e| e.to_string() ).collect(),
-            Column::F32(v) => v.iter().map(|e| e.to_string() ).collect(),
-            Column::F64(v) => v.iter().map(|e| e.to_string() ).collect(),
-            Column::Numeric(v) => v.iter().map(|e| e.to_string() ).collect(),
+            Column::F32(v) => v.iter().map(|e| Self::display_with_precision(*e as f64, prec) ).collect(),
+            Column::F64(v) => v.iter().map(|e| Self::display_with_precision(*e as f64, prec) ).collect(),
+            Column::Numeric(v) => { 
+                v.iter().map(|e| {
+                    if let Some(f) = e.round_dp(12).to_f64() {
+                        Self::display_with_precision(f, prec)
+                    } else {
+                        e.to_string()
+                    }
+                }).collect()
+            },
             Column::Str(v) => v.clone(),
             Column::Bytes(v) => v.iter().map(|_| format!("(Binary)") ).collect(),
-            Column::Nullable(col) => col.display_content()
+            Column::Nullable(col) => col.display_content(prec)
         }
     }
 
@@ -288,7 +311,7 @@ pub mod from {
 
 pub mod try_into {
 
-    use std::convert::{ /*TryInto,*/ TryFrom};
+    use std::convert::{ TryInto, TryFrom};
     use super::*;
 
     impl TryFrom<Column> for Vec<bool> {
@@ -433,5 +456,29 @@ pub mod try_into {
         }
 
     }
+    
+    /*impl<T> TryFrom<Column> for Vec<Option<T>> 
+    where
+        Vec<T> : TryFrom<Column>,
+        Vec<Option<T>> : TryFrom<NullableColumn>
+    {
+    
+        type Error = &'static str;
+        
+        fn try_from(col : Column) -> Result<Self, Self::Error> {
+            match col {
+                Column::Nullable(c) => {
+                    c.as_ref().try_into()
+                },
+                full => {
+                    let vec_full  = Vec::<T>::try_from(full)?;
+                    let wrapped_full : Vec<Option<T>> = vec_full.map(|e| Some(e) ).collect();
+                    wrapped_full
+                }
+            }
+        }
+    }*/
 
 }
+
+

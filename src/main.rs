@@ -507,6 +507,7 @@ fn build_ui(app: &gtk::Application) {
     win.set_application(Some(app));
 
     win.show_all();
+    queries_app.header_toggle.table_toggle.set_active(true);
 }
 
 // TODO change back to table when user goes to connected status message at the plot screen.

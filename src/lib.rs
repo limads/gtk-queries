@@ -34,4 +34,6 @@ pub mod utils;
 
 pub mod header_toggle;
 
+pub mod report;
 
+pub mod command;

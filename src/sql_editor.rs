@@ -293,18 +293,19 @@ impl SqlEditor {
         let sql_editor = self.clone();
         let table_toggle = self.table_toggle.clone();
         let file_list = self.file_list.clone();
+        let n_tries = Rc::new(RefCell::new(0));
         glib::timeout_add_local(16, move || {
             let mut req_tree_update = false;
             if let Ok(mut sent) = sql_editor.query_sent.try_borrow_mut() {
                 if *sent {
-                    println!("Sent");
-                    //println!("{}", sql_popover.query_sent.borrow());
+                    // println!("Sent");
+                    // println!("{}", sql_popover.query_sent.borrow());
                     if let Ok(mut t_env) = tbl_env_c.try_borrow_mut() {
                         let last_cmds = t_env.last_commands();
                         println!("Last commands: {:?}", last_cmds);
                         let updated = if let Some(last_cmd) = last_cmds.last() {
-                            println!("Query updated");
-                            println!("Last command: {}", last_cmd);
+                            // println!("Query updated");
+                            // println!("Last command: {}", last_cmd);
                             if &last_cmd[..] == "select" {
                                 match t_env.maybe_update_from_query_results() {
                                     Some(ans) => {
@@ -332,7 +333,7 @@ impl SqlEditor {
                                     None => false
                                 }
                             } else {
-                                match t_env.result_last_statement() {
+                                match t_env.maybe_update_from_statement() {
                                     Some(ans) => {
                                         if t_env.any_modification_result() {
                                             req_tree_update = true;
@@ -362,6 +363,8 @@ impl SqlEditor {
                             }
                         } else {
                             println!("Unable to retrieve last command");
+                            status_stack.update(Status::SqlErr(format!("Unable to retrieve last command")));
+                            table_toggle.set_active(true);
                             false
                         };
                         if updated {
@@ -369,9 +372,22 @@ impl SqlEditor {
                             file_list.set_sensitive(true);
                             view_c.borrow().grab_focus();
                             *sent = false;
-                            println!("Sent set to false");
+                            // println!("Sent set to false");
+                            *(n_tries.borrow_mut()) = 0; 
                         } else {
-                            println!("Not updated yet");
+                            // println!("Not updated yet");
+                            let mut tries = n_tries.borrow_mut();
+                            *tries += 1;
+                            if *tries == 312 {
+                                view_c.borrow().set_sensitive(true);
+                                file_list.set_sensitive(true);
+                                view_c.borrow().grab_focus();
+                                *sent = false;
+                                println!("Sent set to false");
+                                *tries = 0; 
+                                status_stack.update(Status::SqlErr(format!("5 seconds timeout reached")));
+                                table_toggle.set_active(true);
+                            }
                         }
                     } else {
                         println!("Unable to retrieve mutable reference to table environment");

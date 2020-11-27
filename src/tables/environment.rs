@@ -81,10 +81,10 @@ impl FromStr for DBType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "boolean" => Ok(Self::Bool),
+            "boolean" | "bool" | "BOOL" => Ok(Self::Bool),
             "bigint" | "bigserial" => Ok(Self::I64),
-            "bit" | "bit varying" | "character" | "character varying" | "text" | "TEXT" => Ok(Self::Text),
-            "date" => Ok(Self::Date),
+            "bit" | "bit varying" | "character" | "character varying" | "text" => Ok(Self::Text),
+            "date" | "DATE" => Ok(Self::Date),
             "json" | "jsonb" => Ok(Self::Json),
             "numeric" => Ok(Self::Numeric),
             "integer" | "int" | "INTEGER" | "INT" => Ok(Self::I32),
@@ -205,6 +205,36 @@ impl TableEnvironment {
         }
     }
 
+    /*fn on_notify(client : &mut Client, notif : &str) -> Result<(), String> {
+        client.execute(&format!("listen {};", notif)[..], &[]).map_err(|e| format!("{}", e) )?;
+        loop {
+            let notif_received = match client.notifications().blocking_iter().next() {
+                Ok(Some(notif)) => {
+                    println!("Notification received from channel: {:?}", notif.channel());
+                    println!("Notification message: {:?}", notif.payload());
+                    true
+                },
+                Ok(None) => {
+                    println!("Empty notification received");
+                    false
+                },
+                Err(e) => {
+                    println!("Connection lost: {}", e);
+                    return Ok(());
+                }
+            };
+            if notif_received {
+
+            }
+            thread::sleep(time::Duration::from_millis(200));
+        }
+    }
+
+    fn on_interval(client : &mut Client, interval : usize) -> Result<(), String> {
+
+        Ok(())
+    }*/
+    
     pub fn get_engine_name(&self) -> String {
         if let Ok(engine) = self.listener.engine.lock() {
             match *engine {
@@ -512,13 +542,16 @@ impl TableEnvironment {
         }
     }
 
-    pub fn result_last_statement(&mut self) -> Option<Result<String, String>> {
+    pub fn maybe_update_from_statement(&mut self) -> Option<Result<String, String>> {
         let results = self.listener.maybe_get_result()?;
         self.exec_results.clear();
         for r in results.iter() {
             match r {
                 QueryResult::Statement(_) | QueryResult::Modification(_) => {
                     self.exec_results.push(r.clone());
+                },
+                QueryResult::Invalid(e) => {
+                    return Some(Err(e.clone()));
                 },
                 _ => { }
             }
@@ -813,6 +846,8 @@ impl TableEnvironment {
         }
     }
 
+    /// Copies a table in the current environment to the database. Useful
+    /// to call copy from/to from the TablePopover GUI.
     pub fn copy_to_database(&mut self, tbl_ix : usize, dst : &str, cols : &[String]) -> Result<(), String> {
         if let Ok(mut engine) = self.listener.engine.lock() {
             match *engine {

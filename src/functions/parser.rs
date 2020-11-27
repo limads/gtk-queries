@@ -20,6 +20,7 @@ use crate::tables::column::*;
 use super::function::*;
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use crate::utils;
 
 #[derive(Debug, Clone)]
 pub enum FunctionMode {
@@ -116,16 +117,7 @@ pub fn load_doc(item_fn : &ItemFn) -> Option<String> {
         .filter(|c| *c != '"' && *c != '=')
         .collect();
     doc_content = doc_content.clone().trim_matches(' ').to_string();
-    let mut break_next = false;
-    for i in 1..doc_content.len() {
-        if i % 45 == 0  {
-            break_next = true;
-        }
-        if break_next && doc_content.chars().nth(i) == Some(' ') {
-            doc_content.replace_range(i..i+1, "\n");
-            break_next = false;
-        }
-    }
+    utils::break_string(&mut doc_content, 45);
     if doc_content.len() == 0 {
         None
     } else {

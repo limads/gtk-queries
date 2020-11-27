@@ -91,8 +91,8 @@ impl TableNotebook {
         let mut table_w = TableWidget::new();
         self.nb.add(&(table_w.scroll_window));
         let box_label = Box::new(Orientation::Horizontal, 0);
-        box_label.pack_start(&img, true, true, 0);
-        box_label.pack_start(&Label::new(label), true, true, 0);
+        box_label.pack_start(&img, false, false, 0);
+        box_label.pack_start(&Label::new(label), false, false, 0);
         let ev_bx = EventBox::new();
         ev_bx.add(&box_label);
         let tbl_ix = self.len();

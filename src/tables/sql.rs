@@ -2,7 +2,9 @@ use postgres::{self, Client, tls::NoTls};
 use sqlparser::dialect::{PostgreSqlDialect, GenericDialect};
 use sqlparser::ast::{Statement, Function, Select, Value, Expr, SetExpr, SelectItem, Ident, TableFactor, Join, JoinOperator};
 use sqlparser::parser::{Parser, ParserError};
+use sqlparser::dialect::keywords::Keyword;
 use std::sync::mpsc::{self, Sender, Receiver};
+use sqlparser::tokenizer::{Tokenizer, Token, Word, Whitespace};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use rusqlite;
@@ -15,16 +17,125 @@ use super::postgre;
 use super::sqlite;
 use crate::functions::{function::*, loader::*};
 use rusqlite::functions::*;
-// use libloading::Symbol;
 use crate::tables::environment::{DBObject, DBType};
 use std::convert::TryInto;
 use std::collections::HashMap;
+use regex::Regex;
+use crate::command::{self, Executor};
+use std::string::ToString;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::mem;
+use std::cmp::{PartialEq, Eq};
+use std::ffi::OsStr;
+use crate::tables::column::Column;
 
 #[cfg(feature="arrowext")]
 use datafusion::execution::context::ExecutionContext;
 
 #[cfg(feature="arrowext")]
 use datafusion::datasource::csv::{CsvFile, CsvReadOptions};
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum CopyTarget {
+    // Copies from server to client
+    To,
+    
+    // Copies from client to server
+    From
+}
+
+#[derive(Debug)]
+enum CopyClient {
+
+    // Results from a "copy to/from program 'prog'" command
+    Program(String),
+    
+    // Results from a "copy to/from 'file'"
+    File(String),
+    
+    // Copy to/from stdin/stdout
+    Stdio
+}
+
+#[derive(Debug)]
+pub struct Copy {
+
+    // Copy to or from?
+    target : CopyTarget,
+    
+    // Table string
+    table : String,
+    
+    // Table columns target (if any)
+    cols : Vec<String>,
+    
+    // Everything that goes in the 'with' clause.
+    options : String,
+    
+    client : CopyClient,    
+}
+
+impl ToString for Copy {
+    fn to_string(&self) -> String {
+        let mut cp_s = format!("COPY {} ", self.table);
+        if self.cols.len() > 0 {
+            cp_s += "(";
+            for (i, c) in self.cols.iter().enumerate() {
+                cp_s += c;
+                if i < self.cols.len() - 1 {
+                    cp_s += ",";
+                }
+            }
+            cp_s += ") ";
+        }
+        match self.target {
+            CopyTarget::From => cp_s += "FROM STDIN",
+            CopyTarget::To => cp_s += "TO STDOUT"
+        }
+        if self.options.len() > 0 {
+            cp_s += " WITH ";
+            cp_s += &self.options[..];
+        }
+        cp_s += ";";
+        println!("Built copy statement: {}", cp_s);
+        cp_s
+    }
+}
+
+#[derive(Debug)]
+enum AnyStatement {
+    Parsed(Statement, String),
+    Raw(String),
+    Copy(Copy)
+}
+
+#[derive(Debug)]
+pub struct DecodingError {
+    msg : &'static str
+}
+
+impl Display for DecodingError {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.msg)
+    }
+}
+
+impl Error for DecodingError {
+
+}
+
+impl DecodingError {
+
+    pub fn new(msg : &'static str) -> Box<Self> {
+        Box::new(DecodingError{ msg })
+    }
+
+}
 
 // Carries a result (arranged over columns)
 #[derive(Debug, Clone)]
@@ -137,6 +248,296 @@ pub fn parse_sql(sql : &str) -> Result<Vec<Statement>, String> {
         })
 }
 
+/// Parse this query sequence, first splitting the token vector
+/// at the semi-colons (delimiting statements) and then parsing
+/// each statement individually. On error, the un-parsed statement is returned. 
+/// Might fail globally if the tokenizer did not yield a valid token vector.
+fn parse_sql_separate(sql : &str) -> Result<Vec<AnyStatement>, String> {
+    let dialect = PostgreSqlDialect{};
+    let mut tokenizer = Tokenizer::new(&dialect, &sql);
+    let mut tokens = tokenizer.tokenize().map_err(|e| format!("{:?}", e) )?;
+    let mut split_tokens : Vec<Vec<Token>> = Vec::new();
+    let mut stmt_tokens : Option<Vec<Token>> = None;
+    for tk in tokens.drain(0..) {
+        // println!("new token = {}", tk);
+        // println!("vec tokens = {:?}", stmt_tokens);
+        match tk {
+            Token::SemiColon => {
+                if let Some(mut group) = stmt_tokens.take() {
+                    group.push(Token::SemiColon);
+                    split_tokens.push(group);
+                } 
+            },
+            Token::Whitespace(Whitespace::SingleLineComment(_)) => { 
+                // A single line comment starting a statement block
+                // is preventing Parser::new(.) of returning a valid select statement,
+                // so they are parsed away here.
+            },
+            other => {
+                match stmt_tokens {
+                    Some(ref mut stmt_tokens) => stmt_tokens.push(other),
+                    None => stmt_tokens = Some(vec![other]),
+                }
+            }
+        }
+    }
+    if let Some(last) = stmt_tokens {
+        if last.len() > 0 {
+            let non_whitespace = last.iter()
+                .any(|tk| match tk {
+                    Token::Whitespace(_) => false,
+                    _ => true
+                });
+            if non_whitespace {
+                split_tokens.push(last);
+            }
+        }
+    }
+    
+    // Remove token groups which have only whitespaces
+    for i in 0..split_tokens.len() {
+        let all_ws = split_tokens[i].iter()
+            .all(|tk| match tk { Token::Whitespace(_) => true, _ => false }); 
+        if all_ws {
+            split_tokens.remove(i);
+        }
+    }
+    
+    println!("Split tokens = {:?}", split_tokens);
+    let mut any_stmts = Vec::new();
+    for group in split_tokens {
+        let mut orig = String::new();
+        for tk in group.iter() {
+            orig += &tk.to_string()[..];
+        }
+        println!("Recovered orig = {:?}", orig);
+        // TODO group begin ... commit; together here, since we separated
+        // tokens at ; before parsing.
+        let mut parser = Parser::new(group);
+        match parser.parse_statement() {
+            Ok(stmt) => match stmt {
+                Statement::Copy{ table_name, columns, .. } => {
+                    // sqlparser::parse_copy is only accepting the copy (..) from stdin sequence.
+                    let cols = columns.iter().map(|c| c.to_string()).collect();
+                    any_stmts.push(AnyStatement::Copy(Copy { 
+                        target : CopyTarget::From, 
+                        cols, 
+                        table : table_name.to_string(),
+                        options : String::new(), 
+                        client : CopyClient::Stdio
+                     }));
+                },
+                other_stmt => {
+                    any_stmts.push(AnyStatement::Parsed(other_stmt, orig));
+                }
+            },
+            Err(e) => {
+                match parse_copy(orig.clone()) {
+                    Ok(copy) => {
+                        any_stmts.push(AnyStatement::Copy(copy))
+                    },
+                    Err(copy_e) => {
+                        println!("Sql parsing error = {}", e);
+                        println!("Error parsing copy: {}", copy_e);
+                    }
+                }
+                
+            }
+        }
+    }
+    Ok(any_stmts)
+}
+
+/// Modifies the iterator until the first non-whitespace token is found, returning it.
+fn take_while_not_whitespace<'a, I>(token_iter : &mut I) -> Option<&'a Token>
+where
+    I : Iterator<Item=&'a Token>
+{
+    token_iter.next().and_then(|tk| match tk {
+        Token::Whitespace(_) => take_while_not_whitespace(token_iter),
+        other => Some(other)
+    })
+}
+
+fn decide_table(token_iter : &mut std::slice::Iter<'_, Token>) -> Result<String, String> {
+    if let Some(tk) = take_while_not_whitespace(token_iter) {
+        match tk {
+            Token::Word(w) => {
+                Ok(w.value.to_string())
+            },
+            Token::LParen => {
+                let mut tbl = String::from("(");
+                while let Some(tk) = token_iter.next()  {
+                    match tk {
+                        Token::RParen => {
+                            tbl += ")";
+                            break;
+                        },
+                        tk => {
+                            tbl += &tk.to_string();
+                        }
+                    }
+                }
+                Ok(tbl)
+            },
+            _ => Err(format!("Invalid table name"))
+        }
+    } else {
+        Err(format!("Missing table name"))
+    }
+}
+
+fn decide_target_keyword(w : &Word) -> Result<CopyTarget, String> {
+    match w.keyword {
+        Keyword::FROM => Ok(CopyTarget::From),
+        Keyword::TO => Ok(CopyTarget::To),
+        _ => return Err(format!("Unknown copy destination: {}", w))
+    }
+}
+
+fn decide_target(
+    token_iter : &mut std::slice::Iter<'_, Token>, 
+    cols : &mut Vec<String>
+) -> Result<CopyTarget, String> {
+    match take_while_not_whitespace(token_iter) {
+        Some(&Token::LParen) => {
+            while let Some(tk) = token_iter.next()  {
+                match tk {
+                    Token::Word(w) => {
+                        cols.push(w.value.to_string());
+                    },
+                    Token::RParen => {
+                        break; 
+                    },
+                    _ => { }
+                }
+            }
+            match take_while_not_whitespace(token_iter) {
+                Some(Token::Word(w)) => {
+                    decide_target_keyword(&w)
+                },
+                Some(other) => {
+                    return Err(format!("Invalid target copy token: {}", other));
+                },
+                None => { 
+                    return Err(format!("Missing copy target"));
+                }
+            }
+        },
+        Some(Token::Word(w)) => {
+            decide_target_keyword(&w)
+        },
+        Some(other) => {
+            return Err(format!("Invalid copy token: {}", other));
+        },
+        None => {
+            return Err(format!("Empty copy destination"));
+        }
+    }
+}
+
+fn decide_client(
+    token_iter : &mut std::slice::Iter<'_, Token>,
+    target : &CopyTarget
+) -> Result<CopyClient, String> {
+    match take_while_not_whitespace(token_iter) {
+        Some(Token::Word(w)) => {
+            if &w.value[..] == "PROGRAM" || &w.value[..] == "program" {
+                if let Some(tk) = take_while_not_whitespace(token_iter) {
+                    match tk {
+                        Token::SingleQuotedString(prog) => Ok(CopyClient::Program(prog.to_string())),
+                        _ => return Err(format!("Invalid program string"))
+                    }
+                } else {
+                    return Err(format!("Missing program string"));
+                }
+            } else {
+                if w.keyword == Keyword::STDIN {
+                    if *target == CopyTarget::From {
+                        Ok(CopyClient::Stdio)
+                    } else {
+                        return Err(format!("Invalid copy client"));
+                    }
+                } else {
+                    if &w.value[..] == "STDOUT" || &w.value[..] == "stdout" {
+                        if *target == CopyTarget::To {
+                            Ok(CopyClient::Stdio)
+                        } else {
+                            return Err(format!("Invalid copy client"));
+                        }
+                    } else {
+                        return Err(format!("Invalid copy client"));
+                    }
+                }
+            }
+        },
+        Some(Token::SingleQuotedString(file)) => {
+            Ok(CopyClient::File(file.to_string()))
+        },
+        Some(other) => {
+            return Err(format!("Invalid client copy specification: {}", other))
+        },
+        None => {
+            return Err(format!("Missing copy destination"))
+        }
+    }
+}
+
+fn parse_options(token_iter : &mut std::slice::Iter<'_, Token>) -> String {
+    let mut options = String::new();
+    if let Some(Token::Word(w)) = take_while_not_whitespace(token_iter) {
+        if w.keyword == Keyword::WITH {
+            while let Some(tk) = token_iter.next() {
+                match tk {
+                    Token::Word(w) => {
+                        options += &w.to_string()[..];
+                        options += " ";
+                    },
+                    _ => { }
+                }
+            }
+        }
+    }
+    options
+}
+
+/// Substitute copy statements in the query sequence string so they can
+/// be correctly parsed by SqlParse and later sent to PostgreSQL via
+/// copy to stdin/copy to stdout;
+fn parse_copy(mut query : String) -> Result<Copy, String> {
+    let copy_regx = Regex::new(
+        r"(copy|COPY)\s+.*\s+(from|FROM|to|TO)\s+((program|PROGRAM)\s)?('.*'|\$\$.*\$\$|stdin|STDIN|stdout|STDOUT)(\s+with.*)?;"
+    ).unwrap();
+    let c_match = copy_regx.find(&query).ok_or(format!("Copy statement regex parsing error"))?;
+    // println!("Found copy substitution: {:?}", c_match);
+    let dialect = PostgreSqlDialect{};
+    
+    let whitespace_err = format!("Missing whitespace at copy statement");
+    let is_whitespace = |tk : &Token| -> Result<(), String> {
+        match tk {
+            Token::Whitespace(_) => Ok(()),
+            _ => Err(whitespace_err.clone())
+        }
+    };
+    let mut tokenizer = Tokenizer::new(&dialect, &query[c_match.start()..c_match.end()]);
+    let tokens = tokenizer.tokenize().map_err(|e| format!("{:?}", e) )?;
+    // println!("Tokens = {:?}", tokens);
+    
+    let mut token_iter = tokens.iter();
+    if let Some(Token::Word(w)) = take_while_not_whitespace(&mut token_iter) {
+        if w.keyword != Keyword::COPY {
+            return Err(format!("Invalid first word for copy statement"));
+        }
+    }
+    let table = decide_table(&mut token_iter)?;
+    let mut cols = Vec::new();
+    let target : CopyTarget = decide_target(&mut token_iter, &mut cols)?;
+    let client = decide_client(&mut token_iter, &target)?;
+    let options = parse_options(&mut token_iter);
+    
+    Ok(Copy{ table, cols, client, target, options })
+}
+
 /*/// Remove the content from all string literals from a SQL query.
 fn remove_string_literals(text : &str) -> String {
     let split_text = text.split("\"|$$|'");
@@ -183,40 +584,11 @@ pub fn make_query(query : &str) -> String {
 pub enum SqlEngine {
     Inactive,
     Local{conn : rusqlite::Connection },
-    PostgreSql{conn_str : String, conn : postgres::Client },
+    PostgreSql{conn_str : String, conn : postgres::Client, exec : Arc<Mutex<(Executor, String)>> },
     Sqlite3{path : Option<PathBuf>, conn : rusqlite::Connection},
 
     #[cfg(feature="arrowext")]
     Arrow{ ctx : ExecutionContext }
-}
-
-enum AnyStatement {
-    Parsed(Statement, String),
-    Raw(String)
-}
-
-#[derive(Debug)]
-pub struct DecodingError {
-    msg : &'static str
-}
-
-impl Display for DecodingError {
-
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({})", self.msg)
-    }
-}
-
-impl Error for DecodingError {
-
-}
-
-impl DecodingError {
-
-    pub fn new(msg : &'static str) -> Box<Self> {
-        Box::new(DecodingError{ msg })
-    }
-
 }
 
 impl SqlEngine {
@@ -320,7 +692,11 @@ impl SqlEngine {
         let tls_mode = NoTls{ };
         //println!("{}", conn_str);
         match Client::connect(&conn_str[..], tls_mode) {
-            Ok(conn) => Ok(SqlEngine::PostgreSql{ conn_str, conn }),
+            Ok(conn) => Ok(SqlEngine::PostgreSql{ 
+                conn_str, 
+                conn, 
+                exec : Arc::new(Mutex::new((Executor::new(), String::new()))) 
+            }),
             Err(e) => Err(e.to_string())
         }
     }
@@ -506,6 +882,8 @@ impl SqlEngine {
         }
     }
 
+    /// col_types might be an empty string here because sqlite3 does not require
+    /// that the types for all columns are declared. We treat the type as unknown in this case.
     fn pack_column_types(
         col_names : Vec<String>,
         col_types : Vec<String>
@@ -538,8 +916,26 @@ impl SqlEngine {
             QueryResult::Valid(_, col_info) => {
                 let names = col_info.get_column(1)
                     .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                println!("{:?}", col_info.get_column(2));
                 let col_types = col_info.get_column(2)
-                    .and_then(|c| { let s : Option<Vec<String>> = c.clone().try_into().ok(); s })?;
+                    .and_then(|c| match c {
+                        Column::Nullable(n) => {
+                            let opt_v : Option<Vec<Option<String>>> = n.as_ref().clone().try_into().ok();
+                            match opt_v {
+                                Some(v) => {
+                                    let v_flat = v.iter()
+                                        .map(|s| s.clone().unwrap_or(String::new()))
+                                        .collect::<Vec<String>>();
+                                    Some(v_flat)
+                                },
+                                None => None
+                            }
+                        },
+                        _ => {
+                            let s : Option<Vec<String>> = c.clone().try_into().ok();
+                            s
+                        } 
+                    })?;
                 let cols = Self::pack_column_types(names, col_types)?;
                 let obj = DBObject::Table{ name : tbl_name.to_string(), cols };
                 Some(obj)
@@ -649,6 +1045,122 @@ impl SqlEngine {
         }
     }
 
+    /// Copies from the PostgreSQL server into a client
+    fn copy_pg_to(client : &mut postgres::Client, action : &Copy) -> Result<String, String> {
+        let mut reader = client.copy_out(&action.to_string()[..])
+            .map_err(|e| format!("{}", e) )?;
+        let mut data = String::new();
+        reader.read_to_string(&mut data).map_err(|e| format!("{}", e))?;
+        Ok(data)
+    }
+    
+    /// Copies from a client into the PostgreSQL server
+    fn copy_pg_from(client : &mut postgres::Client, action : &Copy, data : &str) -> Result<u64, String> {
+        let mut writer = client.copy_in(&action.to_string()[..])
+            .map_err(|e| format!("{}", e) )?;
+        writer.write_all(data.as_bytes()).map_err(|e| format!("{}", e))?;
+        let n = writer.finish().map_err(|e| format!("{}", e) )?;
+        Ok(n)
+    }
+    
+    pub fn copy(conn : &mut postgres::Client, action : &Copy, exec : &Arc<Mutex<(Executor, String)>>) -> Result<u64, String> {
+        match action.target {
+            CopyTarget::From => {
+                let csv_input = match &action.client {
+                    CopyClient::Stdio => {
+                        let mut executor = exec.lock().map_err(|e| format!("{}", e))?;
+                        if executor.1.len() > 0 {
+                            mem::take(&mut executor.1)
+                        } else {
+                            return Err(format!("No data cached in stdin"));
+                        }
+                    },
+                    CopyClient::File(path) => {
+                        let mut f = File::open(path).map_err(|e| format!("{}", e))?;
+                        let mut content = String::new();
+                        f.read_to_string(&mut content).map_err(|e| format!("{}", e))?;
+                        if content.len() == 0 {
+                            return Err(format!("File is empty"));
+                        }
+                        content
+                    },
+                    CopyClient::Program(p) => {
+                        let mut executor = exec.lock().map_err(|e| format!("{}", e))?;
+                        let input = mem::take(&mut executor.1);
+                        if input.len() == 0 {
+                            executor.0.queue_command(p.clone(), None);
+                        } else {
+                            executor.0.queue_command(p.clone(), Some(input));
+                        }
+                        let mut content = String::new();
+                        executor.0.wait_result(|out| {
+                            if out.status {
+                                if out.txt.len() > 0 {
+                                    content = out.txt;
+                                    Ok(())
+                                } else {
+                                    Err(format!("Program standard output is empty"))
+                                }
+                            } else {
+                                Err(format!("Command execution failed: {}", out.txt))
+                            }
+                        })?;
+                        println!("Captured into stdout: {}", content);
+                        content
+                    }
+                };
+                Self::copy_pg_from(conn, &action, &csv_input)
+            },
+            CopyTarget::To => {
+                let csv_out = Self::copy_pg_to(conn, &action)?;
+                println!("Received data: {}", csv_out);
+                if csv_out.len() == 0 {
+                    return Err(format!("'COPY TO' returned no data"));
+                }
+                match &action.client {
+                    CopyClient::Stdio => {
+                        let mut executor = exec.lock().map_err(|e| format!("{}", e))?;
+                        if executor.1.len() > 0 {
+                            println!("Clearing previous data cache");
+                            executor.1.clear();
+                        }
+                        executor.1 = csv_out.clone();
+                    },
+                    CopyClient::File(path) => {
+                        if Path::new(&path).extension() != Some(&OsStr::new("csv")) {
+                            return Err(format!("Path must point to csv file"));
+                        }
+                        let mut f = File::create(path).map_err(|e| format!("{}", e))?;
+                        f.write_all(csv_out.as_bytes()).map_err(|e| format!("{}", e))?;
+                    },
+                    CopyClient::Program(p) => {
+                        let mut cmd_out = String::new();
+                        let mut executor = exec.lock().map_err(|e| format!("{}", e))?;
+                        executor.0.queue_command(p.clone(), Some(csv_out.clone()));
+                        executor.0.wait_result(|out| {
+                            if out.status {
+                                if out.txt.len() > 0 {
+                                    cmd_out = out.txt;
+                                }
+                                Ok(())
+                            } else {
+                                Err(format!("Command execution failed: {}", out.txt))
+                            }
+                        })?;
+                        if cmd_out.len() > 0 {
+                            if executor.1.len() > 0 {
+                                println!("Clearing previous data cache");
+                                executor.1.clear();
+                            }
+                            executor.1 = cmd_out;
+                        }
+                    }
+                }
+                Ok(0)
+            }
+        }
+    }
+    
     pub fn get_db_info(&mut self) -> Option<Vec<DBObject>> {
         let mut top_objs = Vec::new();
         match &self {
@@ -747,6 +1259,9 @@ impl SqlEngine {
                     return QueryResult::Modification(format!("Create schema"));
                 }
                 QueryResult::Statement(format!("{} row(s) modified", n))
+            },
+            AnyStatement::Copy(c) => {
+                unimplemented!()
             }
         }
     }
@@ -861,7 +1376,10 @@ impl SqlEngine {
                 let s = format!("{}", stmt);
                 conn.execute(&s[..], &[])
             },
-            AnyStatement::Raw(s) => conn.execute(&s[..], &[])
+            AnyStatement::Raw(s) => conn.execute(&s[..], &[]),
+            AnyStatement::Copy(_) => { 
+                unimplemented!()
+            }
         };
         match ans {
             Ok(n) => Self::build_statement_result(&stmt, n as usize),
@@ -875,7 +1393,8 @@ impl SqlEngine {
                 let s = format!("{}", stmt);
                 conn.execute(&s[..], rusqlite::NO_PARAMS)
             },
-            AnyStatement::Raw(s) => conn.execute(&s[..], rusqlite::NO_PARAMS)
+            AnyStatement::Raw(s) => conn.execute(&s[..], rusqlite::NO_PARAMS),
+            AnyStatement::Copy(_) => unimplemented!()
         };
         match ans {
             Ok(n) => Self::build_statement_result(&stmt, n),
@@ -929,7 +1448,7 @@ impl SqlEngine {
         for (stmt, is_select) in stmts {
             match self {
                 SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
-                SqlEngine::PostgreSql{ conn_str : _ , conn } => {
+                SqlEngine::PostgreSql{ conn_str : _ , conn, exec : _ } => {
                     if is_select {
                         results.push(Self::query_postgre(conn, &format!("{}", stmt)));
                     } else {
@@ -957,15 +1476,34 @@ impl SqlEngine {
         Ok(results)
     }
 
+    /*fn substitute_macros() {
+        let var_re = Regex::new(r"\$\(.*\)").unwrap();
+        let cmd_re = Regex::new(r"\$\{.*\}").unwrap();
+        let var_matches = var_re.find_iter(&query_seq).collect::<Vec<_>>();
+        let cmd_matches = cmd_re.find_iter(&query_seq).collect::<Vec<_>>();
+        println!("Found variable substitutions: {:?}", var_matches);
+        println!("Found command substitutions: {:?}", cmd_matches);
+    }*/
+    
+    /// It is important that every time this method is called,
+    /// at least one query result is pushed into the queue, or else
+    /// the GUI will be insensitive waiting for a response.
     pub fn try_run(
         &mut self,
         query_seq : String,
         parse : bool
     ) -> Result<Vec<QueryResult>, String> {
+    
+        // Substitute $() (variable) and ${} (command) macros before parsing the SQL.    
+        // let (query_seq, copies) = Self::substitute_copies(query_seq)?; 
+        // println!("Captured copies: {:?}", copies);
         let stmts = match parse {
-            true => match parse_sql(&query_seq) {
+            true => match parse_sql_separate(&query_seq) {
                 Ok(stmts) => stmts,
-                Err(_) => return self.run_any(query_seq)
+                Err(e) => {
+                    println!("Parsing error: {}", e);
+                    return self.run_any(query_seq);
+                }
             }
             false => return self.run_any(query_seq)
         };
@@ -973,35 +1511,74 @@ impl SqlEngine {
         if stmts.len() == 0 {
             return Err(String::from("Empty query sequence"));
         }
+        println!("Statements = {:?}", stmts);
+        
+        // Copies are parsed and executed at client-side. It is important to 
+        // give just the copy feedback when we have only copies, but we give
+        // a statement feedback otherwise.
+        let mut all_copies = stmts.iter().all(|stmt| match stmt {
+            AnyStatement::Copy(_) => true,
+            _ => false
+        });
         match self {
             SqlEngine::Inactive => { return Err(String::from("Inactive Sql engine")); },
-            SqlEngine::PostgreSql{ conn_str : _ , conn } => {
-                for stmt in stmts {
+            SqlEngine::PostgreSql{ conn_str : _ , ref mut conn, ref mut exec } => {
+                for any_stmt in stmts {
                     // let (stmt, opt_sub) = filter_single_function_out(&stmt);
-                    let stmt_string = stmt.to_string();
-                    println!("Parsed statement: {}", stmt_string);
-                    match stmt {
-                        Statement::Query(q) => {
-                            results.push(Self::query_postgre(conn, &format!("{}", q)));
+                    // println!("Parsed statement: {}", stmt_string);
+                    match any_stmt {
+                        AnyStatement::Parsed(stmt, query) => match stmt {
+                            Statement::Query(q) => {
+                                results.push(Self::query_postgre(conn, &format!("{}", q)));
+                            },
+                            stmt => {
+                                results.push(Self::exec_postgre(conn, &AnyStatement::Parsed(stmt.clone(), format!("{}", stmt))));
+                            }
                         },
-                        stmt => {
-                            results.push(Self::exec_postgre(conn, &AnyStatement::Parsed(stmt, stmt_string)));
+                        AnyStatement::Copy(c) => {
+                            println!("Found copy: {:?}", c);
+                            match Self::copy(conn, &c, &*exec) {
+                                Ok(n) => match (c.target, n) {
+                                    (CopyTarget::From, 0) => {
+                                        results.push(QueryResult::Invalid(format!("No rows copied to server")));
+                                    },
+                                    (CopyTarget::From, n) => {
+                                        results.push(QueryResult::Statement(format!("Copied {} row(s)", n)));        
+                                    },
+                                    (CopyTarget::To, _) => {
+                                        results.push(QueryResult::Statement(format!("Copy to client successful")));        
+                                    }
+                                },
+                                Err(e) => {
+                                    results.push(QueryResult::Invalid(e));
+                                }
+                            }
+                        },
+                        AnyStatement::Raw(r) => {
+                            unimplemented!()
                         }
                     }
                 }
             },
             SqlEngine::Sqlite3{ path : _, conn} | SqlEngine::Local{ conn } => {
-                // conn.execute() for insert/update/delete
-                for stmt in stmts {
-                    //let (stmt, opt_sub) = filter_single_function_out(&stmt);
-                    let stmt_string = stmt.to_string();
-                    match stmt {
-                        Statement::Query(q) => {
-                            // println!("Sending query: {}", q);
-                            results.push(Self::query_sqlite(conn, &format!("{}", q)));
+                for any_stmt in stmts {
+                    match any_stmt {
+                        AnyStatement::Parsed(stmt, query) => match stmt {
+                            Statement::Query(q) => {
+                                // println!("Sending query: {}", q);
+                                results.push(Self::query_sqlite(conn, &format!("{}", q)));
+                            },
+                            stmt => {
+                                results.push(Self::exec_sqlite(conn, &AnyStatement::Parsed(stmt.clone(), format!("{}", stmt))));
+                            }
                         },
-                        stmt => {
-                            results.push(Self::exec_sqlite(conn, &AnyStatement::Parsed(stmt, stmt_string)));
+                        AnyStatement::Copy(c) => {
+                            println!("Found copy: {:?}", c);
+                            //Self::copy(&c, &exec)?;
+                            unimplemented!()
+                        },
+                        AnyStatement::Raw(r) => {
+                            unimplemented!()
                         }
                     }
                 }

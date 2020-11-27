@@ -55,8 +55,8 @@ impl AreaMapping {
             if bounds_ok {
                 let from = mapper.map(*x0, *y0);
                 let to   = mapper.map(*x1, *y1);
-                println!("{:?}", (from, to));
-                //ctx.move_to(from.x, from.y);
+                // println!("{:?}", (from, to));
+                // ctx.move_to(from.x, from.y);
                 ctx.line_to(to.x, to.y);
                 //ctx.stroke();
             } else {

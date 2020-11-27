@@ -16,6 +16,7 @@ use super::sql_editor::SqlEditor;
 use crate::table_notebook::TableNotebook;
 use crate::plots::plotview::plot_view::PlotView;
 use crate::utils;
+use crate::report;
 
 #[derive(Clone, Debug)]
 pub struct MainMenu {
@@ -31,8 +32,8 @@ pub struct MainMenu {
     // jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
-    // report_window : Window,
-    // report_btn : ModelButton,
+    report_window : Window,
+    report_btn : ModelButton,
     layout_btn : ModelButton,
     save_img_btn : ModelButton,
     // save_tbl_btn : ModelButton,
@@ -109,8 +110,45 @@ impl MainMenu {
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
         let settings_btn : ModelButton = builder.get_object("settings_btn").unwrap();
         // let engine_window : Window = builder.get_object("engine_window").unwrap();
-        // let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
-        // let report_window : Window = builder.get_object("report_window").unwrap();
+        let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
+        let report_window : Window = builder.get_object("report_window").unwrap();
+        
+        // Build report window
+        let report_template_btn : FileChooserButton = builder.get_object("report_template_btn").unwrap();
+        let report_save_btn : Button = builder.get_object("report_save_btn").unwrap();
+        let report_save_win : FileChooserDialog = builder.get_object("report_save_window").unwrap();
+        {
+            let report_save_win = report_save_win.clone();
+            report_save_btn.connect_clicked(move |_btn| {
+                report_save_win.run();
+                report_save_win.hide();
+            });
+        }
+        
+        report_save_win.connect_response(move |dialog, resp| {
+            match resp {
+                ResponseType::Other(1) => {
+                    if let Some(templ_path) = report_template_btn.get_filename().and_then(|t| t.to_str().map(|t| t.to_string())) {
+                        if let Some(out_path) = dialog.get_filename().and_then(|t| t.to_str().map(|t| t.to_string()) ) {
+                            let rep_ans = report::write_report(
+                                &templ_path[..], 
+                                &out_path[..],
+                                tbl_env.clone()
+                            );
+                            if let Err(e) = rep_ans {
+                                println!("{}", e);
+                            }
+                        } else {
+                            println!("Missing report out path");
+                        }
+                    } else {
+                        println!("Missing report template path");
+                    }
+                },
+                _ => { }
+            }
+        });
+        
         //let jobs_window : Window = builder.get_object("jobs_window").unwrap();
         let settings_window : Window = builder.get_object("settings_window").unwrap();
         let layout_window : Window = builder.get_object("layout_window").unwrap();
@@ -121,7 +159,7 @@ impl MainMenu {
         // utils::link_window(engine_btn.clone(), engine_window.clone());
         utils::link_window(settings_btn.clone(), settings_window.clone());
         utils::link_window(layout_btn.clone(), layout_window.clone());
-        // utils::link_window(report_btn.clone(), report_window.clone());
+        utils::link_window(report_btn.clone(), report_window.clone());
 
         {
             let main_menu = main_menu.clone();
@@ -196,8 +234,8 @@ impl MainMenu {
             sql_save_btn,
             save_img_btn,
             // save_tbl_btn,
-            // report_window,
-            // report_btn
+            report_window,
+            report_btn
             // jobs_btn,
             //jobs_window
             // sql_open_dialog,

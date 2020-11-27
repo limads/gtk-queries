@@ -2352,7 +2352,7 @@
   <object class="GtkImage" id="image27">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">network-wired</property>
+    <property name="icon_name">edit-clear-all-symbolic</property>
   </object>
   <object class="GtkWindow" id="report_window">
     <property name="can_focus">False</property>
@@ -2385,7 +2385,7 @@
                     <property name="margin_right">6</property>
                     <property name="margin_top">6</property>
                     <property name="margin_bottom">6</property>
-                    <property name="pixbuf">../icons/markdown.svg</property>
+                    <property name="icon_name">emblem-documents-symbolic</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -2420,7 +2420,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkFileChooserButton">
+              <object class="GtkFileChooserButton" id="report_template_btn">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="margin_left">6</property>
@@ -2446,126 +2446,17 @@
           <object class="GtkBox">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="margin_left">6</property>
-            <property name="margin_right">6</property>
-            <property name="margin_top">6</property>
-            <property name="margin_bottom">6</property>
-            <child>
-              <object class="GtkBox">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="margin_left">6</property>
-                <property name="margin_right">6</property>
-                <property name="margin_top">6</property>
-                <property name="margin_bottom">6</property>
-                <child>
-                  <object class="GtkImage">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_left">6</property>
-                    <property name="margin_right">6</property>
-                    <property name="margin_top">6</property>
-                    <property name="margin_bottom">6</property>
-                    <property name="icon_name">folder-templates-symbolic</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_left">6</property>
-                    <property name="margin_right">6</property>
-                    <property name="margin_top">6</property>
-                    <property name="margin_bottom">6</property>
-                    <property name="label" translatable="yes">Stylesheet</property>
-                    <attributes>
-                      <attribute name="weight" value="semibold"/>
-                    </attributes>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkFileChooserButton">
-                <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="margin_left">6</property>
-                <property name="margin_right">6</property>
-                <property name="margin_top">6</property>
-                <property name="margin_bottom">6</property>
-                <property name="title" translatable="yes"/>
-              </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
-              </packing>
-            </child>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkBox">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
             <child>
               <object class="GtkBox">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <child>
-                  <object class="GtkBox">
+                  <object class="GtkCheckButton">
+                    <property name="label" translatable="yes">Arguments</property>
                     <property name="visible">True</property>
-                    <property name="can_focus">False</property>
-                    <property name="margin_left">6</property>
-                    <property name="margin_right">6</property>
-                    <property name="margin_top">6</property>
-                    <property name="margin_bottom">6</property>
-                    <child>
-                      <object class="GtkImage">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="pixbuf">../icons/argument.svg</property>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Arguments</property>
-                        <attributes>
-                          <attribute name="weight" value="semibold"/>
-                        </attributes>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">1</property>
-                      </packing>
-                    </child>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="draw_indicator">True</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -2581,7 +2472,7 @@
                     <property name="margin_right">6</property>
                     <property name="margin_top">6</property>
                     <property name="margin_bottom">6</property>
-                    <property name="placeholder_text" translatable="yes">Arg1 ... Arg N</property>
+                    <property name="placeholder_text" translatable="yes">$1 ... $N</property>
                   </object>
                   <packing>
                     <property name="expand">True</property>
@@ -2596,9 +2487,49 @@
                 <property name="position">0</property>
               </packing>
             </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
             <child>
-              <object class="GtkToggleButton">
-                <property name="label" translatable="yes">Serve</property>
+              <object class="GtkCheckButton">
+                <property name="label" translatable="yes">Preserve headers</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="draw_indicator">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButtonBox">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="layout_style">expand</property>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Clear</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
@@ -2610,27 +2541,25 @@
                 <property name="always_show_image">True</property>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">1</property>
+                <property name="position">0</property>
               </packing>
             </child>
             <child>
-              <object class="GtkButton">
+              <object class="GtkButton" id="report_save_btn">
                 <property name="label" translatable="yes">Save</property>
                 <property name="width_request">60</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <property name="margin_left">6</property>
-                <property name="margin_right">6</property>
                 <property name="margin_top">6</property>
                 <property name="margin_bottom">6</property>
                 <property name="image">image26</property>
                 <property name="always_show_image">True</property>
               </object>
               <packing>
-                <property name="expand">False</property>
+                <property name="expand">True</property>
                 <property name="fill">True</property>
                 <property name="position">2</property>
               </packing>
@@ -2639,7 +2568,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">2</property>
+            <property name="position">3</property>
           </packing>
         </child>
       </object>
@@ -4208,6 +4137,62 @@
       <action-widget response="1">button3</action-widget>
     </action-widgets>
   </object>
+  <object class="GtkFileChooserDialog" id="report_save_window">
+    <property name="can_focus">False</property>
+    <property name="type_hint">dialog</property>
+    <property name="action">save</property>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+            <child>
+              <object class="GtkButton" id="button17">
+                <property name="label" translatable="yes">Cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="button18">
+                <property name="label" translatable="yes">Save</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <placeholder/>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="0">button17</action-widget>
+      <action-widget response="1">button18</action-widget>
+    </action-widgets>
+  </object>
   <object class="GtkFileChooserDialog" id="save_img_dialog">
     <property name="can_focus">False</property>
     <property name="type_hint">dialog</property>
@@ -4936,6 +4921,7 @@
                     <property name="can_focus">True</property>
                     <property name="tab_pos">bottom</property>
                     <property name="show_border">False</property>
+                    <property name="scrollable">True</property>
                     <child>
                       <object class="GtkBox">
                         <property name="visible">True</property>
@@ -5186,7 +5172,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">6</property>
+            <property name="position">3</property>
           </packing>
         </child>
         <child>
@@ -5199,7 +5185,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">7</property>
+            <property name="position">4</property>
           </packing>
         </child>
         <child>
@@ -5212,7 +5198,20 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">8</property>
+            <property name="position">5</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkModelButton" id="report_btn">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <property name="text" translatable="yes">Build report</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">6</property>
           </packing>
         </child>
         <child>
@@ -5223,7 +5222,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">9</property>
+            <property name="position">7</property>
           </packing>
         </child>
         <child>
@@ -5236,18 +5235,7 @@
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
-            <property name="position">12</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkSeparator">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">13</property>
+            <property name="position">8</property>
           </packing>
         </child>
       </object>
@@ -7439,11 +7427,13 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <object class="GtkEntry">
+                      <object class="GtkEntry" id="layout_width_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="margin_top">32</property>
                         <property name="margin_bottom">32</property>
+                        <property name="placeholder_text" translatable="yes">800</property>
+                        <property name="input_purpose">digits</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -7464,11 +7454,13 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkEntry">
+                      <object class="GtkEntry" id="layout_height_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="margin_top">32</property>
                         <property name="margin_bottom">32</property>
+                        <property name="placeholder_text" translatable="yes">600</property>
+                        <property name="input_purpose">digits</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>

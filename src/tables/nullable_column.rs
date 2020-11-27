@@ -29,12 +29,12 @@ impl<'a> NullableColumn {
         Self{ col, null_ix : Vec::new(), n }
     }
 
-    pub fn display_content(&self) -> Vec<String> {
+    pub fn display_content(&self, prec : usize) -> Vec<String> {
         if let Column::Nullable(_) = self.col {
             println!("Recursive nullable column identified");
             return Vec::new()
         }
-        let valid_content = self.col.display_content();
+        let valid_content = self.col.display_content(prec);
         let mut content = Vec::new();
         let mut n_ix = 0;
         for i in 0..self.n {

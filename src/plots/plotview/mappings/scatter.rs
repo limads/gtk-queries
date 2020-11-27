@@ -46,7 +46,12 @@ impl Mapping for ScatterMapping {
 
     fn draw(&self, mapper : &ContextMapper, ctx : &Context) {
         ctx.save();
-        ctx.set_source_rgb(self.color.red, self.color.green, self.color.blue);
+        ctx.set_source_rgba(
+            self.color.red, 
+            self.color.green, 
+            self.color.blue, 
+            self.color.alpha
+        );
         for (x, y) in self.x.iter().zip(self.y.iter()) {
             if mapper.check_bounds(*x, *y) {
                 let pos = mapper.map(*x, *y);

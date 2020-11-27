@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use gtk::*;
 use gtk::prelude::*;
 use std::cmp::{Eq, PartialEq};
+use crate::utils;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Status {
@@ -178,13 +179,16 @@ impl StatusStack {
                 self.parent_stack.set_visible_child(&self.status_stack);
                 self.status_stack.set_visible_child(&self.status_boxes[status.index()]);
                 match status {
-                    Status::StatementExecuted(txt) => {
+                    Status::StatementExecuted(mut txt) => {
+                        utils::break_string(&mut txt, 60);
                         self.stmt_label.set_text(&txt[..])
                     },
-                    Status::SqlErr(txt) => {
+                    Status::SqlErr(mut txt) => {
+                        utils::break_string(&mut txt, 60);
                         self.sql_err_label.set_text(&txt[..])
                     },
-                    Status::ConnectionErr(txt) => {
+                    Status::ConnectionErr(mut txt) => {
+                        utils::break_string(&mut txt, 60);
                         self.conn_err_label.set_text(&txt[..])
                     },
                     _ => { }
