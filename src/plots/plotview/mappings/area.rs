@@ -112,13 +112,10 @@ impl Mapping for AreaMapping {
         AreaMapping::draw_bound(zip_xy0_rev.zip(zip_xy1_rev), mapper, ctx);
         let _pt0 = mapper.map(self.x[0], self.ymax[0]);
         let pt = mapper.map(self.x[0], self.ymin[0]);
-        //ctx.move_to(pt0.x, pt0.y);
         ctx.line_to(pt.x, pt.y);
         ctx.close_path();
-        //ctx.stroke();
-        //println!("{:?}", ctx.fill_extents());
-        ctx.fill_preserve(); //fill_preserve()
-        //ctx.paint();
+        //ctx.fill_preserve();
+        ctx.fill();
         ctx.restore();
     }
 

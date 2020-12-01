@@ -389,12 +389,17 @@ impl PlotGroup {
     }
 
     pub fn save_layout(&self, path : String) {
-        let content = self.get_layout_as_text();
+        // let content = self.get_layout_as_text();
         match File::create(path) {
             Ok(mut f) => {
-                if let Err(e) = f.write_all(content.as_bytes()) {
+                /*if let Err(e) = f.write_all(content.as_bytes()) {
                     println!("Error writing to file: {}", e);
-                }
+                }*/
+                let mut options : SaveOptions = Default::default();
+                options.format = true;
+                options.non_significant_whitespace = true;
+                f.write_all(self.doc.to_string_with_options(options).as_bytes())
+                    .map_err(|e| { println!("{}", e) });
             },
             Err(e) => println!("Error creating file: {}", e)
         }

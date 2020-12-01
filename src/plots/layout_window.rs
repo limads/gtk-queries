@@ -249,7 +249,7 @@ impl LayoutWindow {
                     toggles.iter()
                         .filter(|(k, _)| *k != layout )
                         .for_each(|(_, btn)|{ btn.set_active(false) });
-                    PlotWorkspace::clear_all_mappings(
+                    PlotWorkspace::clear_mapping_widgets(
                         mapping_menus.clone(),
                         mapping_stack.clone()
                     ).expect("Error clearing mappings");

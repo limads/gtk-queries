@@ -297,7 +297,7 @@ impl QueriesApp {
                         ).map_err(|e| println!("{}", e) ).ok();
                     },
                     EnvironmentUpdate::NewExternal => {
-                        panic!("Invalid update");
+                        panic!("Invalid plot update (external table added)");
                     }
                 }
                 tables_nb.nb.set_sensitive(true);

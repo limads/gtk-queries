@@ -48,6 +48,9 @@ pub enum UpdateContent {
 
     /// Clears all data and displays layout at the informed path
     Clear(String),
+    
+    /// Clears all data, but preserving the current layout path.
+    Erase,
 
     /// Old plot, old name, new plot
     ReassignPlot((usize, String, usize))
@@ -208,6 +211,12 @@ impl PlotView {
                     println!("{}", e);
                 } else {
                     self.layout_path = path.to_string();
+                }
+                self.parent.queue_draw();
+            },
+            UpdateContent::Erase => {
+                if let Err(e) = self.plot_group.load_layout(self.layout_path.clone()) {
+                    println!("{}", e);
                 }
                 self.parent.queue_draw();
             },

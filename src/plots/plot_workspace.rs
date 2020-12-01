@@ -473,7 +473,7 @@ impl PlotWorkspace {
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
     ) {
-        Self::clear_all_mappings(
+        Self::clear_mapping_widgets(
             mapping_menus.clone(),
             plot_popover.mapping_stack.clone()
         ).expect("Error clearing mappings");
@@ -582,7 +582,7 @@ impl PlotWorkspace {
         }
     }
 
-    /// Clear mappings and layout
+    /// Clear mappings and layout to the first (unique) layout
     pub fn clear(&self) {
         if let Err(e) = self.clear_mappings() {
             println!("{}", e);
@@ -597,9 +597,16 @@ impl PlotWorkspace {
 
     /// Clear only mappings, preserving the layout. Should be called
     /// at the moment a new layout is loaded (at self.clear) or else
-    /// the XML will be in an invalid state.
+    /// the XML will be in an invalid state. Also called whenever the
+    /// query sequence that is being used is changed, or else the user
+    /// would end up in with a plot that is not in the table environment.
     pub fn clear_mappings(&self) -> Result<(), &'static str> {
-        Self::clear_all_mappings(
+        if let Ok(mut pl_view) = self.pl_view.try_borrow_mut() {
+            pl_view.update(&mut UpdateContent::Erase);
+        } else {
+            return Err("Unable to borrow plotview when clearing mappings");
+        }
+        Self::clear_mapping_widgets(
             self.mapping_menus.clone(),
             self.plot_popover.mapping_stack.clone()
         )?;
@@ -607,10 +614,11 @@ impl PlotWorkspace {
         Ok(())
     }
 
-    /// Should be called
-    /// at the moment a new layout is loaded (at self.clear) or else
-    /// the XML will be in an invalid state.
-    pub fn clear_all_mappings(
+    /// Erases all mapping widgets. Should be called
+    /// at the moment a new layout should be loaded (at self.clear) or else
+    /// the widgets will be in an invalid state with the XML.
+    pub fn clear_mapping_widgets(
+        // pl_view : Rc<RefCell<PlotView>>,
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         mapping_stack : Stack,
     ) -> Result<(), &'static str> {
