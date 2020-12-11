@@ -216,6 +216,10 @@ pub fn add_external_table(
             } else {
                 Err(format!("Unable to borrow table environment"))?;
             }
+            // If external table is opened by file, name as file name, without the extension,
+            // and use blank page as icon.
+            // If external table is opened by program, use Std. Output (progname) as name,
+            // and use bash-symbolic as icon. 
             tables_nb.add_page(
                 "bash-symbolic",
                 Some("Std. Output (1)"),

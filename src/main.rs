@@ -4,7 +4,11 @@ use std::env::args;
 use std::rc::Rc;
 use std::cell::RefCell;
 use gdk::{self, keys};
-use gtk_queries::tables::{source::EnvironmentSource, environment::TableEnvironment, environment::EnvironmentUpdate};
+use gtk_queries::tables::{
+    source::EnvironmentSource, 
+    environment::TableEnvironment, 
+    environment::EnvironmentUpdate
+};
 use gtk_queries::conn_popover::*;
 use sourceview::*;
 use gtk::prelude::*;

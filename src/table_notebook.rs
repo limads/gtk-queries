@@ -81,9 +81,10 @@ impl TableNotebook {
         workspace : PlotWorkspace,
         table_popover : TablePopover
     ) {
-        let img = Image::from_pixbuf(
-            Some(&self.icons[icon])
-        );
+        let img = match self.icons.get(icon) {
+            Some(pxb) => Image::from_pixbuf(Some(&self.icons[icon])),
+            None => Image::from_icon_name(Some(icon), IconSize::Menu)
+        };
         // img.set_margin_bottom(6);
         img.set_margin_start(6);
         // img.set_margin_top(6);

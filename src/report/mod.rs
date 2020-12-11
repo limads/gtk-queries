@@ -15,15 +15,19 @@ use std::mem;
 use crate::tables::table::TableSettings;
 
 fn search_data(t_env : &TableEnvironment, col_name : &str) -> Option<Vec<String>> {
+    println!("Looking for column name {}", col_name);
     for tbl in t_env.all_tables().iter() {
         if let Some(ix) = tbl.names().iter().position(|name| &name[..] == &col_name[..] ) {
             let mut tbl = tbl.clone();
             let mut format : TableSettings = Default::default();
             format.prec = 4;
             tbl.update_format(format);
-            return Some(tbl.text_cols().remove(ix));
+            let col_data = tbl.text_cols().remove(ix);
+            println!("Found column data: {:?}", col_data);
+            return Some(col_data);
         }
     }
+    println!("Column name {} not found", col_name);
     None
 }
 
@@ -68,7 +72,7 @@ fn access_rows(row_grandparent : &Node) -> Result<Vec<Node>, String> {
             if node.get_name() == "table" {
                 Ok(node)
             } else {
-                Err(format!("Parent of row is {}", node.get_name()))
+                Err(format!("Parent of row is not a table, but a {}", node.get_name()))
             }
         })?;
     println!("Table children: {:?}", tbl.get_child_nodes().iter().map(|c| c.get_name()).collect::<Vec<_>>());
@@ -91,10 +95,13 @@ fn guarantee_table_length(doc : &Document, mut row_grandparent : Node, data_leng
     };
     println!("Required data length: {}", data_length);
     println!("Actual length: {}", row_len);
-    if row_len < data_length {
-        expand_rows(&doc, row_grandparent, data_length)?;
+    if row_len-1 < data_length {
+        println!("Table needs expanding");
+        expand_rows(&doc, row_grandparent.clone(), data_length)?; // TODO verify that this clone is valid
     }
-    // println!("Updated length: {}", access_rows(&row_grandparent).unwrap().len());
+    let new_len = access_rows(&row_grandparent)?.len();
+    println!("New length: {}", new_len);
+    assert!(new_len - 1 == data_length);
     Ok(())
 }
 
@@ -123,10 +130,10 @@ fn expand_column(
     if col_data.len() == 0 {
         return Err(format!("Empty table for {}", col_name));
     }
-    let col_data = search_data(&t_env, col_name).ok_or(format!("Missing column {}", col_name))?;
+    /*let col_data = search_data(&t_env, col_name).ok_or(format!("Missing column {}", col_name))?;
     if col_data.len() == 0 {
         return Err(format!("Empty table for {}", col_name));
-    }
+    }*/
     let (mut row, mut col) = (0, 0);
     let ns = row_grandparent.get_namespace();
     guarantee_table_length(&doc, row_grandparent.clone(), col_data.len())?;
@@ -148,6 +155,9 @@ fn expand_column(
     println!("Data length: {}", col_data.len());
     println!("Row length: {}", all_rows.len());
     
+    let mut n_rows = 0;
+    
+    // Must skip the first header row here, because it cannot be mutably referenced and is not necessary.
     for (row_ix, (data, mut row)) in col_data.iter().zip(all_rows.drain(0..).skip(1)).enumerate() {
         // let mut cell = create_cell_paragraph(&doc, &mut row, &row_grandparent, row_ix, col_ix)?;
         let content = format!("{}", col_data.get(row_ix).ok_or(format!("Missing data for row {}", row_ix))?);
@@ -165,7 +175,12 @@ fn expand_column(
         new_par.add_child(&mut span).map_err(|e| format!("{}", e))?;
         new_cell.add_child(&mut new_par);
         row.add_child(&mut new_cell).map_err(|e| format!("{}", e))?;
+        n_rows += 1;
     }
+    
+    // Check we iterated exactly for the same number of rows as the data vector lenght.
+    assert!(n_rows == col_data.len());
+    
     Ok(())
 }
 
@@ -206,6 +221,9 @@ fn determine_table_placeholder(tag : &Node, inside_table : &mut bool) -> Result<
                 let row_grandparent = grandparent
                     .get_parent()
                     .ok_or(format!("Missing row grandparent"))?;
+                if row_grandparent.get_name() != "table-row" {
+                    return Err(format!("Expected row grandparent, found {}", row_grandparent.get_name()));
+                }
                 Ok(row_grandparent)
             } else {
                 if let Some(grand_grandparent) = grandparent.get_parent() {
@@ -214,6 +232,9 @@ fn determine_table_placeholder(tag : &Node, inside_table : &mut bool) -> Result<
                         let row_grandparent = grand_grandparent
                             .get_parent()
                             .ok_or(format!("Missing row grand-grandparent"))?;
+                        if row_grandparent.get_name() != "table-row" {
+                            return Err(format!("Expected row grandparent, found {}", row_grandparent.get_name()));
+                        }
                         Ok(row_grandparent)
                     } else {
                         *inside_table = false;
@@ -274,6 +295,8 @@ pub fn write_report(
             let col_name_string = &tag.get_content();
             let col_name = col_name_string[1..(col_name_string.len() - 1)].to_string();
             let parent = determine_table_placeholder(&tag, &mut inside_table)?;
+            println!("({}) Inside table = {:?}", col_name, inside_table);
+            println!("({}) Expanding column = {:?}", col_name, expanding_column);
             match inside_table {
                 true => match expanding_column {
                     Some(ref mut ix) => {

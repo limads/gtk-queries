@@ -1,14 +1,8 @@
 use gdk;
 use gtk::*;
-// use gio::prelude::*;
-// use std::env::args;
 use std::rc::Rc;
 use std::cell::RefCell;
-// use std::fs::File;
-// use std::io::Write;
-// use sourceview::*;
 use gtk::prelude::*;
-// use crate::{utils, table_notebook::TableNotebook };
 use crate::utils::RecentList;
 use std::sync::mpsc::{channel, /*Sender,*/ Receiver};
 use std::thread;
@@ -18,7 +12,6 @@ use crate::plots::plot_workspace::PlotWorkspace;
 use crate::tables::environment::TableEnvironment;
 use crate::table_notebook::TableNotebook;
 use glib;
-// use crate::tables::table::Table;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
@@ -36,8 +29,7 @@ struct CommandBox {
     cmd_entry : Entry,
     clear_btn : Button,
     run_btn : Button,
-    recent : RecentList,
-    // executor : Rc<RefCell<Executor>>
+    recent : RecentList
 }
 
 impl CommandBox {
@@ -144,7 +136,7 @@ struct SaveTblBox {
     align_left_radio : RadioButton,
     align_center_radio : RadioButton,
     align_right_radio : RadioButton,
-    clipboard_tbl_btn : Button
+    // clipboard_tbl_btn : Button
 }
 
 impl SaveTblBox {
@@ -291,7 +283,7 @@ impl SaveTblBox {
             });
         }
 
-        let clipboard_tbl_btn : Button =
+        /*let clipboard_tbl_btn : Button =
             builder.get_object("clipboard_tbl_btn").unwrap();
         {
             let settings = settings.clone();
@@ -318,7 +310,8 @@ impl SaveTblBox {
                     println!("Unable to get table index");
                 }
             });
-        }
+        }*/
+        
         Self {
             save_tbl_btn,
             save_tbl_dialog,
@@ -330,7 +323,7 @@ impl SaveTblBox {
             align_right_radio,
             tbl_format_combo,
             settings,
-            clipboard_tbl_btn
+            // clipboard_tbl_btn
         }
     }
 
@@ -443,7 +436,7 @@ pub struct TablePopover {
     forward_btn : Button,
 
     selected : Rc<RefCell<Option<usize>>>,
-    cmd_bx : CommandBox,
+    // cmd_bx : CommandBox,
     save_bx : SaveTblBox,
     copy_bx : CopyBox
 }
@@ -478,7 +471,7 @@ impl TablePopover {
         // let finish_upload_btn : Button = builder.get_object("finish_upload_button").unwrap();
 
         let save_bx = SaveTblBox::build(&builder, &tables_nb, &table_env);
-        let cmd_bx = CommandBox::new(&builder, &tables_nb, table_env.clone());
+        // let cmd_bx = CommandBox::new(&builder, &tables_nb, table_env.clone());
         let copy_bx = CopyBox::build(&builder, &tables_nb, &table_env);
         let selected = Rc::new(RefCell::new(None));
         let table_popover = Self {
@@ -496,14 +489,14 @@ impl TablePopover {
             // finish_upload_btn,
             forward_btn,
             backward_btn,
-            cmd_bx,
+            // cmd_bx,
             save_bx,
             selected,
             copy_bx
         };
 
         {
-            let cmd_bx = table_popover.cmd_bx.clone();
+            // let cmd_bx = table_popover.cmd_bx.clone();
             let table_popover = table_popover.clone();
             let table_popover = table_popover.clone();
             glib::timeout_add_local(16, move || {
