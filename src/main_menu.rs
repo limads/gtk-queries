@@ -17,6 +17,7 @@ use crate::table_notebook::TableNotebook;
 use crate::plots::plotview::plot_view::PlotView;
 use crate::utils;
 use crate::report;
+use crate::command::CommandWindow;
 
 #[derive(Clone, Debug)]
 pub struct MainMenu {
@@ -28,10 +29,12 @@ pub struct MainMenu {
     settings_btn : ModelButton,
     sql_new_btn : ModelButton,
     sql_save_btn : ModelButton,
+    menu_run_btn : ModelButton,
     // jobs_btn : ModelButton,
     // jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
+    pub cmd_window : CommandWindow,
     report_window : Window,
     report_btn : ModelButton,
     layout_btn : ModelButton,
@@ -109,9 +112,11 @@ impl MainMenu {
         // let engine_btn : ModelButton = builder.get_object("engine_btn").unwrap();
         let layout_btn : ModelButton = builder.get_object("layout_btn").unwrap();
         let settings_btn : ModelButton = builder.get_object("settings_btn").unwrap();
+        let menu_run_btn : ModelButton = builder.get_object("menu_run_btn").unwrap();
         // let engine_window : Window = builder.get_object("engine_window").unwrap();
         let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
         let report_window : Window = builder.get_object("report_window").unwrap();
+        let cmd_window = CommandWindow::build(&builder, &tbl_nb, tbl_env.clone());
         
         // Build report window
         let report_template_btn : FileChooserButton = builder.get_object("report_template_btn").unwrap();
@@ -160,6 +165,7 @@ impl MainMenu {
         utils::link_window(settings_btn.clone(), settings_window.clone());
         utils::link_window(layout_btn.clone(), layout_window.clone());
         utils::link_window(report_btn.clone(), report_window.clone());
+        utils::link_window(menu_run_btn.clone(), cmd_window.win.clone());
 
         {
             let main_menu = main_menu.clone();
@@ -219,10 +225,11 @@ impl MainMenu {
                 sql_editor.save_current();
             });
         }
-
+        
         MainMenu {
             main_menu,
             main_toggle,
+            menu_run_btn,
             // engine_btn,
             // engine_window,
             settings_btn,
@@ -235,7 +242,9 @@ impl MainMenu {
             save_img_btn,
             // save_tbl_btn,
             report_window,
-            report_btn
+            report_btn,
+            // menu_run_btn,
+            cmd_window
             // jobs_btn,
             //jobs_window
             // sql_open_dialog,

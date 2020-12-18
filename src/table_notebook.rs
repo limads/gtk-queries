@@ -3,12 +3,17 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::table_widget::*;
 use gtk::prelude::*;
-// use crate::plots::layout_window::*;
-// use crate::plots::layout_toolbar::LayoutToolbar;
 use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_popover::TablePopover;
 use std::collections::HashMap;
 use gdk_pixbuf::Pixbuf;
+
+#[derive(Debug, Clone)]
+pub enum TableSource {
+    Command(String),
+    File(String),
+    Database(Option<String>, Option<String>)
+}
 
 const ICONS : [&'static str; 5] = [
     "grid-black.svg",
@@ -22,7 +27,8 @@ const ICONS : [&'static str; 5] = [
 pub struct TableNotebook {
     pub nb : Notebook,
     pub tbls : Rc<RefCell<Vec<TableWidget>>>,
-    icons : HashMap<&'static str, Pixbuf>
+    icons : HashMap<&'static str, Pixbuf>,
+    sources : Rc<RefCell<Vec<TableSource>>>
 }
 
 impl TableNotebook {
@@ -37,8 +43,9 @@ impl TableNotebook {
             let pix = Pixbuf::from_file_at_scale(&format!("assets/icons/{}", icon), 16, 16, true).unwrap();
             icons.insert(*icon, pix);
         }
-
-        let tbl_nb = TableNotebook{nb, tbls, icons};
+    
+        let sources = Rc::new(RefCell::new(Vec::new()));
+        let tbl_nb = TableNotebook{nb, tbls, icons, sources};
         {
             let tbl_nb = tbl_nb.clone();
             tbl_nb.nb.clone().connect_change_current_page(move |_, _| {
@@ -59,6 +66,7 @@ impl TableNotebook {
         } else {
             println!("Unable to get mutable reference to table vector");
         }
+        self.sources.borrow_mut().clear();
     }
 
     pub fn set_page_index(&self, page : usize) {
@@ -71,105 +79,134 @@ impl TableNotebook {
 
     // TODO unselect all columns on notebook page switch
 
-    pub fn add_page(
-        &self,
-        icon : &str,
-        label : Option<&str>,
-        err_msg : Option<&str>,
-        data : Option<Vec<Vec<String>>>,
-        // mapping_popover : Popover,
-        workspace : PlotWorkspace,
-        table_popover : TablePopover
-    ) {
-        let img = match self.icons.get(icon) {
-            Some(pxb) => Image::from_pixbuf(Some(&self.icons[icon])),
-            None => Image::from_icon_name(Some(icon), IconSize::Menu)
-        };
-        // img.set_margin_bottom(6);
-        img.set_margin_start(6);
-        // img.set_margin_top(6);
-        img.set_margin_end(6);
+    pub fn create_error_table(&self, msg : &str) {
         let mut table_w = TableWidget::new();
         self.nb.add(&(table_w.scroll_window));
+        let img = Image::from_icon_name(Some("close-symbolic"), IconSize::Menu);
+        let (label_bx, table_w) = self.create_table(&img, &Label::new(Some("Error")));
+        table_w.show_message(msg);
+        self.nb.set_tab_label(&(table_w.scroll_window), Some(&label_bx));
+    }
+    
+    fn create_table(&self, img : &Image, lbl : &Label) -> (gtk::Box, TableWidget) {
+        img.set_margin_start(6);
+        img.set_margin_end(6);
+        let mut table_w = TableWidget::new();
         let box_label = Box::new(Orientation::Horizontal, 0);
-        box_label.pack_start(&img, false, false, 0);
-        box_label.pack_start(&Label::new(label), false, false, 0);
-        let ev_bx = EventBox::new();
-        ev_bx.add(&box_label);
-        let tbl_ix = self.len();
-        ev_bx.connect_button_press_event(move |ev_box, ev| {
-            if ev.get_button() == 3 {
-                println!("Right click at current table");
-                table_popover.show_at(&ev_box, tbl_ix);
-                //let rel_to_self = table_popover.popover.get_relative_to() == Some(ev_box.into());
-                //if !table_popover.popover.is_visible() || !rel_to_self {
-                //    if !rel_to_self {
-
-                // }
-            }
-            glib::signal::Inhibit(false)
-        });
-        self.nb.set_tab_label(&(table_w.scroll_window), Some(&ev_bx));
-        box_label.show_all();
-        self.nb.show_all();
-        if let Some(rows) = data {
-            table_w.update_data(rows);
-            table_w.show_data();
-
-            // Left-click events
-            {
-                let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
-                // let mapping_menus = sidebar.mapping_menus.clone();
-                // let layout_toolbar = sidebar.layout_toolbar.clone();
-                // let plot_popover = sidebar.plot_popover.clone();
-                table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
-                    println!("Selected columns (left click): {:?}", selected);
-                    // mapping_popover.set_relative_to(Some(ev_bx));
-                    mapping_popover.hide();
-                    glib::signal::Inhibit(false)
-                }, 1);
-            }
-
-            // Right-click events
-            {
-                let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
-                let mapping_menus = workspace.mapping_menus.clone();
-                let layout_toolbar = workspace.layout_toolbar.clone();
-                let plot_popover = workspace.plot_popover.clone();
-
-                // Assume the table is static at the same position through all calls of
-                // set_selected_action. This is valid because for now the whole table
-                // environment is cleared when there are any query changes. Note we use
-                // len here and not len-1 becaues the element will effectively be added
-                // to the tbls vector only at the end of this method.
-                let curr_tbl_ix = self.len();
-
-                table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
-                    println!("Selected column set via left click: {:?}", selected);
-                    println!("Currently selected column via right click: {}", curr);
-                    if selected.iter().find(|s| **s == curr).is_some() {
-                        mapping_popover.set_relative_to(Some(ev_bx));
-                        layout_toolbar.update_mapping_status(
-                            mapping_menus.clone(),
-                            &plot_popover,
-                            &selected,
-                            curr_tbl_ix
-                        );
-                    }
-                    mapping_popover.show();
-                    glib::signal::Inhibit(false)
-                }, 3);
-            }
-        }
-        if let Some(msg) = err_msg {
-            table_w.show_message(msg);
-        }
+        box_label.pack_start(img, false, false, 0);
+        box_label.pack_start(lbl, false, false, 0);
+        self.nb.add(&(table_w.scroll_window));
         self.nb.next_page();
         if let Ok(mut tbls) = self.tbls.try_borrow_mut() {
-            tbls.push(table_w);
+            tbls.push(table_w.clone());
         } else {
             println!("Could not retrieve mutable reference to table widget");
         }
+        (box_label, table_w)
+    }
+    
+    pub fn create_data_table(
+        &self,
+        table_source : TableSource,
+        rows : Vec<Vec<String>>,
+        workspace : PlotWorkspace,
+        table_popover : TablePopover
+    ) {
+        if rows.len() == 0 {
+            println!("No rows to display");
+            return;
+        }
+        let (icon, mut name) = match table_source.clone() {
+            TableSource::Command(cmd) => (format!("bash-symbolic"), format!("Std. out ({})", cmd.clone())),
+            TableSource::File(path) => (format!("folder-documents-symbolic"), path.clone()),
+            TableSource::Database(name, rel) => match (name, rel) {
+                (Some(name), Some(rel)) => (name.clone(), format!("{}.svg", rel)),
+                (Some(name), None) => (format!("grid-black.svg"), name.clone()),
+                _ => (format!("grid-black.svg"), format!("Unknown"))
+            }
+        };
+        let (nrows, ncols) = (rows.len(), rows[0].len());
+        name += &format!(" ({} x {})", nrows - 1, ncols);
+        let img = match self.icons.get(&icon[..]) {
+            Some(pxb) => Image::from_pixbuf(Some(&self.icons[&icon[..]])),
+            None => Image::from_icon_name(Some(&icon), IconSize::Menu)
+        };
+        
+        let (box_label, mut table_w) = self.create_table(&img, &Label::new(Some(&name)));
+        
+        let ev_bx = EventBox::new();
+        ev_bx.add(&box_label);
+        let tbl_ix = self.len();
+        {
+            let table_source = table_source.clone();
+            ev_bx.connect_button_press_event(move |ev_box, ev| {
+                if ev.get_button() == 3 {
+                    match table_source {
+                        TableSource::Database(_, _) => {
+                            table_popover.set_copy_to();
+                        },
+                        _ => { 
+                            table_popover.set_copy_from();
+                        }
+                    }
+                    table_popover.show_at(&ev_box, tbl_ix);
+                }
+                glib::signal::Inhibit(false)
+            });
+        }
+        box_label.show_all();
+        self.nb.show_all();
+        self.nb.set_tab_label(&(table_w.scroll_window), Some(&ev_bx));
+        
+        table_w.update_data(rows);
+        table_w.show_data();
+
+        // Left-click events
+        {
+            let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
+            // let mapping_menus = sidebar.mapping_menus.clone();
+            // let layout_toolbar = sidebar.layout_toolbar.clone();
+            // let plot_popover = sidebar.plot_popover.clone();
+            table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
+                println!("Selected columns (left click): {:?}", selected);
+                // mapping_popover.set_relative_to(Some(ev_bx));
+                mapping_popover.hide();
+                glib::signal::Inhibit(false)
+            }, 1);
+        }
+
+        // Right-click events
+        {
+            let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
+            let mapping_menus = workspace.mapping_menus.clone();
+            let layout_toolbar = workspace.layout_toolbar.clone();
+            let plot_popover = workspace.plot_popover.clone();
+
+            // Assume the table is static at the same position through all calls of
+            // set_selected_action. This is valid because for now the whole table
+            // environment is cleared when there are any query changes. Note we use
+            // len here and not len-1 becaues the element will effectively be added
+            // to the tbls vector only at the end of this method.
+            let curr_tbl_ix = self.len();
+
+            table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
+                println!("Selected column set via left click: {:?}", selected);
+                println!("Currently selected column via right click: {}", curr);
+                if selected.iter().find(|s| **s == curr).is_some() {
+                    mapping_popover.set_relative_to(Some(ev_bx));
+                    layout_toolbar.update_mapping_status(
+                        mapping_menus.clone(),
+                        &plot_popover,
+                        &selected,
+                        curr_tbl_ix
+                    );
+                }
+                mapping_popover.show();
+                glib::signal::Inhibit(false)
+            }, 3);
+        }
+        
+        self.sources.borrow_mut().push(table_source);
     }
 
     /// Get selected cols across whole session. Indices are set relative to

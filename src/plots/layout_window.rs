@@ -37,7 +37,8 @@ pub struct LayoutWindow {
     pub horiz_ar_scale : Scale,
     pub vert_ar_scale : Scale,
     layout_width_entry : Entry,
-    layout_height_entry : Entry
+    layout_height_entry : Entry,
+    layout_list_box : ListBox
 }
 
 const ALL_LAYOUTS : [GroupSplit; 8] = [
@@ -182,6 +183,26 @@ impl LayoutWindow {
         xml_save_dialog
     }
 
+    pub fn populate_list_box(layout_list_box : &ListBox) {
+        let row = ListBoxRow::new();
+        let bx = Box::new(Orientation::Horizontal, 0);
+        let lbl = Label::new(Some("Item name"));
+        bx.pack_start(&lbl, false, false, 0);
+        bx.pack_start(&Box::new(Orientation::Horizontal, 0), true, true, 0);
+        let img_close = Image::from_icon_name(
+            Some("application-exit-symbolic"),
+            IconSize::SmallToolbar
+        );
+        row.add(&bx);
+        row.set_selectable(false);
+        // row.set_margin_top(6);
+        // row.set_margin_bottom(6);
+        let n = layout_list_box.get_children().len();
+        layout_list_box.insert(&row, n as i32);
+        layout_list_box.show_all();
+        row.set_property_height_request(64);
+    }
+    
     pub fn new(
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
@@ -192,6 +213,10 @@ impl LayoutWindow {
         // scale_menus : (ScaleMenu, ScaleMenu),
         layout_group_toolbar : GroupToolbar
     ) -> LayoutWindow {
+        
+        let layout_list_box : ListBox = builder.get_object("layout_list_box").unwrap();
+        Self::populate_list_box(&layout_list_box);
+        
         let group_toolbar_top : Toolbar = builder.get_object("group_toolbar_top").unwrap();
         let group_toolbar_bottom : Toolbar = builder.get_object("group_toolbar_bottom").unwrap();
         let toolbars : [Toolbar; 2] = [group_toolbar_top.clone(), group_toolbar_bottom.clone()];
@@ -368,6 +393,7 @@ impl LayoutWindow {
             });
         }
         LayoutWindow {
+            layout_list_box,
             toggles,
             open_btn,
             save_btn,

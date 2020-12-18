@@ -62,13 +62,10 @@ impl RecentList {
 
     pub fn push_recent(&self, path : String) {
         if let Ok(mut t) = self.0.try_borrow_mut() {
-            // println!("Current paths: {:?}", t.lines);
-            // println!("New path: {:?}", path);
             if let Some(pos) = t.lines.iter().position(|p| &p[..] == &path[..]) {
                 t.lines.remove(pos);
             }
             t.lines.push(path.clone());
-            // println!("Path vector = {:?}", t.lines);
             if t.lines.len() >= t.mem {
                 t.lines.remove(0);
             }
@@ -149,49 +146,23 @@ where
 pub fn set_tables_from_query(
     table_env : &TableEnvironment,
     tables_nb : &mut TableNotebook,
-    // mapping_popover : Popover,
     workspace : PlotWorkspace,
     table_popover : TablePopover
-    //fn_popover : Popover
 ) {
     tables_nb.clear();
     let all_tbls = table_env.all_tables();
     if all_tbls.len() == 0 {
-        tables_nb.add_page(
-            "application-exit",
-            None,
-            Some("No queries"),
-            None,
-            // mapping_popover.clone(),
-            workspace.clone(),
-            table_popover.clone()
-            //fn_popover.clone()
-        );
+        tables_nb.create_error_table("No tables to show");
     } else {
         tables_nb.clear();
         for table in all_tbls.iter() {
-            let (nrows, ncols) = table.shape();
-            // println!("New table with {} rows", nrows);
-            if nrows > 0 {
-                let (mut name, icon) = match table.table_info() {
-                    (Some(name), Some(rel)) => (name, format!("{}.svg", rel)),
-                    (Some(name), None) => (name, format!("grid-black.svg")),
-                    _ => (format!(""), format!("grid-black.svg"))
-                };
-                name += &format!(" ({} x {})", nrows, ncols);
-                tables_nb.add_page(
-                    &icon[..],
-                    Some(&name[..]),
-                    None,
-                    Some(table.text_rows()),
-                    // mapping_popover.clone(),
-                    workspace.clone(),
-                    table_popover.clone()
-                    //fn_popover.clone()
-                );
-            } else {
-                println!("No rows to display");
-            }
+            let info = table.table_info();
+            tables_nb.create_data_table(
+                TableSource::Database(info.0, info.1),
+                table.text_rows(),
+                workspace.clone(),
+                table_popover.clone()
+            );
         }
     }
 }
@@ -201,6 +172,7 @@ pub fn set_tables_from_query(
 pub fn add_external_table(
     table_env : &Rc<RefCell<TableEnvironment>>,
     tables_nb : &TableNotebook,
+    source : TableSource,
     txt : String,
     workspace : &PlotWorkspace,
     table_popover : &TablePopover,
@@ -220,14 +192,7 @@ pub fn add_external_table(
             // and use blank page as icon.
             // If external table is opened by program, use Std. Output (progname) as name,
             // and use bash-symbolic as icon. 
-            tables_nb.add_page(
-                "bash-symbolic",
-                Some("Std. Output (1)"),
-                None,
-                Some(rows),
-                workspace.clone(),
-                table_popover.clone()
-            );
+            tables_nb.create_data_table(source, rows, workspace.clone(), table_popover.clone());
             status_stack.update(Status::Ok);
             Ok(())
         },

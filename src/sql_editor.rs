@@ -21,6 +21,7 @@ use super::table_notebook::TableNotebook;
 use crate::plots::plot_workspace::PlotWorkspace;
 use crate::table_popover::TablePopover;
 use crate::header_toggle::HeaderToggle;
+use crate::table_notebook::TableSource;
 
 pub enum ExecStatus {
     File(String, usize),
@@ -736,16 +737,21 @@ impl SqlEditor {
                                     if let Err(e) = f.read_to_string(&mut txt) {
                                         println!("{}", e);
                                     }
-                                    let add_res = utils::add_external_table(
-                                        &table_env,
-                                        &tables_nb,
-                                        txt,
-                                        &workspace,
-                                        &table_popover,
-                                        &status_stack
-                                    );
-                                    if let Err(e) = add_res {
-                                        println!("{}", e);
+                                    if let Some(name) = Self::clip_name(&path) {
+                                        let add_res = utils::add_external_table(
+                                            &table_env,
+                                            &tables_nb,
+                                            TableSource::File(name),
+                                            txt,
+                                            &workspace,
+                                            &table_popover,
+                                            &status_stack
+                                        );
+                                        if let Err(e) = add_res {
+                                            println!("{}", e);
+                                        }
+                                    } else {
+                                        println!("Unable to retrieve file name");
                                     }
                                 } else {
                                     println!("Unable to open external file");
