@@ -9,9 +9,359 @@ use gdk::RGBA;
 use gtk::prelude::*;
 use std::default::Default;
 
+#[derive(Debug, Clone)]
+pub struct ScatterMenu {
+    color_btn : ColorButton,
+    radius_scale : Scale
+}
+
+impl ScatterMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let radius_scale : Scale = builder.get_object("scatter_radius_scale").unwrap();
+        Self { color_btn, radius_scale }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.radius_scale,
+            view.clone(),
+            name,
+            "radius".into(),
+            "mapping"
+        );
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.radius_scale.get_adjustment().set_value(properties["radius"].parse().unwrap());
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct LineMenu {
+    color_btn : ColorButton,
+    width_scale : Scale,
+    dash_scale : Scale
+}
+
+impl LineMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let width_scale : Scale = builder.get_object("line_width_scale").unwrap();
+        let dash_scale : Scale = builder.get_object("line_dash_scale").unwrap();
+        Self { color_btn, width_scale, dash_scale }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.width_scale,
+            view.clone(),
+            name.clone(),
+            "width".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.dash_scale,
+            view.clone(),
+            name,
+            "dash".into(),
+            "mapping"
+        );
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.width_scale.get_adjustment().set_value(properties["width"].parse().unwrap());
+        self.dash_scale.get_adjustment().set_value(properties["dash"].parse().unwrap());
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct TextMenu {
+    color_btn : ColorButton,
+    font_btn : FontButton
+}
+
+impl TextMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let font_btn : FontButton = builder.get_object("text_mapping_font_btn").unwrap();
+        Self { color_btn, font_btn }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_font_property(
+            &self.font_btn,
+            view.clone(),
+            name,
+            "font".into(),
+            "mapping"
+        );
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.font_btn.set_font_name(&properties["font"]);
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct AreaMenu {
+    color_btn : ColorButton,
+    opacity_scale : Scale
+}
+
+impl AreaMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let opacity_scale : Scale = builder.get_object("area_opacity_scale").unwrap();
+        Self { color_btn, opacity_scale }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.opacity_scale,
+            view.clone(),
+            name,
+            "opacity".into(),
+            "mapping"
+        );
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.opacity_scale.get_adjustment().set_value(properties["opacity"].parse().unwrap());
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct BarMenu {
+    color_btn : ColorButton,
+    anchor_switch : Switch,
+    horizontal_switch : Switch,
+    width_scale : Scale,
+    origin_x_entry : Entry,
+    origin_y_entry : Entry,
+    spacing_entry : Entry
+}
+
+impl BarMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let anchor_switch : Switch = builder.get_object("bar_anchor_switch").unwrap();
+        let horizontal_switch : Switch = builder.get_object("bar_horizontal_switch").unwrap();
+        let width_scale : Scale = builder.get_object("bar_width_scale").unwrap();
+        let origin_x_entry : Entry = builder.get_object("bar_origin_x_entry").unwrap();
+        let origin_y_entry : Entry = builder.get_object("bar_origin_y_entry").unwrap();
+        let spacing_entry : Entry = builder.get_object("bar_spacing_entry").unwrap();
+        Self { 
+            color_btn, 
+            anchor_switch, 
+            horizontal_switch, 
+            width_scale, 
+            origin_x_entry, 
+            origin_y_entry, 
+            spacing_entry 
+        }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_switch_property(
+            &self.anchor_switch,
+            view.clone(),
+            name.clone(),
+            "center_anchor".into(),
+            "mapping"
+        );
+        connect_update_switch_property(
+            &self.horizontal_switch,
+            view.clone(),
+            name.clone(),
+            "horizontal".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.width_scale,
+            view.clone(),
+            name.clone(),
+            "bar_width".into(),
+            "mapping"
+        );
+        connect_update_entry_property(
+            &self.origin_x_entry,
+            view.clone(),
+            name.clone(),
+            "origin_x".into(),
+            "mapping"
+        );
+        connect_update_entry_property(
+            &self.origin_y_entry,
+            view.clone(),
+            name.clone(),
+            "origin_y".into(),
+            "mapping"
+        );
+        connect_update_entry_property(
+            &self.spacing_entry,
+            view.clone(),
+            name,
+            "bar_spacing".into(),
+            "mapping"
+        ); 
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.anchor_switch.set_active(properties["center_anchor"].parse().unwrap());
+        self.horizontal_switch.set_active(properties["horizontal"].parse().unwrap());
+        self.width_scale.get_adjustment().set_value(properties["bar_width"].parse().unwrap());
+        self.origin_x_entry.set_text(&properties["origin_x"]);
+        self.origin_y_entry.set_text(&properties["origin_y"]);
+        self.spacing_entry.set_text(&properties["bar_spacing"]);
+    }
+    
+}
+
+#[derive(Debug, Clone)]
+pub struct SurfaceMenu {
+    color_btn : ColorButton,
+    opacity_scale : Scale,
+    final_color_btn : ColorButton,
+    surface_baseline_entry : Entry,
+    surface_maximum_entry : Entry
+}
+
+impl SurfaceMenu {
+
+    pub fn build(builder : &Builder) -> Self {
+        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let opacity_scale : Scale = builder.get_object("surface_opacity_scale").unwrap();
+        let final_color_btn : ColorButton = builder.get_object("surface_color_final_btn").unwrap();
+        let surface_baseline_entry : Entry = builder.get_object("surface_baseline_entry").unwrap();
+        let surface_maximum_entry : Entry = builder.get_object("surface_maximum_entry").unwrap();
+        Self { color_btn, opacity_scale, final_color_btn, surface_baseline_entry, surface_maximum_entry }
+    }
+    
+    pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
+        connect_update_color_property(
+            &self.color_btn,
+            view.clone(),
+            name.clone(),
+            "color".into(),
+            "mapping"
+        );
+        connect_update_scale_property(
+            &self.opacity_scale,
+            view.clone(),
+            name.clone(),
+            "opacity".into(),
+            "mapping"
+        );
+
+        connect_update_color_property(
+            &self.final_color_btn,
+            view.clone(),
+            name.clone(),
+            "final_color".into(),
+            "mapping"
+        );
+        connect_update_entry_property(
+            &self.surface_baseline_entry,
+            view.clone(),
+            name.clone(),
+            "z_min".into(),
+            "mapping"
+        );
+        connect_update_entry_property(
+            &self.surface_maximum_entry,
+            view.clone(),
+            name,
+            "z_max".into(),
+            "mapping"
+        );
+    }
+    
+    pub fn update(&self, properties : HashMap<String, String>) {
+        let color : RGBA = properties["radius"].parse()
+            .expect("Could not parse value as RGBA");
+        self.color_btn.set_rgba(&color);
+        self.opacity_scale.get_adjustment().set_value(properties["opacity"].parse().unwrap());
+        self.surface_baseline_entry.set_text(&properties["z_min"]);
+        self.surface_maximum_entry.set_text(&properties["z_max"]);
+        let color_final : RGBA = properties["final_color"].parse()
+            .expect("Could not parse value as RGBA");
+        self.final_color_btn.set_rgba(&color_final);
+    }
+    
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct DataSource {
 
+    /// Mapping name
+    pub name : String,
+    
+    /// Mapping type
+    pub ty : String,
+    
+    /// Plot index
+    pub plot_ix : usize,
+    
     /// Table position in the environment.
     pub tbl_pos : Option<usize>,
 
@@ -26,11 +376,15 @@ pub struct DataSource {
 
     /// Table index, from first column of the current table.
     pub tbl_ixs : Vec<usize>,
+    
+    /// Column names
     pub col_names : Vec<String>,
+    
+    /// Query used to retrieve this data (if any)
     pub query : String
 }
 
-/// MappingMenu is the structure common across all menus
+/*/// MappingMenu is the structure common across all menus
 /// used to manipulate the mappings directly (line, trace, scatter).
 #[derive(Clone, Debug)]
 pub struct MappingMenu {
@@ -617,7 +971,7 @@ impl MappingMenu {
         Ok(())
     }
 
-    /// Updates the source columns then updates the data from the table environment.
+    /*/// Updates the source columns then updates the data from the table environment.
     pub fn reassign_data(
         &self,
         cols : Vec<usize>,
@@ -626,42 +980,7 @@ impl MappingMenu {
     ) -> Result<(), &'static str> {
         self.update_source(cols, &t_env)?;
         self.update_data(&t_env, pl_view)
-    }
-
-    pub fn update_source(&self, new_ixs : Vec<usize>, t_env : &TableEnvironment) -> Result<(), &'static str> {
-        if let Ok(mut source) = self.source.try_borrow_mut() {
-            if !t_env.preserved_since(source.hist_ix) {
-                source.valid = false;
-                println!("History index for current mapping: {}", source.hist_ix);
-                return Err("Environment was updated and data is no longer available");
-            }
-            source.ixs.clear();
-            source.ixs.extend(new_ixs.clone());
-            let (col_names, tbl_ix, query) = t_env.get_column_names(&new_ixs[..])
-                .ok_or("Unable to retrieve table data")?;
-            for (name, lbl) in col_names.iter().zip(self.column_labels.iter()) {
-                lbl.set_text(&name[..]);
-            }
-            source.col_names = col_names;
-            source.query = query;
-            source.tbl_pos = Some(tbl_ix);
-            source.hist_ix = t_env.current_hist_index();
-            source.valid = true;
-            if let Some((_, new_tbl_ixs)) = t_env.global_to_tbl_ix(&new_ixs[..]) {
-                source.tbl_ixs.clear();
-                source.tbl_ixs.extend(new_tbl_ixs);
-            } else {
-                return Err("Failed to convert global to local indices");
-            }
-            println!("Column names : {:?}", source.col_names);
-            println!("Linear indices : {:?}", source.ixs);
-            println!("Table indices : {:?}", source.tbl_ixs);
-            println!("History index : {:?}", source.hist_ix);
-            Ok(())
-        } else {
-            Err("Failed to get mutable reference to table source")
-        }
-    }
+    }*/
 
     pub fn set_sensitive(&self, sensitive : bool) {
         for (_, w) in self.design_widgets.iter() {
@@ -674,79 +993,7 @@ impl MappingMenu {
         }
     }
 
-    /// Updates data from a table enviroment and the saved column indices.
-    pub fn update_data(&self, t_env : &TableEnvironment, pl_view : &mut PlotView) -> Result<(), &'static str> {
-        let selected = self.source.try_borrow()
-            .map(|source| source.ixs.clone() )
-            .map_err(|_| "Unable to retrieve reference to used indices")?;
-        if selected.len() == 0 {
-            println!("No data for current mapping");
-            return Ok(())
-        }
-        let (cols, _, query) = t_env.get_columns(&selected[..]).unwrap();
-        let name = self.get_mapping_name()
-            .map(|n| n.clone())
-            .ok_or("Unable to get mapping name")?;
-        let pos0 = cols.try_numeric(0)
-            .ok_or("Error mapping column 1 to position")?;
-        let col_names : Vec<_> = cols.names().iter()
-            .map(|n| n.to_string())
-            .collect();
-        pl_view.update(&mut UpdateContent::ColumnNames(name.clone(), col_names));
-        pl_view.update(&mut UpdateContent::Source(name.clone(), query));
-        match &self.mapping_type[..] {
-            "text" => {
-                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to position")?;
-                if let Some(c) = cols.try_access::<String>(2) {
-                    let vec_txt = Vec::from(c);
-                    pl_view.update(&mut UpdateContent::TextData(
-                        name.clone(),
-                        vec![pos0, pos1],
-                        vec_txt
-                    ));
-                } else {
-                    return Err("Error setting third column to text");
-                }
-            },
-            "line" | "scatter" => {
-                let pos1 = cols.try_numeric(1).ok_or("Error retrieving second column to position")?;
-                pl_view.update(&mut UpdateContent::Data(
-                    name.clone(),
-                    vec![pos0, pos1]
-                ));
-            },
-            "bar" => {
-                pl_view.update(&mut UpdateContent::Data(
-                    name.clone(),
-                    vec![pos0]
-                ));
-            },
-            "area" => {
-                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
-                let pos2 = cols.try_numeric(2).ok_or("Error mapping column 3 to y superior limit")?;
-                pl_view.update(&mut UpdateContent::Data(
-                    name.clone(),
-                    vec![pos0, pos1, pos2]
-                ));
-            },
-            "surface" => {
-                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
-                let density = cols.try_numeric(2).ok_or("Error mapping column 3 to density")?;
-                pl_view.update(&mut UpdateContent::Data(
-                    name.clone(),
-                    vec![pos0, pos1, density]
-                ));
-            },
-            mapping => {
-                println!("Informed mapping: {}", mapping);
-                return Err("Invalid mapping type");
-            }
-        }
-        self.set_sensitive(true);
-        Ok(())
-    }
-
-}
+}*/
 
 
 

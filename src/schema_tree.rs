@@ -10,6 +10,7 @@ use sourceview::*;
 use gtk::prelude::*;
 use crate::{status_stack::StatusStack};
 use crate::status_stack::*;
+use crate::utils;
 use sourceview::View;
 use super::sql_editor::SqlEditor;
 use std::path::{Path, PathBuf};
@@ -96,28 +97,6 @@ const ALL_TYPES : [DBType; 15] = [
 
 impl SchemaTree {
 
-    fn configure_tree_view(tree_view : &TreeView) -> TreeStore {
-        let model = TreeStore::new(&[Pixbuf::static_type(), Type::String]);
-        tree_view.set_model(Some(&model));
-        let pix_renderer = CellRendererPixbuf::new();
-        pix_renderer.set_property_height(24);
-        let txt_renderer = CellRendererText::new();
-        txt_renderer.set_property_height(24);
-
-        let pix_col = TreeViewColumn::new();
-        pix_col.pack_start(&pix_renderer, false);
-        pix_col.add_attribute(&pix_renderer, "pixbuf", 0);
-
-        let txt_col = TreeViewColumn::new();
-        txt_col.pack_start(&txt_renderer, true);
-        txt_col.add_attribute(&txt_renderer, "text", 1);
-
-        tree_view.append_column(&pix_col);
-        tree_view.append_column(&txt_col);
-        tree_view.set_show_expanders(true);
-        model
-    }
-
     fn load_type_icons() -> HashMap<DBType, Pixbuf> {
         let mut type_icons = HashMap::new();
         for ty in ALL_TYPES.iter() {
@@ -145,7 +124,7 @@ impl SchemaTree {
         let tbl_icon = Pixbuf::from_file_at_scale("assets/icons/grid-black.svg", 16, 16, true).unwrap();
         let schema_icon = Pixbuf::from_file_at_scale("assets/icons/db.svg", 16, 16, true).unwrap();
         let tree_view : TreeView = builder.get_object("schema_tree_view").unwrap();
-        let model = Self::configure_tree_view(&tree_view);
+        let model = utils::configure_tree_view(&tree_view);
         Self{ tree_view, model, type_icons, tbl_icon, schema_icon }
     }
 

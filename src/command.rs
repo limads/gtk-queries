@@ -21,6 +21,10 @@ use std::io::BufWriter;
 use std::io::Read;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::process::Stdio;
+use crate::table_popover::TablePopover;
+use std::sync::{Arc, Mutex};
+use crate::status_stack::Status;
+use crate::table_notebook::TableSource;
 
 pub struct Output {
     pub cmd : String,
@@ -63,15 +67,16 @@ impl Executor {
         Self{ cmd_send, ans_recv }
     }
 
-    pub fn queue_command(&self, cmd : String, tbl_csv : Option<String>) {
+    pub fn queue_command(&self, cmd : String, tbl_csv : Option<String>) -> Result<(), String> {
         match self.cmd_send.send((cmd, tbl_csv)) {
             Ok(_) => {
                 // cmd_entry.set_sensitive(false);
                 // clear_btn.set_sensitive(false);
                 // run_btn.set_sensitive(false);
+                Ok(())
             },
             Err(e) => {
-                println!("{}", e);
+                Err(format!("{}", e))
             }
         }
     }
@@ -100,7 +105,7 @@ fn run_command(cmd : &str, opt_tbl : Option<String>) -> Result<String, String> {
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("{}", e))?;
-        
+    
     if let Some(tbl) = opt_tbl {
         let mut outstdin = cmd.stdin.take().unwrap();
         let mut writer = BufWriter::new(&mut outstdin);
@@ -140,14 +145,37 @@ pub struct CommandWindow {
     cmd_entry : Entry,
     clear_btn : Button,
     run_btn : Button,
-    recent : RecentList
+    recent : RecentList,
+    exec : Arc<Mutex<(Executor,String)>>,
+    expect_input : Rc<RefCell<bool>>
 }
 
 impl CommandWindow {
 
-    // To run a shell-like string, we can pass the shell to stdin of /bin/sh like:
-    // echo 'echo "hello"' | /bin/sh
-
+    pub fn set_expect_input(&self, expect : bool) {
+        *(self.expect_input.borrow_mut()) = expect;
+    }
+    
+    fn queue_execution(
+        exec : &Executor, 
+        cmd : &str, 
+        stdin : Option<String>, 
+        cmd_entry : &Entry, 
+        clear_btn : &Button, 
+        run_btn : &Button
+    ) {
+        match exec.queue_command(String::from(cmd), stdin) {
+            Ok(_) => {
+                cmd_entry.set_sensitive(false);
+                clear_btn.set_sensitive(false);
+                run_btn.set_sensitive(false);
+            },
+            Err(e) => {
+                println!("{}", e);
+            }
+        }
+    }
+    
     pub fn build(
         builder : &Builder, 
         table_notebook : &TableNotebook, 
@@ -159,7 +187,9 @@ impl CommandWindow {
         let clear_btn : Button = builder.get_object("cmd_clear_btn").unwrap();
         let recent = RecentList::new(Path::new("registry/commands.csv"), 11).unwrap();
         let cmd_list : ListBox = builder.get_object("cmd_list").unwrap();
-
+        let exec = Arc::new(Mutex::new((Executor::new(), String::new())));
+        let expect_input = Rc::new(RefCell::new(false));
+        
         {
             let cmd_entry = cmd_entry.clone();
             let recent = recent.clone();
@@ -177,31 +207,43 @@ impl CommandWindow {
             let cmd_entry = cmd_entry.clone();
             let clear_btn = clear_btn.clone();
             let table_notebook = table_notebook.clone();
+            let exec = exec.clone();
+            let expect_input = expect_input.clone();
             run_btn.connect_clicked(move |run_btn| {
                 let g_txt = cmd_entry.get_text();
                 let txt = g_txt.as_str();
-                if txt.len() >= 1  {
-                    if let Ok(t_env) = tbl_env.try_borrow_mut() {
-                        let ix = table_notebook.get_page_index();
-                        if let Some(tbl_csv) = t_env.all_tables().get(ix).map(|tbl| tbl.to_csv() ) {    
-                            // Moved to Executor::queue_command
-                            /*match cmd_send.send((String::from(txt), tbl_csv)) {
-                                Ok(_) => {
-                                    cmd_entry.set_sensitive(false);
-                                    clear_btn.set_sensitive(false);
-                                    run_btn.set_sensitive(false);
-                                },
-                                Err(e) => {
-                                    println!("{}", e);
-                                }
-                            }*/
-                        } else {
-                            println!("Invalid table index");
-                        }
-                    } else {
-                        println!("Unable to borrow table");
-                    }
+                if txt.is_empty() {
+                    return;
                 }
+                let cmd_sent = if let Ok(t_env) = tbl_env.try_borrow_mut() {
+                    match exec.lock() {
+                        Ok(guard) => {
+                            let (exec, tbl) = &*guard;
+                            if *expect_input.borrow() {
+                                let ix = table_notebook.get_page_index();
+                                if let Some(tbl_csv) = t_env.all_tables().get(ix).map(|tbl| tbl.to_csv() ) {
+                                    println!("Executing command with input table");
+                                    Self::queue_execution(&exec, txt, Some(tbl_csv), &cmd_entry, &clear_btn, &run_btn);
+                                    true
+                                } else {
+                                    println!("Invalid table index");
+                                    false
+                                }
+                            } else {
+                                println!("Executing command without input table");
+                                Self::queue_execution(&exec, txt, None, &cmd_entry, &clear_btn, &run_btn);
+                                true
+                            }
+                        },
+                        Err(_) => {
+                            println!("Unable to lock executor");
+                            false
+                        }
+                    }
+                } else {
+                    println!("Unable to borrow table");
+                    false
+                };
             });
         }
 
@@ -211,7 +253,9 @@ impl CommandWindow {
             clear_btn,
             run_btn,
             recent,
-            cmd_list
+            cmd_list,
+            expect_input,
+            exec
         };
         list
     }
@@ -236,55 +280,54 @@ impl CommandWindow {
         cmd_list.show_all();
     }
     
-    /*fn wait_command() {
-        // let cmd_bx = table_popover.cmd_bx.clone();
+    pub fn connect_wait_command(
+        &self,
+        table_env : Rc<RefCell<TableEnvironment>>,
+        table_popover : TablePopover,
+        workspace : PlotWorkspace,
+        tables_nb : TableNotebook,
+        status_stack : StatusStack
+    ) {
         let table_popover = table_popover.clone();
-        let table_popover = table_popover.clone();
+        let cmd_list = self.cmd_list.clone();
+        let recent = self.recent.clone();
+        let run_btn = self.run_btn.clone();
+        let clear_btn = self.clear_btn.clone();
+        let cmd_entry = self.cmd_entry.clone();
+        let exec = self.exec.clone();
         glib::timeout_add_local(16, move || {
-            /*if let Ok(out) = ans_recv.try_recv() {
-                cmd_bx.cmd_entry.set_sensitive(true);
-                cmd_bx.clear_btn.set_sensitive(true);
-                cmd_bx.run_btn.set_sensitive(true);
-                if out.status {
-                    let add_res = utils::add_external_table(
-                        &table_env,
-                        &tables_nb,
-                        out.command
-                        out.txt.clone(),
-                        &workspace,
-                        &table_popover,
-                        &status_stack
-                    );
-                    match add_res {
-                        Ok(_) => {
-                            cmd_bx.recent.push_recent(out.cmd.clone());
-                            CommandBox::update_commands(&cmd_bx.recent, &cmd_bx.cmd_list);
-                        },
-                        Err(e) => {
-                            println!("{}", e);
-                            tables_nb.add_page(
-                                "bash-symbolic",
-                                None,
-                                Some(&e[..]),
-                                None,
-                                workspace.clone(),
-                                table_popover.clone()
-                            );
+            if let Ok(exec) = exec.try_lock() {
+                if let Ok(out) = exec.0.ans_recv.try_recv() {
+                    cmd_entry.set_sensitive(true); 
+                    clear_btn.set_sensitive(true); 
+                    run_btn.set_sensitive(true);
+                    if out.status {
+                        let add_res = utils::add_external_table(
+                            &table_env,
+                            &tables_nb,
+                            TableSource::Command(out.cmd.clone()),
+                            out.txt.clone(),
+                            &workspace,
+                            &table_popover,
+                            &status_stack
+                        );
+                        match add_res {
+                            Ok(_) => {
+                                recent.push_recent(out.cmd.clone());
+                                CommandWindow::update_commands(&recent, &cmd_list);
+                            },
+                            Err(e) => {
+                                println!("{}", e);
+                                status_stack.update(Status::SqlErr(format!("Error: {}", e)));
+                            }
                         }
+                    } else {
+                        status_stack.update(Status::SqlErr(format!("Command error: {}", out.txt)));
                     }
-                } else {
-                    tables_nb.add_page(
-                        "bash-symbolic",
-                        None,
-                        Some(&format!("Command output: {}",&out.txt)[..]),
-                        None,
-                        workspace.clone(),
-                        table_popover.clone()
-                    );
                 }
-            }*/
+            }
             glib::source::Continue(true)
         });
-    }*/
+    }
 }
 

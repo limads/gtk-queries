@@ -11,13 +11,15 @@ use crate::plots::plotview::plot_view::{PlotView, UpdateContent};
 // use super::scale_menu::*;
 // use super::layout_window::*;
 use super::mapping_menu::*;
-use super::plot_popover::*;
+// use super::plot_popover::*;
 use std::collections::HashMap;
 // use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
 // use std::default::Default;
 use crate::plots::plot_workspace::PlotWorkspace;
+use super::layout_window::MappingTree;
+use super::mapping_menu::DataSource;
 
 #[derive(Clone, Debug)]
 pub struct SelectedMapping {
@@ -78,9 +80,9 @@ impl GroupToolbar {
         prefix : &str,
         layout_stack : &Stack,
         plot_view : &Rc<RefCell<PlotView>>,
-        plot_popover : &PlotPopover,
+        // plot_popover : &PlotPopover,
         selection : &Rc<RefCell<SelectionStatus>>,
-        mapping_menus : &Rc<RefCell<Vec<MappingMenu>>>,
+        // mapping_menus : &Rc<RefCell<Vec<MappingMenu>>>,
         active : &Rc<RefCell<(usize, Option<usize>)>>,
     ) -> Vec<ToggleToolButton> {
         let toolbar : Toolbar = builder.get_object(&format!("{}_layout_toolbar", prefix)).unwrap();
@@ -106,9 +108,9 @@ impl GroupToolbar {
         for (i, btn) in btns.iter().enumerate() {
             let btns_c = btns.clone();
             let plot_view = plot_view.clone();
-            let plot_popover = plot_popover.clone();
+            // let plot_popover = plot_popover.clone();
             let selection = selection.clone();
-            let mapping_menus = mapping_menus.clone();
+            // let mapping_menus = mapping_menus.clone();
             let active = active.clone();
             btn.connect_toggled(move |btn| {
                 if btn.get_active() {
@@ -288,9 +290,9 @@ impl GroupToolbar {
     pub fn build(
         builder : &Builder,
         plot_view : &Rc<RefCell<PlotView>>,
-        plot_popover : &PlotPopover,
+        // plot_popover : &PlotPopover,
         selection : &Rc<RefCell<SelectionStatus>>,
-        mapping_menus : &Rc<RefCell<Vec<MappingMenu>>>
+        // mapping_menus : &Rc<RefCell<Vec<MappingMenu>>>
     ) -> Self {
         let layout_stack : Stack = builder.get_object("layout_stack").unwrap();
         let mut toggles = Vec::new();
@@ -303,9 +305,9 @@ impl GroupToolbar {
                 prefix,
                 &layout_stack,
                 &plot_view,
-                &plot_popover,
+                // &plot_popover,
                 &selection,
-                &mapping_menus,
+                // &mapping_menus,
                 &active
             ));
         }
@@ -332,8 +334,9 @@ impl LayoutToolbar {
         status_stack : StatusStack,
         sidebar_stack : Stack,
         plot_view : Rc<RefCell<PlotView>>,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_popover : PlotPopover,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // plot_popover : PlotPopover,
+        sources : Rc<RefCell<Vec<DataSource>>>,
         table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         layout_path : Rc<RefCell<Option<String>>>,
@@ -347,9 +350,9 @@ impl LayoutToolbar {
         let group_toolbar = GroupToolbar::build(
             &builder,
             &plot_view,
-            &plot_popover,
+            // &plot_popover,
             &selection,
-            &mapping_menus
+            // &mapping_menus
         );
         let img_add = Image::from_icon_name(Some("list-add-symbolic"), IconSize::SmallToolbar);
         let img_edit = Image::from_icon_name(Some("document-edit-symbolic"), IconSize::SmallToolbar);
@@ -373,8 +376,7 @@ impl LayoutToolbar {
         {
             let sidebar_stack = sidebar_stack.clone();
             let plot_view = plot_view.clone();
-            let mapping_menus = mapping_menus.clone();
-            //let notebook = plot_notebook.clone();
+            // let mapping_menus = mapping_menus.clone();
             let status_stack = status_stack.clone();
             let layout_path = layout_path.clone();
             let group_toolbar = group_toolbar.clone();
@@ -386,20 +388,10 @@ impl LayoutToolbar {
                     group_toolbar.set_active(0, 0);
                     *(layout_path.borrow_mut()) = None;
                     status_stack.show_curr_status();
-                    if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
+                    /*if let Ok(mut mappings) = mapping_menus.try_borrow_mut() {
                         mappings.clear();
                     } else {
                         println!("Error retrieving mapping menus");
-                    }
-
-                    // Use stack logic instead
-                    /*let children = notebook.get_children();
-                    for i in 3..children.len() {
-                        if let Some(c) = children.get(i) {
-                            notebook.remove(c);
-                        } else {
-                            println!("Unable to clear notebook");
-                        }
                     }*/
                 }
                 btn.set_sensitive(false);
@@ -451,8 +443,9 @@ impl LayoutToolbar {
             plot_view.clone(),
             tbl_nb.clone(),
             glade_def.clone(),
-            mapping_menus.clone(),
-            plot_popover.clone(),
+            sources.clone(),
+            // mapping_menus.clone(),
+            // plot_popover.clone(),
             status_stack.clone(),
             sel_mapping.clone(),
             selection.clone(),
@@ -481,8 +474,8 @@ impl LayoutToolbar {
         {
             let tbl_nb = tbl_nb.clone();
             let layout_toolbar = layout_toolbar.clone();
-            let plot_popover = plot_popover.clone();
-            let mapping_menus = mapping_menus.clone();
+            // let plot_popover = plot_popover.clone();
+            // let mapping_menus = mapping_menus.clone();
             let group_toolbar = group_toolbar.clone();
             layout_toolbar.mapping_popover.clone().connect_show(move |wid| {
 
@@ -495,8 +488,8 @@ impl LayoutToolbar {
                 let (tbl_ix, selected_ix) = tbl_nb.selected_table_and_cols()
                     .unwrap_or((0, Vec::new()));
                 layout_toolbar.update_mapping_status(
-                    mapping_menus.clone(),
-                    &plot_popover,
+                    sources.clone(),
+                    // &plot_popover,
                     &selected_ix[..],
                     tbl_ix
                 );
@@ -508,14 +501,16 @@ impl LayoutToolbar {
 
     pub fn connect_add_mapping_clicked(
         &self,
-        plot_popover : PlotPopover,
+        // plot_popover : PlotPopover,
         glade_def : Rc<HashMap<String, String>>,
         table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         plot_view : Rc<RefCell<PlotView>>,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         status_stack : StatusStack,
-        sel_mapping : Rc<RefCell<String>>
+        sel_mapping : Rc<RefCell<String>>,
+        mapping_tree : MappingTree,
+        sources : Rc<RefCell<Vec<DataSource>>>
     ) {
         let edit_mapping_btn = self.edit_mapping_btn.clone();
         let remove_mapping_btn = self.remove_mapping_btn.clone();
@@ -530,8 +525,10 @@ impl LayoutToolbar {
                 return;
             };
             println!("Adding to active area: {}", active_area);
-            let m = sel_mapping.borrow();
-            PlotWorkspace::add_mapping_from_type(
+            
+            let ty = sel_mapping.borrow();
+            
+            /* PlotWorkspace::add_mapping_from_type(
                 glade_def.clone(),
                 &m[..],
                 table_env.clone(),
@@ -541,20 +538,61 @@ impl LayoutToolbar {
                 plot_popover.clone(),
                 status_stack.clone(),
                 active_area
-            );
+            );*/
+            
+            if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                pl_view.set_active_area(active_area);
+                let name = (pl_view.mapping_info().len() + 1).to_string();
+                mapping_tree.append_mapping(active_area, &ty[..], &name);
+                let mut source : DataSource = Default::default();
+                source.name = name.to_string();
+                source.ty = ty.to_string();
+                source.plot_ix = active_area;
+                source.hist_ix = table_env.borrow().current_hist_index();
+                pl_view.update(&mut UpdateContent::NewMapping(
+                    name.clone(),
+                    ty.to_string(),
+                    active_area
+                ));
+                if let Ok(t_env) = table_env.try_borrow() {
+                    PlotWorkspace::update_source(&mut source, tbl_nb.full_selected_cols(), &t_env)
+                        .map_err(|e| format!("{}", e) );
+                    PlotWorkspace::update_data(&source, &t_env, &mut pl_view)
+                        .map_err(|e| format!("{}", e) );
+                    sources.borrow_mut().push(source);
+                }
+            } else {
+                println!("Unable to get reference to plot view");
+                return;
+            };
+            
+            // TODO Call update_source(.) then call update_data(.)
+            
+            /*println!("Mapping appended: {:?}", m);
+            if with_data {
+                if let Err(e) = m.reassign_data(tbl_nb.full_selected_cols(), &t_env, &mut pl) {
+                    status_stack.update(Status::SqlErr(format!("{}", e)));
+                    return;
+                }
+            } else {
+                if let Err(e) = m.clear_data(&mut pl) {
+                    println!("{}", e);
+                }
+            }*/
+            
             btn.set_sensitive(false);
             edit_mapping_btn.set_sensitive(true);
             remove_mapping_btn.set_sensitive(true);
             group_toolbar.set_sensitive(false);
-            plot_popover.update_nav_sensitive();
-            //plot_popover.update_stack();
+            // plot_popover.update_nav_sensitive();
+            // plot_popover.update_stack();
         });
     }
 
     pub fn connect_edit_mapping_clicked(
         &self,
         plot_toggle : ToggleButton,
-        plot_popover : PlotPopover,
+        // plot_popover : PlotPopover,
         pl_view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook
     ) {
@@ -564,7 +602,7 @@ impl LayoutToolbar {
             mapping_popover.hide();
             let (x, y, w, h) = PlotWorkspace::get_active_coords(&pl_view.borrow());
             tbl_nb.unselect_all_tables();
-            plot_popover.show_at(x, y, w, h);
+            // plot_popover.show_at(x, y, w, h);
             // Disable most recent toggle
             // mapping_btns.iter()
             //    .filter(|(name, btn)| &name[..] == &m[..] )
@@ -574,22 +612,22 @@ impl LayoutToolbar {
 
     pub fn connect_remove_mapping_clicked(
         &self,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_view : Rc<RefCell<PlotView>>,
-        plot_popover : PlotPopover,
+        // plot_popover : PlotPopover,
         status_stack : StatusStack,
         table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         mapping_popover : Popover,
     ) {
-        println!("Remove mapping clicked");
+        /*println!("Remove mapping clicked");
         self.mapping_popover.hide();
         self.remove_mapping_btn.connect_clicked(move |_| {
-            Self::remove_selected_mapping_page(
+            /*Self::remove_selected_mapping_page(
                 plot_popover.clone(),
                 mapping_menus.clone(),
                 plot_view.clone()
-            );
+            );*/
             tbl_nb.unselect_all_tables();
             mapping_popover.hide();
             if let Ok(mut pl) = plot_view.try_borrow_mut() {
@@ -612,7 +650,7 @@ impl LayoutToolbar {
                 println!("Unable retrieve mutable reference to plot view");
             }
             //plot_notebook.show_all();
-        });
+        });*/
     }
 
     fn set_toggled_mappings(&self, mapping_types : &[&str]) {
@@ -630,34 +668,35 @@ impl LayoutToolbar {
     fn check_mapped(
         selected : &[usize],
         tbl_ix : usize,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        sources : Rc<RefCell<Vec<DataSource>>>,
         mapping_type : Option<&str>
     ) -> Vec<SelectedMapping> {
         let mut mapped = Vec::new();
-        if let Ok(menus) = mapping_menus.try_borrow() {
-            for (i, m) in menus.iter().enumerate() {
-                if let Ok(source) = m.source.try_borrow() {
-                    if tbl_ix == source.tbl_pos.unwrap() {
-                        let len_match = selected.len() == source.tbl_ixs.len();
-                        let col_match = selected.iter()
-                            .zip(source.tbl_ixs.iter())
-                            .all(|(s, i)| *s == *i);
-                        let type_match = match mapping_type {
-                            Some(ty) => ty == &m.mapping_type[..],
-                            None => true
-                        };
-                        if len_match && col_match && type_match {
-                            mapped.push(SelectedMapping{
-                                ty : m.mapping_type.clone(),
-                                pl_ix : m.plot_ix,
-                                global_ix : i,
-                                local_ix : m.mapping_name.borrow().parse::<usize>().unwrap()
-                            });
-                        }
+        if let Ok(sources) = sources.try_borrow() {
+            for (i, source) in sources.iter().enumerate() {
+                // if let Ok(source) = m.source.try_borrow() {
+                if tbl_ix == source.tbl_pos.unwrap() {
+                    let len_match = selected.len() == source.tbl_ixs.len();
+                    let col_match = selected.iter()
+                        .zip(source.tbl_ixs.iter())
+                        .all(|(s, i)| *s == *i);
+                    let type_match = match mapping_type {
+                        Some(ty) => ty == &source.ty[..],
+                        None => true
+                    };
+                    if len_match && col_match && type_match {
+                        mapped.push(SelectedMapping{
+                            ty : source.ty.clone(),
+                            pl_ix : source.plot_ix,
+                            global_ix : i,
+                            local_ix : source.name.parse::<usize>().unwrap()
+                        });
                     }
-                } else {
-                    println!("Failed acquiring reference to data source");
                 }
+                //} else {
+                //    println!("Failed acquiring reference to data source");
+                //}
             }
         } else {
             println!("Failed acquiring reference to mapping menus (check_mapped)");
@@ -669,7 +708,7 @@ impl LayoutToolbar {
         unique_mapped : &SelectedMapping,
         selection : &Rc<RefCell<SelectionStatus>>,
         pl_view : &Rc<RefCell<PlotView>>,
-        plot_popover : &PlotPopover,
+        // plot_popover : &PlotPopover,
         group_toolbar : &GroupToolbar,
         add_mapping_btn : &ToolButton,
         edit_mapping_btn : &ToolButton,
@@ -682,10 +721,10 @@ impl LayoutToolbar {
             println!("Unable to acquire mutable reference to plot view");
             return;
         }
-        plot_popover.set_active_mapping(
+        /*plot_popover.set_active_mapping(
             unique_mapped.pl_ix,
             Some(unique_mapped.local_ix)
-        );
+        );*/
         if !group_toolbar.get_sensitive() {
             group_toolbar.set_sensitive(true);
         }
@@ -706,8 +745,9 @@ impl LayoutToolbar {
         plot_view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook,
         glade_def : Rc<HashMap<String, String>>,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_popover : PlotPopover,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        // plot_popover : PlotPopover,
+        sources : Rc<RefCell<Vec<DataSource>>>,
         status_stack : StatusStack,
         sel_mapping : Rc<RefCell<String>>,
         selection : Rc<RefCell<SelectionStatus>>,
@@ -744,22 +784,23 @@ impl LayoutToolbar {
             let edit_mapping_btn = edit_mapping_btn.clone();
             let remove_mapping_btn = remove_mapping_btn.clone();
             let tbl_nb = tbl_nb.clone();
-            let plot_popover = plot_popover.clone();
-            let mapping_menus = mapping_menus.clone();
+            // let plot_popover = plot_popover.clone();
+            // let mapping_menus = mapping_menus.clone();
             let plot_view = plot_view.clone();
             for (mapping_name, btn) in mapping_btns.iter().map(|(k, v)| (k.clone(), v.clone()) ) {
                 let add_mapping_btn = add_mapping_btn.clone();
                 let mapping_btns = mapping_btns.clone();
                 let mapping_name = mapping_name.clone();
                 let sel_mapping = sel_mapping.clone();
-                let mapping_menus = mapping_menus.clone();
+                // let mapping_menus = mapping_menus.clone();
                 let edit_mapping_btn = edit_mapping_btn.clone();
                 let remove_mapping_btn = remove_mapping_btn.clone();
-                let plot_popover = plot_popover.clone();
+                // let plot_popover = plot_popover.clone();
                 let tbl_nb = tbl_nb.clone();
                 let selection = selection.clone();
                 let group_toolbar = group_toolbar.clone();
                 let plot_view = plot_view.clone();
+                let sources = sources.clone();
                 btn.connect_toggled(move |btn| {
                     println!("{} toggled to {}", mapping_name, btn.get_active());
                     let (tbl_ix, selected_ix) = tbl_nb.selected_table_and_cols()
@@ -781,7 +822,8 @@ impl LayoutToolbar {
                     let this_mapped = Self::check_mapped(
                         &selected_ix[..],
                         tbl_ix,
-                        mapping_menus.clone(),
+                        // mapping_menus.clone(),
+                        sources.clone(),
                         Some(&mapping_name)
                     );
                     let config_ans = Self::config_toggles_sensitive(
@@ -822,7 +864,7 @@ impl LayoutToolbar {
                                         &unique_mapped,
                                         &selection,
                                         &plot_view,
-                                        &plot_popover,
+                                        // &plot_popover,
                                         &group_toolbar,
                                         &add_mapping_btn,
                                         &edit_mapping_btn,
@@ -851,7 +893,8 @@ impl LayoutToolbar {
                         let any_mapped = Self::check_mapped(
                             &selected_ix[..],
                             tbl_ix,
-                            mapping_menus.clone(),
+                            // mapping_menus.clone(),
+                            sources.clone(),
                             None
                         );
                         println!("This mapped: {:?}", this_mapped);
@@ -883,7 +926,7 @@ impl LayoutToolbar {
                                             unique_mapped,
                                             &selection,
                                             &plot_view,
-                                            &plot_popover,
+                                            // &plot_popover,
                                             &group_toolbar,
                                             &add_mapping_btn,
                                             &edit_mapping_btn,
@@ -928,7 +971,7 @@ impl LayoutToolbar {
         (mapping_btns, add_mapping_popover)
     }
 
-    /// Remove all mappings if environment was updated with new data
+    /*/// Remove all mappings if environment was updated with new data
     /// and mapping was not locked to received data.
     pub fn clear_invalid_mappings(
         plot_popover : PlotPopover,
@@ -957,9 +1000,9 @@ impl LayoutToolbar {
                 println!("{}", e);
             }
         }
-    }
+    }*/
 
-    pub fn remove_mapping_at_index(
+    /*pub fn remove_mapping_at_index(
         plot_popover : PlotPopover,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_view : Rc<RefCell<PlotView>>,
@@ -998,9 +1041,9 @@ impl LayoutToolbar {
         } else {
             Err(format!("Unable to retrieve mutable reference to mapping_menus when removing page"))
         }
-    }
+    }*/
 
-    fn remove_selected_mapping_page(
+    /*fn remove_selected_mapping_page(
         plot_popover : PlotPopover,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_view : Rc<RefCell<PlotView>>
@@ -1012,7 +1055,7 @@ impl LayoutToolbar {
         } else {
             println!("No current mapping selected");
         }
-    }
+    }*/
 
     /*pub fn set_edit_mapping_sensitive(&self, ncols : usize) -> Result<(), &'static str> {
         // TODO: Allow sensitive only when selected mapping applicable to current plot region.
@@ -1068,18 +1111,19 @@ impl LayoutToolbar {
 
     pub fn update_mapping_status(
         &self,
-        mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
-        plot_popover : &PlotPopover,
+        // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        sources : Rc<RefCell<Vec<DataSource>>>,
+        // plot_popover : &PlotPopover,
         selected : &[usize],
         tbl_ix : usize
     ) {
-        let map_len = if let Ok(mappings) = mapping_menus.try_borrow(){
-            mappings.len()
+        let map_len = if let Ok(sources) = sources.try_borrow(){
+            sources.len()
         } else {
             println!("Failed to acquire reference to mapping menus (to recover len)");
             return;
         };
-        let mapped = Self::check_mapped(&selected[..], tbl_ix, mapping_menus.clone(), None);
+        let mapped = Self::check_mapped(&selected[..], tbl_ix, sources.clone(), None);
         let types : Vec<_> = mapped.iter().map(|sel| sel.ty.as_str() ).collect();
         println!("{} elements mapped to this column set ({}) selected", mapped.len(), selected.len());
 
@@ -1095,7 +1139,7 @@ impl LayoutToolbar {
             // the edit/remove buttons will only the sensitive for the case mapped.len() == 1
             self.set_toggled_mappings(&types[..]);
 
-            plot_popover.set_active_mapping(last_mapped.pl_ix, Some(last_mapped.local_ix));
+            // plot_popover.set_active_mapping(last_mapped.pl_ix, Some(last_mapped.local_ix));
             if mapped.len() == 1 {
                 self.edit_mapping_btn.set_sensitive(true);
                 self.remove_mapping_btn.set_sensitive(true);
@@ -1145,7 +1189,7 @@ impl LayoutToolbar {
         Ok(())
     }
 
-    pub fn update_selected_mapping(
+    /*pub fn update_selected_mapping(
         &self,
         tbl_nb : TableNotebook,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
@@ -1183,7 +1227,7 @@ impl LayoutToolbar {
         } else {
             println!("Could not borrow mapping_menus");
         }
-    }
+    }*/
 
 
 }

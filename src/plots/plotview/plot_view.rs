@@ -120,10 +120,12 @@ impl PlotView {
         plot_view
     }
 
+    /// Returns information for the current active scale as a HashMap of (Property, Value).
     pub fn current_scale_info(&self, scale : &str) -> HashMap<String, String> {
         self.plot_group.scale_info(self.active_area, scale)
     }
 
+    /// For each mapping in the current active area, return a tuple with (name, type, properties).
     pub fn mapping_info(&self) -> Vec<(String, String, HashMap<String,String>)> {
         self.plot_group.mapping_info(self.active_area)
     }

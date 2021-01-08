@@ -34,7 +34,7 @@ pub struct MainMenu {
     // jobs_window : Window,
     settings_window : Window,
     pub layout_window : Window,
-    pub cmd_window : CommandWindow,
+    // pub cmd_window : CommandWindow,
     report_window : Window,
     report_btn : ModelButton,
     layout_btn : ModelButton,
@@ -104,7 +104,8 @@ impl MainMenu {
         view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook,
         tbl_env : Rc<RefCell<TableEnvironment>>,
-        editor : SqlEditor
+        editor : SqlEditor,
+        cmd_window : CommandWindow
     ) -> Self {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
         let sql_new_btn : ModelButton = builder.get_object("sql_new_btn").unwrap();
@@ -116,7 +117,6 @@ impl MainMenu {
         // let engine_window : Window = builder.get_object("engine_window").unwrap();
         let report_btn : ModelButton = builder.get_object("report_btn").unwrap();
         let report_window : Window = builder.get_object("report_window").unwrap();
-        let cmd_window = CommandWindow::build(&builder, &tbl_nb, tbl_env.clone());
         
         // Build report window
         let report_template_btn : FileChooserButton = builder.get_object("report_template_btn").unwrap();
@@ -127,6 +127,13 @@ impl MainMenu {
             report_save_btn.connect_clicked(move |_btn| {
                 report_save_win.run();
                 report_save_win.hide();
+            });
+        }
+        
+        {
+            let cmd_window = cmd_window.clone();
+            menu_run_btn.connect_clicked(move |btn| {
+                cmd_window.set_expect_input(false);
             });
         }
         
@@ -244,7 +251,7 @@ impl MainMenu {
             report_window,
             report_btn,
             // menu_run_btn,
-            cmd_window
+            // cmd_window
             // jobs_btn,
             //jobs_window
             // sql_open_dialog,

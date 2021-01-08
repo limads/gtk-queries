@@ -9,7 +9,7 @@ use super::layout_aux::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ScaleMenu {
     entry_min : Entry,
     entry_max : Entry,

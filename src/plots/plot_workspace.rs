@@ -10,28 +10,28 @@ use std::io::Read;
 use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
-use super::mapping_menu::MappingMenu;
-use super::plot_popover::*;
+use super::mapping_menu::DataSource;
+// use super::plot_popover::*;
 use std::collections::HashMap;
 use crate::utils;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
-use super::layout_window::LayoutWindow;
+use super::layout_window::{LayoutWindow, MappingTree};
 
 /// PlotWorkspace encapsulates all plotting-related widgets.
 #[derive(Clone)]
 pub struct PlotWorkspace {
-    pub design_menu : DesignMenu,
-    pub scale_menus : (ScaleMenu, ScaleMenu),
-    pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+    pub design_menu : DesignMenu, 
+    // pub mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
     pub sidebar_stack : Stack,
     pub pl_view : Rc<RefCell<PlotView>>,
-    pub plot_popover : PlotPopover,
+    // pub plot_popover : PlotPopover,
     pub layout_toolbar : LayoutToolbar,
     new_layout_btn : Button,
     glade_def : Rc<HashMap<String, String>>,
     pub layout_window : LayoutWindow,
-    pub layout_path : Rc<RefCell<Option<String>>>
+    pub layout_path : Rc<RefCell<Option<String>>>,
+    pub sources : Rc<RefCell<Vec<DataSource>>>
 }
 
 impl PlotWorkspace {
@@ -227,16 +227,15 @@ impl PlotWorkspace {
         table_toggle : ToggleButton,
         sidebar_stack : Stack,
     ) -> Self {
-        let mapping_menus = Rc::new(RefCell::new(Vec::new()));
+        // let mapping_menus = Rc::new(RefCell::new(Vec::new()));
         let design_menu = build_design_menu(&builder, pl_view.clone());
-        let scale_menus = build_scale_menus(&builder, pl_view.clone());
         let glade_def = Self::build_glade_def();
         let layout_path = Rc::new(RefCell::new(None));
         let plot_ev : EventBox = builder.get_object("plot_ev").unwrap();
         let sel_mapping = Rc::new(RefCell::new(String::new()));
-        let plot_popover = PlotPopover::new(&builder);
+        // let plot_popover = PlotPopover::new(&builder);
 
-        {
+        /*{
             let pl_view = pl_view.clone();
             let plot_popover = plot_popover.clone();
             let scale_menus = scale_menus.clone();
@@ -270,14 +269,17 @@ impl PlotWorkspace {
                 println!("After click: {:?}", info_x);
                 glib::signal::Inhibit(true)
             });
-        }
+        }*/
+        
+        let sources = Rc::new(RefCell::new(Vec::new()));
         let layout_toolbar = LayoutToolbar::build(
             builder.clone(),
             status_stack.clone(),
             sidebar_stack.clone(),
             pl_view.clone(),
-            mapping_menus.clone(),
-            plot_popover.clone(),
+            // mapping_menus.clone(),
+            // plot_popover.clone(),
+            sources.clone(),
             table_env.clone(),
             tbl_nb.clone(),
             layout_path.clone(),
@@ -288,33 +290,36 @@ impl PlotWorkspace {
         let layout_window = LayoutWindow::new(
             builder.clone(),
             pl_view.clone(),
-            mapping_menus.clone(),
-            plot_popover.mapping_stack.clone(),
+            // mapping_stack.clone(),
+            // mapping_menus.clone(),
+            // plot_popover.mapping_stack.clone(),
             layout_path.clone(),
             // design_menu.clone(),
             // scale_menus.clone(),
             layout_toolbar.group_toolbar.clone()
         );
         layout_toolbar.connect_add_mapping_clicked(
-            plot_popover.clone(),
+            // plot_popover.clone(),
             glade_def.clone(),
             table_env.clone(),
             tbl_nb.clone(),
             pl_view.clone(),
-            mapping_menus.clone(),
+            // mapping_menus.clone(),
             status_stack.clone(),
-            sel_mapping.clone()
+            sel_mapping.clone(),
+            layout_window.mapping_tree.clone(),
+            sources.clone()
         );
         layout_toolbar.connect_edit_mapping_clicked(
             plot_toggle.clone(),
-            plot_popover.clone(),
+            // plot_popover.clone(),
             pl_view.clone(),
             tbl_nb.clone()
         );
         layout_toolbar.connect_remove_mapping_clicked(
-            mapping_menus.clone(),
+            // mapping_menus.clone(),
             pl_view.clone(),
-            plot_popover.clone(),
+            // plot_popover.clone(),
             status_stack.clone(),
             table_env.clone(),
             tbl_nb.clone(),
@@ -335,46 +340,49 @@ impl PlotWorkspace {
             table_env.clone(),
             tbl_nb.clone(),
             status_stack.clone(),
-            plot_popover.clone(),
-            mapping_menus.clone(),
+            // plot_popover.clone(),
+            // mapping_menus.clone(),
             design_menu.clone(),
-            (scale_menus.0.clone(), scale_menus.1.clone()),
+            // (scale_menus.0.clone(), scale_menus.1.clone()),
             plot_toggle,
             layout_window.clone(),
             layout_path.clone(),
             (layout_window.horiz_ar_scale.clone(), layout_window.vert_ar_scale.clone()),
-            layout_toolbar.group_toolbar.clone()
+            layout_toolbar.group_toolbar.clone(),
+            layout_window.mapping_tree.clone()
         );
 
-        {
-            let mapping_menus = mapping_menus.clone();
+        // TODO this logic should be moved to a button at the bottom of all mappings
+        // at the new MappingTree structure.
+        /*{
+            // let mapping_menus = mapping_menus.clone();
             let tbl_nb = tbl_nb.clone();
             let plot_popover = plot_popover.clone();
             let layout_toolbar = layout_toolbar.clone();
             plot_popover.tbl_btn.clone().connect_clicked(move |_btn| {
                 if let Some(mapping_ix) = plot_popover.get_selected_mapping() {
-                    layout_toolbar.update_selected_mapping(tbl_nb.clone(), mapping_menus.clone(), mapping_ix);
+                    layout_toolbar.update_selected_mapping(tbl_nb.clone(), /*mapping_menus.clone()*/ mapping_ix);
                     table_toggle.set_active(true);
                 } else {
                     println!("No selected mapping");
                 }
             });
-        }
+        }*/
+        
         if let Ok(pl_view) = pl_view.try_borrow() {
             if !pl_view.parent.get_realized() {
                 // Confirm the parent has been set to visible, or else plot_popover
                 // will appear at the wrong position if the plot stack child hasn't been
                 // selected before its first appearance.
                 pl_view.parent.realize();
-                // pl_view.parent.show();
             }
         } else {
             println!("Failed acquiring reference to plot view");
         }
         let ws = Self {
             design_menu,
-            scale_menus,
-            mapping_menus,
+            // scale_menus,
+            // mapping_menus,
             sidebar_stack : sidebar_stack.clone(),
             pl_view : pl_view.clone(),
             layout_toolbar,
@@ -384,13 +392,14 @@ impl PlotWorkspace {
             // xml_load_dialog,
             layout_window,
             layout_path,
-            plot_popover
+            // plot_popover,
+            sources
         };
         ws.layout_window.connect_clear(&ws);
         ws
     }
 
-    /// Add mapping from a type string description, attributing to its
+    /*/// Add mapping from a type string description, attributing to its
     /// name the number of mappings currently used. Used when the user
     /// already selected some columns and want to create a new mapping.
     pub fn add_mapping_from_type(
@@ -414,14 +423,11 @@ impl PlotWorkspace {
                 }
             }
             format!("{}", n)
-
-            // Use global vs. local mapping index?
-            // format!("{}", menus.len())
         } else {
             println!("Unable to get reference to mapping menus");
             return;
         };
-        let menu = MappingMenu::create(
+        /*let menu = MappingMenu::create(
             glade_def.clone(),
             Rc::new(RefCell::new(name)),
             mapping_type.to_string(),
@@ -445,11 +451,11 @@ impl PlotWorkspace {
                 );
             },
             Err(e) => { println!("{}", e); return; }
-        }
-    }
+        }*/
+    }*/
 
-    pub fn clear_mapping_data(&self) -> Result<(), &'static str> {
-        match (self.pl_view.try_borrow_mut(), self.mapping_menus.try_borrow()) {
+    /*pub fn clear_mapping_data(&self) -> Result<(), &'static str> {
+        /*match (self.pl_view.try_borrow_mut(), self.mapping_menus.try_borrow()) {
             (Ok(mut pl_view), Ok(mappings)) => {
                 for m in mappings.iter() {
                     if let Err(e) = m.clear_data(&mut pl_view) {
@@ -461,10 +467,10 @@ impl PlotWorkspace {
             _ => {
                 Err("Unable to retrieve mutable reference to pl view/reference to mappings")
             }
-        }
-    }
+        }*/
+    }*/
 
-    pub fn update_mapping_widgets(
+    /*pub fn update_mapping_widgets(
         plot_view : Rc<RefCell<PlotView>>,
         mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
         plot_popover : PlotPopover,
@@ -484,7 +490,7 @@ impl PlotWorkspace {
                 Err(e) => { println!("{}", e); return; }
             };
             for m_info in new_info.iter() {
-                let menu = MappingMenu::create(
+                /*let menu = MappingMenu::create(
                     glade_def.clone(),
                     Rc::new(RefCell::new(m_info.0.clone())),
                     m_info.1.clone(),
@@ -509,11 +515,11 @@ impl PlotWorkspace {
                         );
                     },
                     Err(e) => { println!("{}", e); return; }
-                }
+                }*/
             }
         }
         plot_view.borrow_mut().change_active_area(0);
-    }
+    }*/
 
     pub fn update_mapping_data(
         &self,
@@ -522,10 +528,10 @@ impl PlotWorkspace {
     ) -> Result<(), &'static str> {
         let mut pl = self.pl_view.try_borrow_mut()
             .map_err(|_| "Could not get mutable reference to plot view")?;
-        let menus = self.mapping_menus.try_borrow()
-            .map_err(|_| "Could not get reference to mapping menus" )?;
-        for m in menus.iter() {
-            if let Err(e) = m.update_data(t_env, &mut pl) {
+        //let menus = self.mapping_menus.try_borrow()
+        //    .map_err(|_| "Could not get reference to mapping menus" )?;
+        for source in self.sources.borrow().iter() {
+            if let Err(e) = Self::update_data(&source, t_env, &mut pl) {
                 status_stack.update(Status::SqlErr(format!("{}", e)));
                 return Err("Error updating mappings");
             }
@@ -534,7 +540,7 @@ impl PlotWorkspace {
         Ok(())
     }
 
-    fn append_mapping_menu(
+    /*fn append_mapping_menu(
         m : MappingMenu,
         mappings : Rc<RefCell<Vec<MappingMenu>>>,
         plot_popover : PlotPopover,
@@ -580,7 +586,7 @@ impl PlotWorkspace {
                 println!("Unable to retrieve mutable reference to plot view|data source");
             }
         }
-    }
+    }*/
 
     /// Clear mappings and layout to the first (unique) layout
     pub fn clear(&self) {
@@ -606,15 +612,15 @@ impl PlotWorkspace {
         } else {
             return Err("Unable to borrow plotview when clearing mappings");
         }
-        Self::clear_mapping_widgets(
+        /*Self::clear_mapping_widgets(
             self.mapping_menus.clone(),
             self.plot_popover.mapping_stack.clone()
-        )?;
-        self.plot_popover.clear();
+        )?;*/
+        // self.plot_popover.clear();
         Ok(())
     }
 
-    /// Erases all mapping widgets. Should be called
+    /*/// Erases all mapping widgets. Should be called
     /// at the moment a new layout should be loaded (at self.clear) or else
     /// the widgets will be in an invalid state with the XML.
     pub fn clear_mapping_widgets(
@@ -632,6 +638,111 @@ impl PlotWorkspace {
         } else {
             Err("Could not fetch mutable reference to mapping menus before clearing them")
         }
+    }*/
+    
+    pub fn update_source(source : &mut DataSource, new_ixs : Vec<usize>, t_env : &TableEnvironment) -> Result<(), &'static str> {   
+        if !t_env.preserved_since(source.hist_ix) {
+            source.valid = false;
+            println!("History index for current mapping: {}", source.hist_ix);
+            return Err("Environment was updated and data is no longer available");
+        }
+        source.ixs.clear();
+        source.ixs.extend(new_ixs.clone());
+        let (col_names, tbl_ix, query) = t_env.get_column_names(&new_ixs[..])
+            .ok_or("Unable to retrieve table data")?;
+        // for (name, lbl) in source.col_names.iter().zip(self.column_labels.iter()) {
+        //    lbl.set_text(&name[..]);
+        // }
+        source.col_names = col_names;
+        source.query = query;
+        source.tbl_pos = Some(tbl_ix);
+        source.hist_ix = t_env.current_hist_index();
+        source.valid = true;
+        if let Some((_, new_tbl_ixs)) = t_env.global_to_tbl_ix(&new_ixs[..]) {
+            source.tbl_ixs.clear();
+            source.tbl_ixs.extend(new_tbl_ixs);
+        } else {
+            return Err("Failed to convert global to local indices");
+        }
+        println!("Column names : {:?}", source.col_names);
+        println!("Linear indices : {:?}", source.ixs);
+        println!("Table indices : {:?}", source.tbl_ixs);
+        println!("History index : {:?}", source.hist_ix);
+        Ok(())
+    }
+    
+    /// Updates data from a table enviroment and the saved column indices.
+    pub fn update_data(
+        source : &DataSource,
+        t_env : &TableEnvironment, 
+        pl_view : &mut PlotView
+    ) -> Result<(), &'static str> {
+        let selected = source.ixs.clone();
+        if selected.len() == 0 {
+            println!("No data for current mapping");
+            return Ok(())
+        }
+        let (cols, _, query) = t_env.get_columns(&selected[..]).unwrap();
+        //let name = self.get_mapping_name()
+        //    .map(|n| n.clone())
+        //    .ok_or("Unable to get mapping name")?;
+        let pos0 = cols.try_numeric(0)
+            .ok_or("Error mapping column 1 to position")?;
+        // let col_names : Vec<_> = cols.names().iter()
+        //    .map(|n| n.to_string())
+        //    .collect();
+        pl_view.update(&mut UpdateContent::ColumnNames(source.name.clone(), source.col_names.clone()));
+        pl_view.update(&mut UpdateContent::Source(source.name.clone(), query));
+        match &source.ty[..] {
+            "text" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to position")?;
+                if let Some(c) = cols.try_access::<String>(2) {
+                    let vec_txt = Vec::from(c);
+                    pl_view.update(&mut UpdateContent::TextData(
+                        source.name.clone(),
+                        vec![pos0, pos1],
+                        vec_txt
+                    ));
+                } else {
+                    return Err("Error setting third column to text");
+                }
+            },
+            "line" | "scatter" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error retrieving second column to position")?;
+                pl_view.update(&mut UpdateContent::Data(
+                    source.name.clone(),
+                    vec![pos0, pos1]
+                ));
+            },
+            "bar" => {
+                pl_view.update(&mut UpdateContent::Data(
+                    source.name.clone(),
+                    vec![pos0]
+                ));
+            },
+            "area" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
+                let pos2 = cols.try_numeric(2).ok_or("Error mapping column 3 to y superior limit")?;
+                pl_view.update(&mut UpdateContent::Data(
+                    source.name.clone(),
+                    vec![pos0, pos1, pos2]
+                ));
+            },
+            "surface" => {
+                let pos1 = cols.try_numeric(1).ok_or("Error mapping column 2 to y inferior limit")?;
+                let density = cols.try_numeric(2).ok_or("Error mapping column 3 to density")?;
+                pl_view.update(&mut UpdateContent::Data(
+                    source.name.clone(),
+                    vec![pos0, pos1, density]
+                ));
+            },
+            mapping => {
+                println!("Informed mapping: {}", mapping);
+                return Err("Invalid mapping type");
+            }
+        }
+        // self.set_sensitive(true);
+        Ok(())
     }
 
 

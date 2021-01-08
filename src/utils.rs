@@ -12,6 +12,8 @@ use std::path::Path;
 use std::io::{Read, Write, Seek, SeekFrom};
 use crate::tables::table::Table;
 use crate::status_stack::{Status, StatusStack};
+use glib::{types::Type, value::{Value, ToValue}};
+use gdk_pixbuf::Pixbuf;
 
 #[derive(Debug)]
 struct InnerList {
@@ -258,4 +260,26 @@ pub fn break_string(content : &mut String, line_length : usize) {
             break_next = false;
         }
     }
+}
+
+pub fn configure_tree_view(tree_view : &TreeView) -> TreeStore {
+    let model = TreeStore::new(&[Pixbuf::static_type(), Type::String]);
+    tree_view.set_model(Some(&model));
+    let pix_renderer = CellRendererPixbuf::new();
+    pix_renderer.set_property_height(24);
+    let txt_renderer = CellRendererText::new();
+    txt_renderer.set_property_height(24);
+
+    let pix_col = TreeViewColumn::new();
+    pix_col.pack_start(&pix_renderer, false);
+    pix_col.add_attribute(&pix_renderer, "pixbuf", 0);
+
+    let txt_col = TreeViewColumn::new();
+    txt_col.pack_start(&txt_renderer, true);
+    txt_col.add_attribute(&txt_renderer, "text", 1);
+
+    tree_view.append_column(&pix_col);
+    tree_view.append_column(&txt_col);
+    tree_view.set_show_expanders(true);
+    model
 }

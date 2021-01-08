@@ -24,6 +24,7 @@ use gtk_queries::file_list::FileList;
 use gtk_queries::schema_tree::SchemaTree;
 use gtk_queries::table_popover::TablePopover;
 use gtk_queries::header_toggle::HeaderToggle;
+use gtk_queries::command::CommandWindow;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -37,7 +38,8 @@ pub struct QueriesApp {
     main_menu : MainMenu,
     plot_workspace : PlotWorkspace,
     schema_tree : SchemaTree,
-    table_popover : TablePopover
+    table_popover : TablePopover,
+    cmd_window : CommandWindow
 }
 
 /*fn adjust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
@@ -166,14 +168,25 @@ impl QueriesApp {
             sidebar_stack.clone()
         );
 
+        let cmd_window = CommandWindow::build(&builder, &tables_nb, table_env.clone());
+        
         let table_popover : TablePopover = TablePopover::build(
             &builder,
             plot_workspace.clone(),
             table_env.clone(),
             tables_nb.clone(),
-            status_stack.clone()
+            status_stack.clone(),
+            cmd_window.clone()
         );
 
+        cmd_window.connect_wait_command(
+            table_env.clone(), 
+            table_popover.clone(), 
+            plot_workspace.clone(), 
+            tables_nb.clone(), 
+            status_stack.clone()
+        );
+        
         /*{
             let table_popover = table_popover.clone();
             window.connect_set_focus(move |_child, _win| {
@@ -308,11 +321,11 @@ impl QueriesApp {
                 if query_toggle.get_active() {
                     table_toggle.set_active(true);
                 }
-                LayoutToolbar::clear_invalid_mappings(
+                /*LayoutToolbar::clear_invalid_mappings(
                     workspace.plot_popover.clone(),
                     workspace.mapping_menus.clone(),
                     workspace.pl_view.clone()
-                );
+                );*/
                 Ok(())
             };
             sql_editor.connect_result_arrived(schema_tree.clone(), f);
@@ -326,7 +339,8 @@ impl QueriesApp {
             plot_workspace.pl_view.clone(),
             tables_nb.clone(),
             table_env.clone(),
-            sql_editor.clone()
+            sql_editor.clone(),
+            cmd_window.clone()
         );
         plot_workspace.layout_window.connect_window_show(
             &main_menu.layout_window,
@@ -343,7 +357,8 @@ impl QueriesApp {
             main_menu,
             plot_workspace,
             schema_tree,
-            table_popover
+            table_popover,
+            cmd_window
         }
     }
 

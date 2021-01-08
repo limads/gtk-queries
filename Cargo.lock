@@ -188,7 +188,8 @@ dependencies = [
  "cc",
  "csv",
  "either",
- "nalgebra 0.22.1",
+ "nalgebra 0.23.2",
+ "num-traits",
  "petgraph",
  "postgres 0.17.5",
  "rand",
@@ -196,7 +197,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "simba 0.1.5",
+ "simba 0.3.1",
  "sqlparser 0.5.1",
  "structopt",
  "thiserror",
@@ -317,9 +318,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.61"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed67cbde08356238e75fc4656be4749481eeffb09e19f320a25237d5221c985d"
+checksum = "4c0496836a84f8d0495758516b8621a622beb77c0fed418570e50764093ced48"
 dependencies = [
  "jobserver",
 ]
@@ -1375,7 +1376,7 @@ dependencies = [
 name = "morlet"
 version = "0.0.1"
 dependencies = [
- "nalgebra 0.23.0",
+ "nalgebra 0.23.2",
  "simba 0.3.1",
 ]
 
@@ -1418,9 +1419,9 @@ dependencies = [
 
 [[package]]
 name = "nalgebra"
-version = "0.23.0"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02f2c3d9ba22f24e44de8652a9745d5985ce158a5081b04e7e75a5091ba7ac43"
+checksum = "c9bd52e9c9922d5702d5c2a105ceacc3c1206e781d3d130f4d2b7ad5f43c144b"
 dependencies = [
  "approx 0.4.0",
  "generic-array 0.14.4",
@@ -1430,6 +1431,7 @@ dependencies = [
  "num-traits",
  "rand",
  "rand_distr 0.3.0",
+ "serde",
  "simba 0.3.1",
  "typenum",
 ]
@@ -1509,6 +1511,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05ad05bd8977050b171b3f6b48175fea6e0565b7981059b486075e1026a9fb5"
 dependencies = [
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -1557,9 +1560,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.12"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
  "libm",

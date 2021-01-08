@@ -147,7 +147,9 @@ impl PlotGroup {
             .cloned()
             .expect("No dimensions node");
         let set_new = |node : &Node, name : &str, value : usize| {
-            match node.findnodes(name) {
+            println!("Searching for {}", name);
+            println!("At {:?}", node.get_child_nodes().iter().map(|c| c.get_property("name")).collect::<Vec<_>>() );
+            match node.findnodes(&format!("property[@name='{}']", name)) {
                 Ok(mut props) => {
                     if let Some(p) = props.iter_mut().next() {
                         if let Err(e) = p.set_content(&(value.to_string())) {

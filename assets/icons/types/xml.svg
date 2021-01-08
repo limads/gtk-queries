@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
@@ -11,10 +9,10 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="16"
    height="16"
-   viewBox="0 0 4.2333333 4.2333335"
+   viewBox="0 0 4.2333332 4.2333335"
    version="1.1"
    id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+   inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)"
    sodipodi:docname="xml.svg">
   <defs
      id="defs2" />
@@ -25,18 +23,20 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="31.678384"
-     inkscape:cx="1.5351395"
-     inkscape:cy="4.059449"
+     inkscape:zoom="15.839192"
+     inkscape:cx="29.94382"
+     inkscape:cy="15.020372"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
      showgrid="false"
      units="px"
      inkscape:window-width="1920"
      inkscape:window-height="1016"
      inkscape:window-x="0"
      inkscape:window-y="27"
-     inkscape:window-maximized="1" />
+     inkscape:window-maximized="1"
+     showguides="false" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -52,19 +52,18 @@
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1"
-     transform="translate(0,-292.76665)">
+     id="layer1">
     <text
        xml:space="preserve"
-       style="font-style:normal;font-weight:normal;font-size:5.53434944px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.13835873"
-       x="-0.14494205"
-       y="240.73386"
+       style="font-style:normal;font-weight:normal;font-size:2.82222px;line-height:1;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.135741"
+       x="-0.27163535"
+       y="2.561928"
        id="text817"
        transform="scale(0.81346605,1.2293076)"><tspan
          sodipodi:role="line"
          id="tspan815"
-         x="-0.14494205"
-         y="240.73386"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.69177413px;font-family:Sans;-inkscape-font-specification:Sans;fill:#3d3d3d;fill-opacity:1;stroke-width:0.13835873">&lt;/&gt;</tspan></text>
+         x="-0.27163535"
+         y="2.561928"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:2.82222px;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#3d3d3d;fill-opacity:1;stroke-width:0.135741">&lt;/&gt;</tspan></text>
   </g>
 </svg>

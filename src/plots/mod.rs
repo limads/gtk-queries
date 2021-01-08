@@ -12,7 +12,7 @@ pub mod plotview;
 
 pub mod layout_toolbar;
 
-pub mod plot_popover;
+// pub mod plot_popover;
 
 pub mod plot_workspace;
 

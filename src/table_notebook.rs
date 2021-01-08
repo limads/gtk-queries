@@ -178,10 +178,10 @@ impl TableNotebook {
         // Right-click events
         {
             let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
-            let mapping_menus = workspace.mapping_menus.clone();
+            // let mapping_menus = workspace.mapping_menus.clone();
             let layout_toolbar = workspace.layout_toolbar.clone();
-            let plot_popover = workspace.plot_popover.clone();
-
+            // let plot_popover = workspace.plot_popover.clone();
+            let sources = workspace.sources.clone(); 
             // Assume the table is static at the same position through all calls of
             // set_selected_action. This is valid because for now the whole table
             // environment is cleared when there are any query changes. Note we use
@@ -195,8 +195,9 @@ impl TableNotebook {
                 if selected.iter().find(|s| **s == curr).is_some() {
                     mapping_popover.set_relative_to(Some(ev_bx));
                     layout_toolbar.update_mapping_status(
-                        mapping_menus.clone(),
-                        &plot_popover,
+                        // mapping_menus.clone(),
+                        // &plot_popover,
+                        sources.clone(),
                         &selected,
                         curr_tbl_ix
                     );
