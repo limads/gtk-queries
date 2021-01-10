@@ -18,6 +18,7 @@ use crate::plots::plotview::plot_view::PlotView;
 use crate::utils;
 use crate::report;
 use crate::command::CommandWindow;
+use crate::plots::layout_window::LayoutWindow;
 
 #[derive(Clone, Debug)]
 pub struct MainMenu {
@@ -33,7 +34,6 @@ pub struct MainMenu {
     // jobs_btn : ModelButton,
     // jobs_window : Window,
     settings_window : Window,
-    pub layout_window : Window,
     // pub cmd_window : CommandWindow,
     report_window : Window,
     report_btn : ModelButton,
@@ -105,7 +105,8 @@ impl MainMenu {
         tbl_nb : TableNotebook,
         tbl_env : Rc<RefCell<TableEnvironment>>,
         editor : SqlEditor,
-        cmd_window : CommandWindow
+        cmd_window : CommandWindow,
+        layout_window : LayoutWindow
     ) -> Self {
         let main_menu : PopoverMenu = builder.get_object("main_menu").unwrap();
         let sql_new_btn : ModelButton = builder.get_object("sql_new_btn").unwrap();
@@ -163,14 +164,13 @@ impl MainMenu {
         
         //let jobs_window : Window = builder.get_object("jobs_window").unwrap();
         let settings_window : Window = builder.get_object("settings_window").unwrap();
-        let layout_window : Window = builder.get_object("layout_window").unwrap();
         let sql_save_btn : ModelButton = builder.get_object("sql_save_btn").unwrap();
         let sql_open_btn : ModelButton = builder.get_object("sql_open_btn").unwrap();
         // engine_window.set_destroy_with_parent(false);
         // settings_window.set_destroy_with_parent(false);
         // utils::link_window(engine_btn.clone(), engine_window.clone());
         utils::link_window(settings_btn.clone(), settings_window.clone());
-        utils::link_window(layout_btn.clone(), layout_window.clone());
+        utils::link_window(layout_btn.clone(), layout_window.win.clone());
         utils::link_window(report_btn.clone(), report_window.clone());
         utils::link_window(menu_run_btn.clone(), cmd_window.win.clone());
 
@@ -241,7 +241,7 @@ impl MainMenu {
             // engine_window,
             settings_btn,
             settings_window,
-            layout_window,
+            // layout_window,
             layout_btn,
             sql_open_btn,
             sql_new_btn,

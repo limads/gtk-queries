@@ -313,6 +313,7 @@ impl PlotWorkspace {
         layout_toolbar.connect_edit_mapping_clicked(
             plot_toggle.clone(),
             // plot_popover.clone(),
+            layout_window.clone(),
             pl_view.clone(),
             tbl_nb.clone()
         );
@@ -324,6 +325,8 @@ impl PlotWorkspace {
             table_env.clone(),
             tbl_nb.clone(),
             layout_toolbar.mapping_popover.clone(),
+            layout_window.mapping_tree.clone(),
+            sources.clone()
         );
         let new_layout_btn = Self::build_layout_new_btn(
             builder.clone(),

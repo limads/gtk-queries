@@ -10,7 +10,6 @@ use super::design_menu::*;
 use super::scale_menu::*;
 use super::layout_toolbar::*;
 use super::mapping_menu::*;
-// use super::plot_popover::*;
 use std::collections::HashMap;
 use crate::table_notebook::TableNotebook;
 use crate::status_stack::*;
@@ -62,7 +61,8 @@ pub struct LayoutWindow {
     pub vert_ar_scale : Scale,
     dim_combo : ComboBoxText,
     layout_list_box : ListBox,
-    pub mapping_tree : MappingTree
+    pub mapping_tree : MappingTree,
+    pub win : Window
 }
 
 /*#[derive(Debug, Clone)]
@@ -161,7 +161,7 @@ impl MappingTree {
                 } else {
                     println!("Unable to borrow plot view");
                 }
-            }); 
+            });
         }
         
         Self { 
@@ -180,12 +180,17 @@ impl MappingTree {
         }
     }
     
-    pub fn append_mapping(&self, subplot : usize, ty : &str, name : &str) {
-    
+    pub fn append_mapping(&self, subplot : usize, ty : &str, props : &HashMap<String, String>) {
+        let iter = self.model.iter_nth_child(None, subplot as i32).unwrap();
+        let mapping_pos = self.model.append(Some(&iter));
+        self.insert_mapping_row(ty, &props, &mapping_pos);
     }
     
-    pub fn remove_mapping(&self, name : &str, ty : &str) {
-    
+    pub fn remove_mapping(&self, subplot : usize, mapping_ix : usize) {
+        let top = self.model.iter_nth_child(None, subplot as i32).unwrap();
+        let iter = self.model.iter_nth_child(Some(&top), mapping_ix as i32).unwrap();
+        self.model.remove(&iter);
+        self.tree_view.show_all();
     }
     
     fn load_mapping_icons() -> HashMap<String, Pixbuf> {
@@ -221,12 +226,26 @@ impl MappingTree {
         mapping_icons
     }
     
+    fn insert_mapping_row(&self, ty : &str, props : &HashMap<String,String>, mapping_pos : &TreeIter) {
+        let mapping_name = match &ty[..] {
+            "area" => format!("{} x {} x {}", props["x"], props["ymin"], props["ymax"]), 
+            "text" => format!("{} x {} x {}", props["x"], props["y"], props["text"]),
+            "surface" => format!("{} x {} x {}", props["x"], props["y"], props["z"]),
+            "bar" => format!("{}", props["height"]),
+            _ => format!("{} x {}", props["x"], props["y"])
+        };
+        self.model.set(&mapping_pos, &[0, 1], &[&self.icons[&ty[..]], &mapping_name.to_value()]);
+        self.tree_view.show_all();
+    }
+    
     pub fn repopulate(&self, pl_view : Rc<RefCell<PlotView>>) {
         self.clear();
         if let Ok(mut pl) = pl_view.try_borrow_mut() {
             let split = pl.group_split();
             self.reset_subplots(&split);
             let mut curr_subplot = 0;
+            
+            // Iterate over subplots (set at reset_subplots) and add all mappings for each one.
             self.model.foreach(move |model, path, iter| {
                 let is_subplot_node = path.get_indices().len() == 1;
                 if is_subplot_node {
@@ -234,14 +253,7 @@ impl MappingTree {
                     let info = pl.mapping_info();
                     for (name, ty, props) in info {
                         let mapping_pos = self.model.append(Some(iter));
-                        let mapping_name = match &ty[..] {
-                            "area" => format!("{} x {} x {}", props["x"], props["ymin"], props["ymax"]), 
-                            "text" => format!("{} x {} x {}", props["x"], props["y"], props["text"]),
-                            "surface" => format!("{} x {} x {}", props["x"], props["y"], props["z"]),
-                            "bar" => format!("{}", props["height"]),
-                            _ => format!("{} x {}", props["x"], props["y"])
-                        };
-                        self.model.set(&mapping_pos, &[0, 1], &[&self.icons[&ty[..]], &mapping_name.to_value()])
+                        let mapping_name = self.insert_mapping_row(&ty, &props, &mapping_pos);
                     }
                     curr_subplot += 1;
                 }
@@ -250,6 +262,7 @@ impl MappingTree {
         } else {
             println!("Unable to mutably borrow plot view");
         }
+        self.tree_view.expand_all();
         self.tree_view.show_all();
     }
     
@@ -309,6 +322,13 @@ impl MappingTree {
         self.tree_view.show_all();
     }
     
+    pub fn set_selected(&self, plot_ix : usize, mapping_ix : usize) {
+        println!("Indices: [{}, {}]", plot_ix, mapping_ix);
+        let selection = self.tree_view.get_selection();
+        let path = TreePath::from_indicesv(&[plot_ix as i32, mapping_ix as i32]);
+        selection.select_path(&path);
+    }
+    
     /*pub fn update_mapping_widgets(&self, plot_view : Rc<RefCell<PlotView>>) {
         let n_plots = plot_view.borrow().n_plots();
         for plot_ix in 0..n_plots {
@@ -359,10 +379,10 @@ impl LayoutWindow {
         }
     }
 
-    pub fn connect_window_show(&self, win : &Window, layout_path : Rc<RefCell<Option<String>>>) {
+    pub fn connect_window_show(&self, /*win : &Window,*/ layout_path : Rc<RefCell<Option<String>>>) {
         let file_combo = self.file_combo.clone();
         let recent = self.recent.clone();
-        win.connect_show(move |_| {
+        self.win.connect_show(move |_| {
             Self::update_recent_paths(
                 file_combo.clone(),
                 &recent,
@@ -485,9 +505,9 @@ impl LayoutWindow {
         layout_path : Rc<RefCell<Option<String>>>,
         layout_group_toolbar : GroupToolbar
     ) -> LayoutWindow {
+        let win : Window = builder.get_object("layout_window").unwrap();
         let mapping_tree = MappingTree::build(&builder, plot_view.clone());
         let layout_list_box : ListBox = builder.get_object("layout_list_box").unwrap();
-        
         let dim_combo : ComboBoxText = builder.get_object("dim_combo").unwrap();
         /*dim_combo.append(Some("0"), "480 x 320");
         dim_combo.append(Some("1"), "800 x 600");
@@ -758,7 +778,8 @@ impl LayoutWindow {
             horiz_ar_scale,
             vert_ar_scale,
             dim_combo,
-            mapping_tree
+            mapping_tree,
+            win
             // layout_width_entry,
             // layout_height_entry
         }

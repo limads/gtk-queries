@@ -20,6 +20,7 @@ use crate::status_stack::*;
 use crate::plots::plot_workspace::PlotWorkspace;
 use super::layout_window::MappingTree;
 use super::mapping_menu::DataSource;
+use crate::plots::layout_window::LayoutWindow;
 
 #[derive(Clone, Debug)]
 pub struct SelectedMapping {
@@ -63,6 +64,7 @@ pub struct LayoutToolbar {
     selection : Rc<RefCell<SelectionStatus>>
 }
 
+/// Represents which toogle will be used to decide the plot layout when inserting/editing.
 #[derive(Clone, Debug)]
 pub struct GroupToolbar {
     pub layout_stack : Stack,
@@ -542,8 +544,7 @@ impl LayoutToolbar {
             
             if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
                 pl_view.set_active_area(active_area);
-                let name = (pl_view.mapping_info().len() + 1).to_string();
-                mapping_tree.append_mapping(active_area, &ty[..], &name);
+                let name = pl_view.mapping_info().len().to_string();
                 let mut source : DataSource = Default::default();
                 source.name = name.to_string();
                 source.ty = ty.to_string();
@@ -554,6 +555,9 @@ impl LayoutToolbar {
                     ty.to_string(),
                     active_area
                 ));
+                let info = pl_view.mapping_info();
+                let (_, _, last_inserted_info) = info.last().clone().unwrap();
+                mapping_tree.append_mapping(active_area, &ty[..], last_inserted_info);
                 if let Ok(t_env) = table_env.try_borrow() {
                     PlotWorkspace::update_source(&mut source, tbl_nb.full_selected_cols(), &t_env)
                         .map_err(|e| format!("{}", e) );
@@ -593,15 +597,33 @@ impl LayoutToolbar {
         &self,
         plot_toggle : ToggleButton,
         // plot_popover : PlotPopover,
+        layout_window : LayoutWindow,
         pl_view : Rc<RefCell<PlotView>>,
         tbl_nb : TableNotebook
     ) {
         let mapping_popover = self.mapping_popover.clone();
+        let selection = self.selection.clone();
         self.edit_mapping_btn.connect_clicked(move |btn| {
             plot_toggle.set_active(true);
             mapping_popover.hide();
-            let (x, y, w, h) = PlotWorkspace::get_active_coords(&pl_view.borrow());
             tbl_nb.unselect_all_tables();
+            if layout_window.win.get_visible() {
+                layout_window.win.grab_focus();
+            } else {
+                layout_window.win.show();
+            }
+            
+            if let Ok(sel) = selection.try_borrow() {
+                if let SelectionStatus::Single(sel) = sel.clone() {
+                    layout_window.mapping_tree.set_selected(sel.pl_ix, sel.local_ix);    
+                } else {
+                    println!("Selection status is not single");
+                }
+            } else {
+                println!("Unable to borrow selection status");
+            }
+            
+            // let (x, y, w, h) = PlotWorkspace::get_active_coords(&pl_view.borrow());
             // plot_popover.show_at(x, y, w, h);
             // Disable most recent toggle
             // mapping_btns.iter()
@@ -619,17 +641,49 @@ impl LayoutToolbar {
         table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         mapping_popover : Popover,
+        mapping_tree : MappingTree,
+        sources : Rc<RefCell<Vec<DataSource>>>,
     ) {
         /*println!("Remove mapping clicked");
-        self.mapping_popover.hide();
+        self.mapping_popover.hide();*/
+        let selection = self.selection.clone();
         self.remove_mapping_btn.connect_clicked(move |_| {
+            if let Ok(sel) = selection.try_borrow() {
+                if let SelectionStatus::Single(sel) = sel.clone() {
+                    mapping_tree.remove_mapping(sel.pl_ix, sel.local_ix);
+                    if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                        pl_view.update(&mut UpdateContent::RemoveMapping(
+                            sel.pl_ix,
+                            sel.local_ix.to_string()
+                        ));
+                    } else {
+                        println!("Unable to borrow plot view");
+                    }
+                    tbl_nb.unselect_all_tables();
+                    if let Ok(mut sources) = sources.try_borrow_mut() {
+                        let rem_pos = sources.iter().position(|source| {
+                            let is_plot = source.plot_ix == sel.pl_ix; 
+                            let is_mapping = source.name.parse::<usize>().unwrap() == sel.local_ix;
+                            is_plot && is_mapping
+                        }).unwrap();
+                        sources.remove(rem_pos);
+                    } else {
+                        println!("Unable to borrow data sources");            
+                    }    
+                } else {
+                    println!("Selection status is not single");
+                }
+            } else {
+                println!("Unable to borrow selection status");
+            }
+            
             /*Self::remove_selected_mapping_page(
                 plot_popover.clone(),
                 mapping_menus.clone(),
                 plot_view.clone()
             );*/
-            tbl_nb.unselect_all_tables();
-            mapping_popover.hide();
+            
+            /*mapping_popover.hide();
             if let Ok(mut pl) = plot_view.try_borrow_mut() {
                 if let Ok(t_env) = table_env.try_borrow() {
                     if let Ok(menus) = mapping_menus.try_borrow() {
@@ -649,8 +703,8 @@ impl LayoutToolbar {
             } else {
                 println!("Unable retrieve mutable reference to plot view");
             }
-            //plot_notebook.show_all();
-        });*/
+            //plot_notebook.show_all();*/
+        });
     }
 
     fn set_toggled_mappings(&self, mapping_types : &[&str]) {

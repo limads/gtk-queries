@@ -59,7 +59,7 @@ pub struct LineMenu {
 impl LineMenu {
 
     pub fn build(builder : &Builder) -> Self {
-        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let color_btn : ColorButton = builder.get_object("line_color_btn").unwrap();
         let width_scale : Scale = builder.get_object("line_width_scale").unwrap();
         let dash_scale : Scale = builder.get_object("line_dash_scale").unwrap();
         Self { color_btn, width_scale, dash_scale }
@@ -148,7 +148,7 @@ pub struct AreaMenu {
 impl AreaMenu {
 
     pub fn build(builder : &Builder) -> Self {
-        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let color_btn : ColorButton = builder.get_object("area_color_btn").unwrap();
         let opacity_scale : Scale = builder.get_object("area_opacity_scale").unwrap();
         Self { color_btn, opacity_scale }
     }
@@ -193,7 +193,7 @@ pub struct BarMenu {
 impl BarMenu {
 
     pub fn build(builder : &Builder) -> Self {
-        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let color_btn : ColorButton = builder.get_object("bar_color_btn").unwrap();
         let anchor_switch : Switch = builder.get_object("bar_anchor_switch").unwrap();
         let horizontal_switch : Switch = builder.get_object("bar_horizontal_switch").unwrap();
         let width_scale : Scale = builder.get_object("bar_width_scale").unwrap();
@@ -289,7 +289,7 @@ pub struct SurfaceMenu {
 impl SurfaceMenu {
 
     pub fn build(builder : &Builder) -> Self {
-        let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
+        let color_btn : ColorButton = builder.get_object("surface_color_btn").unwrap();
         let opacity_scale : Scale = builder.get_object("surface_opacity_scale").unwrap();
         let final_color_btn : ColorButton = builder.get_object("surface_color_final_btn").unwrap();
         let surface_baseline_entry : Entry = builder.get_object("surface_baseline_entry").unwrap();

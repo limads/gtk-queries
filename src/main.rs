@@ -340,10 +340,11 @@ impl QueriesApp {
             tables_nb.clone(),
             table_env.clone(),
             sql_editor.clone(),
-            cmd_window.clone()
+            cmd_window.clone(),
+            plot_workspace.layout_window.clone()
         );
         plot_workspace.layout_window.connect_window_show(
-            &main_menu.layout_window,
+            // &plot_workspace.layout_window.win,
             plot_workspace.layout_path.clone()
         );
         Self {
@@ -453,7 +454,7 @@ fn build_ui(app: &gtk::Application) {
         // let paned_pos = queries_app.paned_pos.clone();
         let mapping_popover = queries_app.plot_workspace.layout_toolbar.mapping_popover.clone();
         // let table_popover = queries_app.table_popover.clone();
-        //let plot_notebook = queries_app.plot_sidebar.notebook.clone();
+        // let plot_notebook = queries_app.plot_sidebar.notebook.clone();
 
         win.connect_key_release_event(move |_win, ev_key| {
 
