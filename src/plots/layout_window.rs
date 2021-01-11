@@ -62,7 +62,8 @@ pub struct LayoutWindow {
     dim_combo : ComboBoxText,
     layout_list_box : ListBox,
     pub mapping_tree : MappingTree,
-    pub win : Window
+    pub win : Window,
+    pub layout_stack : Stack
 }
 
 /*#[derive(Debug, Clone)]
@@ -73,7 +74,7 @@ pub struct MappingRow {
 #[derive(Debug, Clone)]
 pub struct MappingTree {
     icons : HashMap<String, Pixbuf>,
-    tree_view : TreeView,
+    pub tree_view : TreeView,
     model : TreeStore,
     stack : Stack,
     // rows : Vec<ListBoxRow>,
@@ -324,9 +325,11 @@ impl MappingTree {
     
     pub fn set_selected(&self, plot_ix : usize, mapping_ix : usize) {
         println!("Indices: [{}, {}]", plot_ix, mapping_ix);
-        let selection = self.tree_view.get_selection();
+        // let selection = self.tree_view.get_selection();
         let path = TreePath::from_indicesv(&[plot_ix as i32, mapping_ix as i32]);
-        selection.select_path(&path);
+        // selection.select_path(&path);
+        let no_col : Option<&TreeViewColumn> = None;
+        self.tree_view.set_cursor(&path, no_col, false);
     }
     
     /*pub fn update_mapping_widgets(&self, plot_view : Rc<RefCell<PlotView>>) {
@@ -779,7 +782,8 @@ impl LayoutWindow {
             vert_ar_scale,
             dim_combo,
             mapping_tree,
-            win
+            win,
+            layout_stack
             // layout_width_entry,
             // layout_height_entry
         }

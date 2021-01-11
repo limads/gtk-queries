@@ -37,7 +37,7 @@ pub struct SelectedMapping {
 #[derive(Clone, Debug)]
 pub enum SelectionStatus {
 
-    // Carries the new plot index and new mapping name
+    // Carries the new plot index and new mapping type
     New(usize, String),
 
     // Carries the selected plot index, global mapping index
@@ -518,6 +518,7 @@ impl LayoutToolbar {
         let remove_mapping_btn = self.remove_mapping_btn.clone();
         let mapping_btns = self.mapping_btns.clone();
         let group_toolbar = self.group_toolbar.clone();
+        let selection = self.selection.clone();
         self.add_mapping_btn.connect_clicked(move|btn| {
             println!("Group toolbar active area = {:?}", group_toolbar.get_active_area());
             let active_area = if let Some(active) = group_toolbar.get_active_area() {
@@ -564,6 +565,18 @@ impl LayoutToolbar {
                     PlotWorkspace::update_data(&source, &t_env, &mut pl_view)
                         .map_err(|e| format!("{}", e) );
                     sources.borrow_mut().push(source);
+                }
+                
+                // As soon as a new plot is added, it becomes the unique selection.
+                if let Ok(mut sel) = selection.try_borrow_mut() {
+                    *sel = SelectionStatus::Single(SelectedMapping {
+                        ty : ty.to_string(),
+                        pl_ix : active_area,
+                        local_ix : sources.borrow().len() - 1,
+                        global_ix : info.len() - 1
+                    });
+                } else {
+                    println!("Unable to borrow selection");
                 }
             } else {
                 println!("Unable to get reference to plot view");
@@ -612,10 +625,12 @@ impl LayoutToolbar {
             } else {
                 layout_window.win.show();
             }
-            
+            layout_window.layout_stack.set_visible_child_name("mapping");
+            layout_window.mapping_tree.tree_view.expand_all();
             if let Ok(sel) = selection.try_borrow() {
+                println!("Selection: {:?}", sel);
                 if let SelectionStatus::Single(sel) = sel.clone() {
-                    layout_window.mapping_tree.set_selected(sel.pl_ix, sel.local_ix);    
+                    layout_window.mapping_tree.set_selected(sel.pl_ix, sel.local_ix);
                 } else {
                     println!("Selection status is not single");
                 }
