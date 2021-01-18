@@ -189,9 +189,12 @@ impl MappingTree {
     
     pub fn remove_mapping(&self, subplot : usize, mapping_ix : usize) {
         let top = self.model.iter_nth_child(None, subplot as i32).unwrap();
-        let iter = self.model.iter_nth_child(Some(&top), mapping_ix as i32).unwrap();
-        self.model.remove(&iter);
-        self.tree_view.show_all();
+        if let Some(iter) = self.model.iter_nth_child(Some(&top), mapping_ix as i32) {
+            self.model.remove(&iter);
+            self.tree_view.show_all();
+        } else {
+            println!("Tried to remove plot {} of area {} but it was not available", mapping_ix, subplot);
+        }
     }
     
     fn load_mapping_icons() -> HashMap<String, Pixbuf> {
@@ -331,24 +334,7 @@ impl MappingTree {
         let no_col : Option<&TreeViewColumn> = None;
         self.tree_view.set_cursor(&path, no_col, false);
     }
-    
-    /*pub fn update_mapping_widgets(&self, plot_view : Rc<RefCell<PlotView>>) {
-        let n_plots = plot_view.borrow().n_plots();
-        for plot_ix in 0..n_plots {
-            let new_info = match plot_view.try_borrow_mut() {
-                Ok(mut pl_view) => { pl_view.change_active_area(plot_ix); pl_view.mapping_info() },
-                Err(e) => { println!("{}", e); return; }
-            };
-            self.model.foreach(move |model, path, iter| {
-                true
-            });
-            // println!("Tree iter : {:?}", tree_iter.collect::<Vec<_>>);
-            for m_info in new_info.iter() {
-                
-            }
-        }
-    }*/
-    
+        
 }
 
 impl LayoutWindow {
@@ -816,11 +802,12 @@ impl LayoutWindow {
         glade_def : Rc<HashMap<String, String>>,
         builder : Builder,
         plot_view : Rc<RefCell<PlotView>>,
-        data_source : Rc<RefCell<TableEnvironment>>,
+        table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
         // plot_popover : PlotPopover,
         // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        sources : Rc<RefCell<Vec<DataSource>>>,
         design_menu : DesignMenu,
         // scale_menus : (ScaleMenu, ScaleMenu),
         plot_toggle : ToggleButton,
@@ -828,7 +815,7 @@ impl LayoutWindow {
         layout_path : Rc<RefCell<Option<String>>>,
         ar_scales : (Scale, Scale),
         group_toolbar : GroupToolbar,
-        mapping_tree : MappingTree
+        mapping_tree : MappingTree,
     ) {
         {
             let open_btn = layout_window.open_btn.clone();
@@ -837,7 +824,11 @@ impl LayoutWindow {
             open_btn.connect_clicked(move |_| {
                 xml_load_dialog.run();
                 xml_load_dialog.hide();
-                plot_view.borrow().parent.queue_draw();
+                if let Ok(pl) = plot_view.try_borrow() {
+                    pl.parent.queue_draw();
+                } else {
+                    println!("Unable to borrow plot view");
+                }
             });
         }
 
@@ -849,7 +840,7 @@ impl LayoutWindow {
             // let scale_menus = mapping_tree.scale_menus.clone();
             // let plot_popover = plot_popover.clone();
             let glade_def = glade_def.clone();
-            let data_source = data_source.clone();
+            let table_env = table_env.clone();
             let tbl_nb = tbl_nb.clone();
             let status_stack = status_stack.clone();
             let layout_window = layout_window.clone();
@@ -857,6 +848,7 @@ impl LayoutWindow {
             let ar_scales = ar_scales.clone();
             let group_toolbar = group_toolbar.clone();
             let mapping_tree = mapping_tree.clone();
+            let sources = sources.clone();
             // TODO must not emit this changed when the combo is set by some reason other than
             // the user pressing it.
             layout_window.file_combo.clone().connect_changed(move |combo| {
@@ -881,18 +873,19 @@ impl LayoutWindow {
                     layout_path.clone(),
                     path_str.clone(),
                     // mapping_menus.clone(),
+                    sources.clone(),
                     design_menu.clone(),
                     // scale_menus.clone(),
                     // plot_popover.clone(),
                     glade_def.clone(),
-                    data_source.clone(),
+                    table_env.clone(),
                     tbl_nb.clone(),
                     status_stack.clone(),
                     layout_window.clone(),
                     plot_toggle.clone(),
                     ar_scales.clone(),
                     group_toolbar.clone(),
-                    mapping_tree.clone()
+                    mapping_tree.clone(),
                 );
                 if !load_ok {
                     println!("Error loading layout");
@@ -911,19 +904,20 @@ impl LayoutWindow {
                                 plot_view.clone(),
                                 layout_path.clone(),
                                 path_str.clone(),
+                                sources.clone(),
                                 // mapping_menus.clone(),
                                 design_menu.clone(),
                                 // scale_menus.clone(),
                                 // plot_popover.clone(),
                                 glade_def.clone(),
-                                data_source.clone(),
+                                table_env.clone(),
                                 tbl_nb.clone(),
                                 status_stack.clone(),
                                 layout_window.clone(),
                                 plot_toggle.clone(),
                                 ar_scales.clone(),
                                 group_toolbar.clone(),
-                                mapping_tree.clone()
+                                mapping_tree.clone(),
                             );
                             if load_ok {
                                 recent.push_recent(path_str.clone());
@@ -950,11 +944,12 @@ impl LayoutWindow {
         layout_path : Rc<RefCell<Option<String>>>,
         string_path : String,
         // mapping_menus : Rc<RefCell<Vec<MappingMenu>>>,
+        sources : Rc<RefCell<Vec<DataSource>>>,
         design_menu : DesignMenu,
         // scale_menus : (ScaleMenu, ScaleMenu),
         // plot_popover : PlotPopover,
         glade_def : Rc<HashMap<String, String>>,
-        data_source : Rc<RefCell<TableEnvironment>>,
+        table_env : Rc<RefCell<TableEnvironment>>,
         tbl_nb : TableNotebook,
         status_stack : StatusStack,
         layout_window : LayoutWindow,
@@ -983,19 +978,38 @@ impl LayoutWindow {
             Err(_) => { println!("Could not get mutable reference to Plot widget"); false }
         };
         if update_ok {
-            
-            println!("Updating mapping widgets");
-            /*PlotWorkspace::update_mapping_widgets(
-                plot_view.clone(),
-                mapping_menus.clone(),
-                plot_popover.clone(),
-                glade_def.clone(),
-                data_source.clone(),
-                tbl_nb.clone(),
-                status_stack.clone()
-            );*/
+            println!("Updating mapping sources");
             mapping_tree.repopulate(plot_view.clone());
-            
+            if let Ok(mut sources) = sources.try_borrow_mut() {
+                sources.clear();
+                if let Ok(mut pl_view) = plot_view.try_borrow_mut() {
+                    let n_plots = pl_view.n_plots();
+                    for plot_ix in 0..n_plots {
+                        pl_view.change_active_area(plot_ix);
+                        let new_info =  pl_view.mapping_info();
+                        if let Ok(t_env) = table_env.try_borrow() {
+                            for (name, ty, props) in new_info.iter() {
+                                let mut source : DataSource = Default::default();
+                                source.name = name.to_string();
+                                source.ty = ty.to_string();
+                                source.plot_ix = plot_ix;
+                                source.hist_ix = t_env.current_hist_index();
+                                PlotWorkspace::update_source(&mut source, tbl_nb.full_selected_cols(), &t_env)
+                                    .map_err(|e| format!("{}", e) );
+                                PlotWorkspace::update_data(&source, &t_env, &mut pl_view)
+                                    .map_err(|e| format!("{}", e) );
+                                sources.push(source);
+                            }
+                        } else {
+                            println!("Unable to borrow table environment");
+                        }
+                    }
+                } else {
+                    println!("Unable to borrow plot view");
+                }
+            } else {
+                println!("Unable to borrow sources vector");
+            }
             println!("Updating layout widgets");
             Self::update_layout_widgets(
                 design_menu.clone(),

@@ -662,7 +662,10 @@ impl LayoutToolbar {
         /*println!("Remove mapping clicked");
         self.mapping_popover.hide();*/
         let selection = self.selection.clone();
-        self.remove_mapping_btn.connect_clicked(move |_| {
+        let add_mapping_btn = self.add_mapping_btn.clone();
+        let edit_mapping_btn = self.edit_mapping_btn.clone();
+        let mapping_btns = self.mapping_btns.clone();
+        self.remove_mapping_btn.connect_clicked(move |remove_btn| {
             if let Ok(sel) = selection.try_borrow() {
                 if let SelectionStatus::Single(sel) = sel.clone() {
                     mapping_tree.remove_mapping(sel.pl_ix, sel.local_ix);
@@ -671,10 +674,23 @@ impl LayoutToolbar {
                             sel.pl_ix,
                             sel.local_ix.to_string()
                         ));
+                        
+                        println!("Remaining mappipings: {:?}", pl_view.mapping_info());
                     } else {
                         println!("Unable to borrow plot view");
                     }
+                    
                     tbl_nb.unselect_all_tables();
+                    add_mapping_btn.set_sensitive(false);
+                    edit_mapping_btn.set_sensitive(false);
+                    remove_btn.set_sensitive(false);
+                    for (_, btn) in mapping_btns.iter() {
+                        if btn.get_active() {
+                            btn.set_active(false);
+                        }
+                        btn.set_sensitive(false);
+                    }
+                    
                     if let Ok(mut sources) = sources.try_borrow_mut() {
                         let rem_pos = sources.iter().position(|source| {
                             let is_plot = source.plot_ix == sel.pl_ix; 
@@ -682,6 +698,7 @@ impl LayoutToolbar {
                             is_plot && is_mapping
                         }).unwrap();
                         sources.remove(rem_pos);
+                        println!("Remaining sources: {:?}", sources);
                     } else {
                         println!("Unable to borrow data sources");            
                     }    
@@ -986,6 +1003,12 @@ impl LayoutToolbar {
                                 }
                             },
                             1 => {
+                                if let Ok(mut sel_mapping) = sel_mapping.try_borrow_mut() {
+                                    let left_toggled = toggled_btns[0].clone();
+                                    *sel_mapping = left_toggled;
+                                } else {
+                                    panic!("Failed to acquire mutable reference to selected mapping");
+                                }
                                 if any_mapped.len() >= 1 {
                                     let found_mapped = any_mapped.iter()
                                         .find(|sel| &sel.ty[..] == &toggled_btns[0][..] );

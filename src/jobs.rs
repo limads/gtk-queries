@@ -79,8 +79,8 @@ impl JobManager {
         // let job_run_btn : ToggleButton = builder.get_object("job_run_btn").unwrap();
         let job_add_btn : Button = builder.get_object("job_add_btn").unwrap();
         let job_rm_btn : Button = builder.get_object("job_rm_btn").unwrap();
-        utils::show_popover_on_toggle(&job_popover, &job_arg_btn);
-        utils::show_popover_on_toggle(&doc_popover, &job_doc_btn);
+        utils::show_popover_on_toggle(&job_popover, &job_arg_btn, vec![]);
+        utils::show_popover_on_toggle(&doc_popover, &job_doc_btn, vec![]);
         let manager = Self {
             job_arg_btn,
             job_popover,

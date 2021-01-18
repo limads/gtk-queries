@@ -119,7 +119,8 @@ enum Destination {
 }
 
 #[derive(Clone)]
-struct CopyToBox {
+pub struct CopyToBox {
+    // pub popover : Popover,
     save_tbl_btn : Button,
     script_btn : Button,
     tbl_format_combo : ComboBoxText,
@@ -166,14 +167,14 @@ impl CopyToBox {
         });
     }
 
-    fn build(
+    pub fn build(
         builder : &Builder,
         tables_nb : &TableNotebook,
         tbl_env : &Rc<RefCell<TableEnvironment>>,
         csv_window : &CsvWindow,
         cmd_window : &CommandWindow
     ) -> Self {
-
+        // let popover : Popover = builder.get_object("copy_to_popover").unwrap();
         let tbl_format_combo : ComboBoxText = builder.get_object("tbl_format_combo").unwrap();
         let dst = Rc::new(RefCell::new(Destination::File));
         let clipboard_toggle : ToggleButton = builder.get_object("copy_to_clipboard_toggle").unwrap();
@@ -318,6 +319,7 @@ impl CopyToBox {
         }
         
         Self {
+            // popover,
             save_tbl_btn,
             save_tbl_dialog,
             tbl_format_combo,
@@ -341,6 +343,7 @@ struct CopyAction {
 
 #[derive(Clone)]
 pub struct CopyFromBox {
+    // pub popover : Popover,
     db_table_entry : Entry,
     // col_subset_entry : Entry,
     // col_subset_check : CheckButton,
@@ -360,6 +363,7 @@ impl CopyFromBox {
         csv_window : &CsvWindow,
         cmd_window : &CommandWindow
     ) -> Self {
+        // let popover : Popover = builder.get_object("copy_from_popover").unwrap();
         let action = Rc::new(RefCell::new(CopyAction{
             dst : String::new(),
             cols : Vec::new(),
@@ -416,6 +420,7 @@ impl CopyFromBox {
             });
         }
         Self {
+            // popover,
             db_table_entry,
             // col_subset_entry,
             // col_subset_check,
@@ -467,12 +472,12 @@ impl TablePopover {
         self.copy_icon_stack.set_visible_child_name("copy_from");
     }
     
-    pub fn show_at(&self, ev_box : &EventBox, ix : usize) {
+    /*pub fn show_at(&self, ev_box : &EventBox, ix : usize) {
         self.popover.hide();
         self.popover.set_relative_to(Some(ev_box));
         self.popover.show();
         self.selected.replace(Some(ix));
-    }
+    }*/
 
     pub fn build(
         builder :  &Builder,

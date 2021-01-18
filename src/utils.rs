@@ -4,7 +4,7 @@ use gtk::*;
 use crate::tables::environment::TableEnvironment;
 use crate::table_notebook::*;
 use crate::plots::plot_workspace::PlotWorkspace;
-use crate::table_popover::TablePopover;
+use crate::table_popover::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
@@ -149,7 +149,7 @@ pub fn set_tables_from_query(
     table_env : &TableEnvironment,
     tables_nb : &mut TableNotebook,
     workspace : PlotWorkspace,
-    table_popover : TablePopover
+    table_bar : TableBar
 ) {
     tables_nb.clear();
     let all_tbls = table_env.all_tables();
@@ -157,13 +157,14 @@ pub fn set_tables_from_query(
         tables_nb.create_error_table("No tables to show");
     } else {
         tables_nb.clear();
+        table_bar.set_copy_to();
         for table in all_tbls.iter() {
             let info = table.table_info();
             tables_nb.create_data_table(
                 TableSource::Database(info.0, info.1),
                 table.text_rows(),
                 workspace.clone(),
-                table_popover.clone()
+                table_bar.clone()
             );
         }
     }
@@ -177,7 +178,7 @@ pub fn add_external_table(
     source : TableSource,
     txt : String,
     workspace : &PlotWorkspace,
-    table_popover : &TablePopover,
+    table_bar : &TableBar,
     status_stack : &StatusStack
 ) -> Result<(), String> {
     match Table::new_from_text(txt) {
@@ -193,8 +194,9 @@ pub fn add_external_table(
             // If external table is opened by file, name as file name, without the extension,
             // and use blank page as icon.
             // If external table is opened by program, use Std. Output (progname) as name,
-            // and use bash-symbolic as icon. 
-            tables_nb.create_data_table(source, rows, workspace.clone(), table_popover.clone());
+            // and use bash-symbolic as icon.
+            table_bar.set_copy_from();
+            tables_nb.create_data_table(source, rows, workspace.clone(), table_bar.clone() );
             status_stack.update(Status::Ok);
             Ok(())
         },
@@ -223,16 +225,21 @@ pub fn provider_from_path(filename : &str) -> Result<CssProvider, &'static str> 
     let exe_dir = exec_dir()?;
     let path = exe_dir + "/../../assets/styles/" + filename;
     println!("{}", path);
-    provider.load_from_path(&path[..]).map_err(|_| "Unable to load Css provider")?;
+    provider.load_from_path(&path[..]).map_err(|_| "Unable to load CSS provider")?;
     Ok(provider)
 }
 
-pub fn show_popover_on_toggle(popover : &Popover, toggle : &ToggleButton) {
+pub fn show_popover_on_toggle(popover : &Popover, toggle : &ToggleButton, alt : Vec<ToggleButton>) {
     {
         let popover = popover.clone();
         toggle.connect_toggled(move |btn| {
             if btn.get_active() {
                 popover.show();
+                for toggle in alt.iter() {
+                    if toggle.get_active() {
+                        toggle.set_active(false);
+                    }
+                }
             } else {
                 popover.hide();
             }

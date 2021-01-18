@@ -2,6 +2,7 @@ use gtk::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use super::plotview::plot_view::{PlotView, UpdateContent};
+use glib::SignalHandlerId;
 
 fn change_design(
     plot_view : Rc<RefCell<PlotView>>,
@@ -13,7 +14,7 @@ fn change_design(
         full_name += &("[".to_owned() + "@name" + "='" + name + "']")[..];
         pl_view.update(&mut UpdateContent::Design(full_name, value.to_string()) );
     } else {
-        println!("Unable to get mutable reference to plot view");
+        println!("Unable to get mutable reference to plot view"); // TODO falling here
     }
 }
 
@@ -43,7 +44,7 @@ fn change_plot_property(
         println!("{}", full_name);
         pl_view.update(&mut UpdateContent::Layout(full_name, value.to_string()) );
     } else {
-        println!("Unable to get mutable reference to plot view");
+        println!("Unable to get mutable reference to plot view"); // TODO falling here
     }
 }
 
@@ -53,7 +54,7 @@ pub fn connect_update_entry_property(
     prefix : Rc<RefCell<String>>,
     name : String,
     parent_class : &'static str
-) {
+) -> SignalHandlerId {
     entry.connect_focus_out_event(move |entry, _ev| {
         let txt = entry.get_text();
         match parent_class {
@@ -77,7 +78,7 @@ pub fn connect_update_entry_property(
             }
         }
         Inhibit(true)
-    });
+    })
 }
 
 pub fn connect_update_switch_property(
@@ -86,7 +87,7 @@ pub fn connect_update_switch_property(
     prefix : Rc<RefCell<String>>,
     name : String,
     parent_class : &'static str
-) {
+) -> SignalHandlerId {
     switch.connect_state_set(move |_switch, state| {
         if let Ok(prefix) = prefix.try_borrow() {
             match parent_class {
@@ -107,7 +108,7 @@ pub fn connect_update_switch_property(
             println!("Unable to retrieve reference to mapping name");
         }
         Inhibit(true)
-    });
+    })
 }
 
 pub fn connect_update_scale_property(
@@ -116,7 +117,7 @@ pub fn connect_update_scale_property(
     prefix : Rc<RefCell<String>>,
     name : String,
     parent_class : &'static str
-) {
+) -> SignalHandlerId {
     let scale_fn = move |adj : &Adjustment| {
         if let Ok(prefix) = prefix.try_borrow() {
             let val = adj.get_value();
@@ -138,8 +139,8 @@ pub fn connect_update_scale_property(
             println!("Unable to retrieve reference to mapping name");
         }
     };
-    scale.get_adjustment().connect_value_changed(scale_fn.clone());
-    scale.get_adjustment().connect_changed(scale_fn);
+    scale.get_adjustment().connect_value_changed(scale_fn)
+    // scale.get_adjustment().connect_changed(scale_fn)
 }
 
 pub fn connect_update_color_property(
@@ -148,7 +149,7 @@ pub fn connect_update_color_property(
     prefix : Rc<RefCell<String>>,
     name : String,
     parent_class : &'static str
-) {
+) -> SignalHandlerId {
     btn.connect_color_set( move |btn| {
         let color = btn.get_rgba().to_string();
         if let Ok(prefix) = prefix.try_borrow() {
@@ -169,7 +170,7 @@ pub fn connect_update_color_property(
         } else {
             println!("Unable to retrieve reference to mapping name");
         }
-    });
+    })
 }
 
 pub fn connect_update_font_property(
@@ -178,7 +179,7 @@ pub fn connect_update_font_property(
     prefix : Rc<RefCell<String>>,
     name : String,
     parent_class : &'static str
-) {
+) -> SignalHandlerId {
     btn.connect_font_set( move |btn| {
         if let Ok(prefix) = prefix.try_borrow() {
             if let Some(font) = btn.get_font() {
@@ -202,7 +203,7 @@ pub fn connect_update_font_property(
         } else {
             println!("Unable to retrieve reference to mapping name");
         }
-    });
+    })
 }
 
 

@@ -345,6 +345,7 @@ impl PlotWorkspace {
             status_stack.clone(),
             // plot_popover.clone(),
             // mapping_menus.clone(),
+            sources.clone(),
             design_menu.clone(),
             // (scale_menus.0.clone(), scale_menus.1.clone()),
             plot_toggle,

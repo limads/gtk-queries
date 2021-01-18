@@ -513,7 +513,7 @@ impl FunctionRegistry {
 
         let fn_doc_popover : Popover = builder.get_object("fn_doc_popover").unwrap();
         let fn_doc_btn : ToggleButton = builder.get_object("fn_doc_btn").unwrap();
-        utils::show_popover_on_toggle(&fn_doc_popover, &fn_doc_btn);
+        utils::show_popover_on_toggle(&fn_doc_popover, &fn_doc_btn, vec![]);
 
         let sensitive = Rc::new(Cell::new(false));
         {

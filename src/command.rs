@@ -21,10 +21,12 @@ use std::io::BufWriter;
 use std::io::Read;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::process::Stdio;
-use crate::table_popover::TablePopover;
+// use crate::table_popover::TablePopover;
 use std::sync::{Arc, Mutex};
 use crate::status_stack::Status;
 use crate::table_notebook::TableSource;
+use crate::table_popover::TablePopover;
+use crate::table_notebook::TableBar;
 
 pub struct Output {
     pub cmd : String,
@@ -283,12 +285,12 @@ impl CommandWindow {
     pub fn connect_wait_command(
         &self,
         table_env : Rc<RefCell<TableEnvironment>>,
-        table_popover : TablePopover,
+        table_bar : TableBar,
         workspace : PlotWorkspace,
         tables_nb : TableNotebook,
         status_stack : StatusStack
     ) {
-        let table_popover = table_popover.clone();
+        // let table_popover = table_popover.clone();
         let cmd_list = self.cmd_list.clone();
         let recent = self.recent.clone();
         let run_btn = self.run_btn.clone();
@@ -308,7 +310,7 @@ impl CommandWindow {
                             TableSource::Command(out.cmd.clone()),
                             out.txt.clone(),
                             &workspace,
-                            &table_popover,
+                            &table_bar,
                             &status_stack
                         );
                         match add_res {

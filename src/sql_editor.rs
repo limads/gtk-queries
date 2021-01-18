@@ -17,9 +17,9 @@ use std::io::Write;
 use std::path::Path;
 use crate::schema_tree::SchemaTree;
 use crate::utils;
-use super::table_notebook::TableNotebook;
+use super::table_notebook::{TableNotebook, TableBar};
 use crate::plots::plot_workspace::PlotWorkspace;
-use crate::table_popover::TablePopover;
+// use crate::table_popover::TablePopover;
 use crate::header_toggle::HeaderToggle;
 use crate::table_notebook::TableSource;
 
@@ -457,7 +457,7 @@ impl SqlEditor {
         tables_nb : TableNotebook,
         file_list : &FileList,
         workspace : PlotWorkspace,
-        table_popover : TablePopover
+        table_bar : TableBar
     ) -> Self {
         let view : View =
             builder.get_object("query_source").unwrap();
@@ -659,7 +659,7 @@ impl SqlEditor {
             sql_editor.refresh_btn.clone(),
             sql_editor.clone(),
             workspace,
-            table_popover,
+            table_bar,
             sql_editor.status_stack.clone()
         );
 
@@ -706,7 +706,7 @@ impl SqlEditor {
         refresh_btn : Button,
         sql_editor : SqlEditor,
         workspace : PlotWorkspace,
-        table_popover : TablePopover,
+        table_bar : TableBar,
         status_stack : StatusStack
     ) {
         let file_list = file_list.clone();
@@ -744,7 +744,7 @@ impl SqlEditor {
                                             TableSource::File(name),
                                             txt,
                                             &workspace,
-                                            &table_popover,
+                                            &table_bar,
                                             &status_stack
                                         );
                                         if let Err(e) = add_res {

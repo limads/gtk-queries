@@ -22,9 +22,10 @@ use gtk_queries::main_menu::MainMenu;
 use gtk_queries::plots::layout_toolbar::*;
 use gtk_queries::file_list::FileList;
 use gtk_queries::schema_tree::SchemaTree;
-use gtk_queries::table_popover::TablePopover;
+use gtk_queries::table_popover::*;
 use gtk_queries::header_toggle::HeaderToggle;
 use gtk_queries::command::CommandWindow;
+use gtk_queries::table_notebook::TableBar;
 
 #[derive(Clone)]
 pub struct QueriesApp {
@@ -38,8 +39,10 @@ pub struct QueriesApp {
     main_menu : MainMenu,
     plot_workspace : PlotWorkspace,
     schema_tree : SchemaTree,
+    table_bar : TableBar,
     table_popover : TablePopover,
-    cmd_window : CommandWindow
+    cmd_window : CommandWindow,
+    csv_window : CsvWindow
 }
 
 /*fn adjust_sidebar_pos(btn : &ToggleButton, window : &Window, main_paned : &Paned) {
@@ -169,8 +172,10 @@ impl QueriesApp {
         );
 
         let cmd_window = CommandWindow::build(&builder, &tables_nb, table_env.clone());
+        let csv_window = CsvWindow::build(&builder);
         
-        let table_popover : TablePopover = TablePopover::build(
+        let table_bar = TableBar::build(&builder);
+        let table_popover = TablePopover::build(
             &builder,
             plot_workspace.clone(),
             table_env.clone(),
@@ -178,10 +183,11 @@ impl QueriesApp {
             status_stack.clone(),
             cmd_window.clone()
         );
+        table_bar.hook(&table_popover, &plot_workspace.layout_toolbar);
 
         cmd_window.connect_wait_command(
             table_env.clone(), 
-            table_popover.clone(), 
+            table_bar.clone(), 
             plot_workspace.clone(), 
             tables_nb.clone(), 
             status_stack.clone()
@@ -207,7 +213,7 @@ impl QueriesApp {
             tables_nb.clone(),
             &file_list,
             plot_workspace.clone(),
-            table_popover.clone()
+            table_bar.clone()
         );
         file_list.add_file_row(
             "Untitled 1",
@@ -282,6 +288,7 @@ impl QueriesApp {
             // let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             // let file_list = file_list.clone();
             let table_popover = table_popover.clone();
+            let table_bar = table_bar.clone();
             let f = move |t_env : &TableEnvironment, update : &EnvironmentUpdate| {
                 match update {
                     EnvironmentUpdate::Clear => {
@@ -295,7 +302,7 @@ impl QueriesApp {
                             &mut tables_nb.clone(),
                             // mapping_popover.clone(),
                             workspace.clone(),
-                            table_popover.clone()
+                            table_bar.clone()
                         );
                         workspace.clear_mappings()
                             .map_err(|e| println!("{}", e) ).ok();
@@ -306,7 +313,7 @@ impl QueriesApp {
                             &mut tables_nb.clone(),
                             // mapping_popover.clone(),
                             workspace.clone(),
-                            table_popover.clone()
+                            table_bar.clone()
                         );
                         workspace.update_mapping_data(
                             &t_env,
@@ -358,8 +365,10 @@ impl QueriesApp {
             main_menu,
             plot_workspace,
             schema_tree,
+            table_bar,
             table_popover,
-            cmd_window
+            cmd_window,
+            csv_window
         }
     }
 

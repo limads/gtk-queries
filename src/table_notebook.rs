@@ -4,9 +4,15 @@ use std::cell::RefCell;
 use crate::table_widget::*;
 use gtk::prelude::*;
 use crate::plots::plot_workspace::PlotWorkspace;
-use crate::table_popover::TablePopover;
 use std::collections::HashMap;
 use gdk_pixbuf::Pixbuf;
+use super::table_popover::*;
+use super::tables::environment::TableEnvironment;
+use super::status_stack::*;
+use super::command::*;
+use crate::table_popover::*;
+use crate::utils;
+use crate::plots::layout_toolbar::LayoutToolbar;
 
 #[derive(Debug, Clone)]
 pub enum TableSource {
@@ -22,6 +28,72 @@ const ICONS : [&'static str; 5] = [
     "right.svg",
     "full.svg"
 ];
+
+/// Action bar at lower-right portion of table
+#[derive(Clone)]
+pub struct TableBar {
+    copy_from_toggle : ToggleButton,
+    copy_to_toggle : ToggleButton,
+    draw_toggle : ToggleButton
+}
+
+impl TableBar {
+
+    pub fn build(builder :  &Builder) -> Self {
+        let copy_from_toggle : ToggleButton = builder.get_object("copy_from_toggle").unwrap();
+        let copy_to_toggle : ToggleButton = builder.get_object("copy_to_toggle").unwrap();
+        let draw_toggle : ToggleButton = builder.get_object("draw_toggle").unwrap();
+        Self { copy_from_toggle, copy_to_toggle, draw_toggle }
+    }
+    
+    pub fn set_copy_to(&self) {
+        self.copy_from_toggle.set_sensitive(false);
+        self.copy_to_toggle.set_sensitive(true);
+    }
+    
+    pub fn set_copy_from(&self) {
+        self.copy_from_toggle.set_sensitive(true);
+        self.copy_to_toggle.set_sensitive(false);
+    }
+    
+    pub fn set_draw(&self, draw : bool) {
+        self.draw_toggle.set_sensitive(draw);
+    }
+    
+    pub fn hook(&self, table_popover : &TablePopover, layout_toolbar : &LayoutToolbar) {
+        {
+            let table_popover = table_popover.clone();
+            self.copy_from_toggle.connect_toggled(move |btn| {
+                table_popover.popover.set_relative_to(Some(btn));
+                table_popover.set_copy_from();
+            });
+        }
+        
+        {
+            let table_popover = table_popover.clone();
+            self.copy_to_toggle.connect_toggled(move |btn| {
+                table_popover.popover.set_relative_to(Some(btn));
+                table_popover.set_copy_to();
+            });
+        }
+        utils::show_popover_on_toggle(
+            &table_popover.popover,
+            &self.copy_from_toggle, 
+            vec![self.copy_to_toggle.clone(), self.draw_toggle.clone()]
+        );
+        utils::show_popover_on_toggle(
+            &table_popover.popover,
+            &self.copy_to_toggle, 
+            vec![self.copy_from_toggle.clone(), self.draw_toggle.clone()]
+        );
+        utils::show_popover_on_toggle(
+            &layout_toolbar.mapping_popover,
+            &self.draw_toggle,
+            vec![self.copy_from_toggle.clone(), self.copy_to_toggle.clone()]
+        );
+    }
+    
+}
 
 #[derive(Clone)]
 pub struct TableNotebook {
@@ -45,7 +117,8 @@ impl TableNotebook {
         }
     
         let sources = Rc::new(RefCell::new(Vec::new()));
-        let tbl_nb = TableNotebook{nb, tbls, icons, sources};
+        // let bar = TableBar::build(&builder);
+        let tbl_nb = TableNotebook{nb, tbls, icons, sources };
         {
             let tbl_nb = tbl_nb.clone();
             tbl_nb.nb.clone().connect_change_current_page(move |_, _| {
@@ -110,7 +183,7 @@ impl TableNotebook {
         table_source : TableSource,
         rows : Vec<Vec<String>>,
         workspace : PlotWorkspace,
-        table_popover : TablePopover
+        table_bar : TableBar
     ) {
         if rows.len() == 0 {
             println!("No rows to display");
@@ -120,7 +193,7 @@ impl TableNotebook {
             TableSource::Command(cmd) => (format!("bash-symbolic"), format!("Std. out ({})", cmd.clone())),
             TableSource::File(path) => (format!("folder-documents-symbolic"), path.clone()),
             TableSource::Database(name, rel) => match (name, rel) {
-                (Some(name), Some(rel)) => (name.clone(), format!("{}.svg", rel)),
+                (Some(name), Some(rel)) => (format!("{}.svg", rel), name.clone()),
                 (Some(name), None) => (format!("grid-black.svg"), name.clone()),
                 _ => (format!("grid-black.svg"), format!("Unknown"))
             }
@@ -139,17 +212,18 @@ impl TableNotebook {
         let tbl_ix = self.len();
         {
             let table_source = table_source.clone();
+            let table_bar = table_bar.clone();
             ev_bx.connect_button_press_event(move |ev_box, ev| {
                 if ev.get_button() == 3 {
                     match table_source {
                         TableSource::Database(_, _) => {
-                            table_popover.set_copy_to();
+                            table_bar.set_copy_to();
                         },
                         _ => { 
-                            table_popover.set_copy_from();
+                            table_bar.set_copy_from();
                         }
                     }
-                    table_popover.show_at(&ev_box, tbl_ix);
+                    // table_popover.show_at(&ev_box, tbl_ix);
                 }
                 glib::signal::Inhibit(false)
             });
@@ -164,18 +238,37 @@ impl TableNotebook {
         // Left-click events
         {
             let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
+            let table_bar = table_bar.clone();
+            let layout_toolbar = workspace.layout_toolbar.clone();
+            let sources = workspace.sources.clone();
+            let curr_tbl_ix = self.len();
             // let mapping_menus = sidebar.mapping_menus.clone();
             // let layout_toolbar = sidebar.layout_toolbar.clone();
             // let plot_popover = sidebar.plot_popover.clone();
+            
             table_w.set_selected_action(move |ev_bx, _ev, selected, curr| {
                 println!("Selected columns (left click): {:?}", selected);
                 // mapping_popover.set_relative_to(Some(ev_bx));
+                if selected.len() >= 1 {
+                    table_bar.set_draw(true);
+                    println!("Selected column set via left click: {:?}", selected);
+                    println!("Currently selected column via right click: {}", curr);
+                    if selected.iter().find(|s| **s == curr).is_some() {
+                        layout_toolbar.update_mapping_status(
+                            sources.clone(),
+                            &selected,
+                            curr_tbl_ix
+                        );
+                    }
+                } else {
+                    table_bar.set_draw(false);
+                }
                 mapping_popover.hide();
                 glib::signal::Inhibit(false)
             }, 1);
         }
 
-        // Right-click events
+        /*// Right-click events
         {
             let mapping_popover = workspace.layout_toolbar.mapping_popover.clone();
             // let mapping_menus = workspace.mapping_menus.clone();
@@ -193,10 +286,8 @@ impl TableNotebook {
                 println!("Selected column set via left click: {:?}", selected);
                 println!("Currently selected column via right click: {}", curr);
                 if selected.iter().find(|s| **s == curr).is_some() {
-                    mapping_popover.set_relative_to(Some(ev_bx));
+                    // mapping_popover.set_relative_to(Some(ev_bx));
                     layout_toolbar.update_mapping_status(
-                        // mapping_menus.clone(),
-                        // &plot_popover,
                         sources.clone(),
                         &selected,
                         curr_tbl_ix
@@ -205,7 +296,7 @@ impl TableNotebook {
                 mapping_popover.show();
                 glib::signal::Inhibit(false)
             }, 3);
-        }
+        }*/
         
         self.sources.borrow_mut().push(table_source);
     }

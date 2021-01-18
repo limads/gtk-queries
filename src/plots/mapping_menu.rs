@@ -8,11 +8,16 @@ use std::collections::HashMap;
 use gdk::RGBA;
 use gtk::prelude::*;
 use std::default::Default;
+use glib::SignalHandlerId;
+
+// TODO we should avoid triggering a signal whenever we call an update over the
+// widget mappings: wid.block_signal(id); wid.unblock_signal(id); BUT SignalHandlerId is not clone.
 
 #[derive(Debug, Clone)]
 pub struct ScatterMenu {
     color_btn : ColorButton,
-    radius_scale : Scale
+    radius_scale : Scale,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl ScatterMenu {
@@ -20,31 +25,38 @@ impl ScatterMenu {
     pub fn build(builder : &Builder) -> Self {
         let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
         let radius_scale : Scale = builder.get_object("scatter_radius_scale").unwrap();
-        Self { color_btn, radius_scale }
+        Self { color_btn, radius_scale, signals : Rc::new(RefCell::new(Vec::new())) }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
-        connect_update_scale_property(
+        ));
+        signals.push(connect_update_scale_property(
             &self.radius_scale,
             view.clone(),
             name,
             "radius".into(),
             "mapping"
-        );
+        ));
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.radius_scale.get_adjustment().block_signal(&signals[1]);
+        println!("Updating to: {:?}", properties);
         let color : RGBA = properties["color"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
         self.radius_scale.get_adjustment().set_value(properties["radius"].parse().unwrap());
+        self.color_btn.unblock_signal(&signals[0]);
+        self.radius_scale.get_adjustment().unblock_signal(&signals[1]);
     }
     
 }
@@ -53,7 +65,8 @@ impl ScatterMenu {
 pub struct LineMenu {
     color_btn : ColorButton,
     width_scale : Scale,
-    dash_scale : Scale
+    dash_scale : Scale,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl LineMenu {
@@ -62,39 +75,47 @@ impl LineMenu {
         let color_btn : ColorButton = builder.get_object("line_color_btn").unwrap();
         let width_scale : Scale = builder.get_object("line_width_scale").unwrap();
         let dash_scale : Scale = builder.get_object("line_dash_scale").unwrap();
-        Self { color_btn, width_scale, dash_scale }
+        Self { color_btn, width_scale, dash_scale, signals : Rc::new(RefCell::new(Vec::new())) }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
-        connect_update_scale_property(
+        ));
+        signals.push(connect_update_scale_property(
             &self.width_scale,
             view.clone(),
             name.clone(),
             "width".into(),
             "mapping"
-        );
-        connect_update_scale_property(
+        ));
+        signals.push(connect_update_scale_property(
             &self.dash_scale,
             view.clone(),
             name,
             "dash".into(),
             "mapping"
-        );
+        ));
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.width_scale.get_adjustment().block_signal(&signals[1]);
+        self.dash_scale.get_adjustment().block_signal(&signals[2]);
         let color : RGBA = properties["color"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
         self.width_scale.get_adjustment().set_value(properties["width"].parse().unwrap());
         self.dash_scale.get_adjustment().set_value(properties["dash"].parse().unwrap());
+        self.color_btn.unblock_signal(&signals[0]);
+        self.width_scale.get_adjustment().unblock_signal(&signals[1]);
+        self.dash_scale.get_adjustment().unblock_signal(&signals[2]);
     }
     
 }
@@ -102,7 +123,8 @@ impl LineMenu {
 #[derive(Debug, Clone)]
 pub struct TextMenu {
     color_btn : ColorButton,
-    font_btn : FontButton
+    font_btn : FontButton,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl TextMenu {
@@ -110,31 +132,37 @@ impl TextMenu {
     pub fn build(builder : &Builder) -> Self {
         let color_btn : ColorButton = builder.get_object("scatter_color_btn").unwrap();
         let font_btn : FontButton = builder.get_object("text_mapping_font_btn").unwrap();
-        Self { color_btn, font_btn }
+        Self { color_btn, font_btn, signals : Rc::new(RefCell::new(Vec::new())) }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
-        connect_update_font_property(
+        ));
+        signals.push(connect_update_font_property(
             &self.font_btn,
             view.clone(),
             name,
             "font".into(),
             "mapping"
-        );
+        ));
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.font_btn.block_signal(&signals[1]);
         let color : RGBA = properties["color"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
         self.font_btn.set_font_name(&properties["font"]);
+        self.color_btn.unblock_signal(&signals[0]);
+        self.font_btn.unblock_signal(&signals[1]);
     }
     
 }
@@ -142,7 +170,8 @@ impl TextMenu {
 #[derive(Debug, Clone)]
 pub struct AreaMenu {
     color_btn : ColorButton,
-    opacity_scale : Scale
+    opacity_scale : Scale,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl AreaMenu {
@@ -150,17 +179,18 @@ impl AreaMenu {
     pub fn build(builder : &Builder) -> Self {
         let color_btn : ColorButton = builder.get_object("area_color_btn").unwrap();
         let opacity_scale : Scale = builder.get_object("area_opacity_scale").unwrap();
-        Self { color_btn, opacity_scale }
+        Self { color_btn, opacity_scale, signals : Rc::new(RefCell::new(Vec::new())) }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
+        ));
         connect_update_scale_property(
             &self.opacity_scale,
             view.clone(),
@@ -171,10 +201,15 @@ impl AreaMenu {
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.opacity_scale.get_adjustment().block_signal(&signals[1]);
         let color : RGBA = properties["color"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
         self.opacity_scale.get_adjustment().set_value(properties["opacity"].parse().unwrap());
+        self.color_btn.unblock_signal(&signals[0]);
+        self.opacity_scale.get_adjustment().unblock_signal(&signals[1]);
     }
     
 }
@@ -187,7 +222,8 @@ pub struct BarMenu {
     width_scale : Scale,
     origin_x_entry : Entry,
     origin_y_entry : Entry,
-    spacing_entry : Entry
+    spacing_entry : Entry,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl BarMenu {
@@ -207,32 +243,34 @@ impl BarMenu {
             width_scale, 
             origin_x_entry, 
             origin_y_entry, 
-            spacing_entry 
+            spacing_entry, 
+            signals : Rc::new(RefCell::new(Vec::new()))
         }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
-        connect_update_switch_property(
+        ));
+        signals.push(connect_update_switch_property(
             &self.anchor_switch,
             view.clone(),
             name.clone(),
             "center_anchor".into(),
             "mapping"
-        );
-        connect_update_switch_property(
+        ));
+        signals.push(connect_update_switch_property(
             &self.horizontal_switch,
             view.clone(),
             name.clone(),
             "horizontal".into(),
             "mapping"
-        );
+        ));
         connect_update_scale_property(
             &self.width_scale,
             view.clone(),
@@ -240,13 +278,13 @@ impl BarMenu {
             "bar_width".into(),
             "mapping"
         );
-        connect_update_entry_property(
+        signals.push(connect_update_entry_property(
             &self.origin_x_entry,
             view.clone(),
             name.clone(),
             "origin_x".into(),
             "mapping"
-        );
+        ));
         connect_update_entry_property(
             &self.origin_y_entry,
             view.clone(),
@@ -254,16 +292,24 @@ impl BarMenu {
             "origin_y".into(),
             "mapping"
         );
-        connect_update_entry_property(
+        signals.push(connect_update_entry_property(
             &self.spacing_entry,
             view.clone(),
             name,
             "bar_spacing".into(),
             "mapping"
-        ); 
+        )); 
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.anchor_switch.block_signal(&signals[1]);
+        self.horizontal_switch.block_signal(&signals[2]);
+        self.width_scale.get_adjustment().block_signal(&signals[3]);
+        self.origin_x_entry.block_signal(&signals[4]);
+        self.origin_y_entry.block_signal(&signals[5]);
+        self.spacing_entry.block_signal(&signals[6]);
         let color : RGBA = properties["color"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
@@ -273,6 +319,13 @@ impl BarMenu {
         self.origin_x_entry.set_text(&properties["origin_x"]);
         self.origin_y_entry.set_text(&properties["origin_y"]);
         self.spacing_entry.set_text(&properties["bar_spacing"]);
+        self.color_btn.unblock_signal(&signals[0]);
+        self.anchor_switch.unblock_signal(&signals[1]);
+        self.horizontal_switch.unblock_signal(&signals[2]);
+        self.width_scale.get_adjustment().unblock_signal(&signals[3]);
+        self.origin_x_entry.unblock_signal(&signals[4]);
+        self.origin_y_entry.unblock_signal(&signals[5]);
+        self.spacing_entry.unblock_signal(&signals[6]);
     }
     
 }
@@ -283,7 +336,8 @@ pub struct SurfaceMenu {
     opacity_scale : Scale,
     final_color_btn : ColorButton,
     surface_baseline_entry : Entry,
-    surface_maximum_entry : Entry
+    surface_maximum_entry : Entry,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl SurfaceMenu {
@@ -294,32 +348,40 @@ impl SurfaceMenu {
         let final_color_btn : ColorButton = builder.get_object("surface_color_final_btn").unwrap();
         let surface_baseline_entry : Entry = builder.get_object("surface_baseline_entry").unwrap();
         let surface_maximum_entry : Entry = builder.get_object("surface_maximum_entry").unwrap();
-        Self { color_btn, opacity_scale, final_color_btn, surface_baseline_entry, surface_maximum_entry }
+        Self { 
+            color_btn, 
+            opacity_scale, 
+            final_color_btn, 
+            surface_baseline_entry, 
+            surface_maximum_entry, 
+            signals : Rc::new(RefCell::new(Vec::new())) 
+        }
     }
     
     pub fn hook(&self, view : Rc<RefCell<PlotView>>, name : Rc<RefCell<String>>) {
-        connect_update_color_property(
+        let mut signals = self.signals.borrow_mut();
+        signals.push(connect_update_color_property(
             &self.color_btn,
             view.clone(),
             name.clone(),
             "color".into(),
             "mapping"
-        );
-        connect_update_scale_property(
+        ));
+        signals.push(connect_update_scale_property(
             &self.opacity_scale,
             view.clone(),
             name.clone(),
             "opacity".into(),
             "mapping"
-        );
+        ));
 
-        connect_update_color_property(
+        signals.push(connect_update_color_property(
             &self.final_color_btn,
             view.clone(),
             name.clone(),
             "final_color".into(),
             "mapping"
-        );
+        ));
         connect_update_entry_property(
             &self.surface_baseline_entry,
             view.clone(),
@@ -327,16 +389,22 @@ impl SurfaceMenu {
             "z_min".into(),
             "mapping"
         );
-        connect_update_entry_property(
+        signals.push(connect_update_entry_property(
             &self.surface_maximum_entry,
             view.clone(),
             name,
             "z_max".into(),
             "mapping"
-        );
+        ));
     }
     
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        self.color_btn.block_signal(&signals[0]);
+        self.opacity_scale.get_adjustment().block_signal(&signals[1]);
+        self.surface_baseline_entry.block_signal(&signals[2]);
+        self.surface_maximum_entry.block_signal(&signals[3]);
+        self.final_color_btn.block_signal(&signals[4]);
         let color : RGBA = properties["radius"].parse()
             .expect("Could not parse value as RGBA");
         self.color_btn.set_rgba(&color);
@@ -346,6 +414,11 @@ impl SurfaceMenu {
         let color_final : RGBA = properties["final_color"].parse()
             .expect("Could not parse value as RGBA");
         self.final_color_btn.set_rgba(&color_final);
+        self.color_btn.unblock_signal(&signals[0]);
+        self.opacity_scale.get_adjustment().unblock_signal(&signals[1]);
+        self.surface_baseline_entry.unblock_signal(&signals[2]);
+        self.surface_maximum_entry.unblock_signal(&signals[3]);
+        self.final_color_btn.unblock_signal(&signals[4]);
     }
     
 }

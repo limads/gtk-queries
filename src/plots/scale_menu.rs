@@ -8,26 +8,48 @@ use crate::plots::plotview::plot_view::PlotView;
 use super::layout_aux::*;
 use std::rc::Rc;
 use std::cell::RefCell;
+use glib::SignalHandlerId;
 
 #[derive(Clone, Debug)]
 pub struct ScaleMenu {
+    label_entry : Entry,
     entry_min : Entry,
     entry_max : Entry,
     log_switch : Switch,
     invert_switch : Switch,
     offset_scale : Scale,
-    density_scale : Scale
+    density_scale : Scale,
+    signals : Rc<RefCell<Vec<SignalHandlerId>>>
 }
 
 impl ScaleMenu {
 
     pub fn update(&self, properties : HashMap<String, String>) {
+        let signals = self.signals.borrow();
+        
+        self.label_entry.block_signal(&signals[0]);
+        self.entry_min.block_signal(&signals[1]);
+        self.entry_max.block_signal(&signals[2]);
+        self.log_switch.block_signal(&signals[3]);
+        self.invert_switch.block_signal(&signals[4]);
+        self.offset_scale.get_adjustment().block_signal(&signals[5]);
+        self.density_scale.get_adjustment().block_signal(&signals[6]);
+        
+        self.label_entry.set_text(&properties["label"]);
         self.entry_min.set_text(&properties["from"]);
         self.entry_max.set_text(&properties["to"]);
         self.log_switch.set_state(properties["log_scaling"].parse().unwrap());
         self.invert_switch.set_state(properties["invert"].parse().unwrap());
         self.offset_scale.get_adjustment().set_value(properties["grid_offset"].parse().unwrap());
         self.density_scale.get_adjustment().set_value(properties["n_intervals"].parse().unwrap());
+        
+        self.label_entry.unblock_signal(&signals[0]);
+        self.entry_min.unblock_signal(&signals[1]);
+        self.entry_max.unblock_signal(&signals[2]);
+        self.log_switch.unblock_signal(&signals[3]);
+        self.invert_switch.unblock_signal(&signals[4]);
+        self.offset_scale.get_adjustment().unblock_signal(&signals[5]);
+        self.density_scale.get_adjustment().unblock_signal(&signals[6]);
     }
 
 }
@@ -39,42 +61,45 @@ pub fn prepare_scale_menu(
     view : Rc<RefCell<PlotView>>,
     suffix : &str
 ) -> ScaleMenu {
+    let mut signals = Vec::new();
     let label_entry : Entry = builder.get_object(
         &("label_entry_".to_string() + suffix)).unwrap();
-    connect_update_entry_property(
+    signals.push(connect_update_entry_property(
         &label_entry,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "label".to_string(),
         "grid_segment"
-    );
+    ));
     let entry_min : Entry = builder.get_object(
         &("entry_min_".to_string() + suffix)).unwrap();
     let entry_max : Entry = builder.get_object(
         &("entry_max_".to_string() + suffix)).unwrap();
-    connect_update_entry_property(
+    signals.push(connect_update_entry_property(
         &entry_min,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "from".to_string(),
         "grid_segment"
-    );
-    connect_update_entry_property(&entry_max, view.clone(),
-       Rc::new(RefCell::new(suffix.to_string())),
+    ));
+    signals.push(connect_update_entry_property(
+        &entry_max, 
+        view.clone(),
+        Rc::new(RefCell::new(suffix.to_string())),
         "to".to_string(),
         "grid_segment"
-    );
+    ));
     let log_switch : Switch = builder.get_object(
         &("log_switch_".to_string() + suffix)).unwrap();
     let invert_switch : Switch = builder.get_object(
         &("invert_switch_".to_string() + suffix)).unwrap();
-    connect_update_switch_property(
+    signals.push(connect_update_switch_property(
         &log_switch,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "log_scaling".to_string(),
         "grid_segment"
-    );
+    ));
     {
         let invert_switch = invert_switch.clone();
         let view = view.clone();
@@ -96,38 +121,40 @@ pub fn prepare_scale_menu(
             glib::signal::Inhibit(true)
         });
     }
-    connect_update_switch_property(
+    signals.push(connect_update_switch_property(
         &invert_switch,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "invert".to_string(),
         "grid_segment"
-    );
+    ));
     let offset_scale : Scale = builder.get_object(
         &("grid_offset_".to_string() + suffix)).unwrap();
     let density_scale : Scale = builder.get_object(
         &("grid_density_".to_string() + suffix)).unwrap();
-    connect_update_scale_property(
+    signals.push(connect_update_scale_property(
         &offset_scale,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "grid_offset".to_string(),
         "grid_segment"
-    );
-    connect_update_scale_property(
+    ));
+    signals.push(connect_update_scale_property(
         &density_scale,
         view.clone(),
         Rc::new(RefCell::new(suffix.to_string())),
         "n_intervals".to_string(),
         "grid_segment"
-    );
+    ));
     ScaleMenu {
+        label_entry,
         entry_min,
         entry_max,
         log_switch,
         invert_switch,
         offset_scale,
-        density_scale
+        density_scale,
+        signals : Rc::new(RefCell::new(signals))
     }
 }
 
